@@ -25,12 +25,24 @@ CHR: 'chr';
 FST: 'fst';
 SND: 'snd';
 
+UNARYOP: NOT
+       | LEN
+       | ORD
+       | CHR
+       | FST
+       | SND
+       ;
+
 // skip
 SKIP_STAT: 'skip';
 
 // brackets
 LPAR: '(' ;
 RPAR: ')' ;
+LBRA: '[' ;
+RBRA: ']' ;
+LCUR: '{' ;
+RCUR: '}' ;
 
 // semicolon
 SEMICOLON: ';';
@@ -64,6 +76,14 @@ FI: 'fi';
 WHILE: 'while';
 DO: 'do';
 DONE: 'done';
+NEWPAIR: 'newpair';
+READ: 'read';
+FREE: 'free';
+RETURN: 'return';
+EXIT: 'exit';
+PRINT: 'print';
+PRINTLN: 'println';
+CALL: 'call';
 
 
 // numbers
@@ -72,7 +92,11 @@ INTEGER: ('+'|'-')? DIGIT+ ;
 
 // string literal
 STRLIT: '"' (NORMAL_CHAR | ESC_CHAR)* '"';
-CHARLIT: '\'' (NORMAL_CHAR | ESC_CHAR) '\''
+CHARLIT: '\'' (NORMAL_CHAR | ESC_CHAR) '\'';
 
 NORMAL_CHAR: ~('\\' | '\'' | '"');
 ESC_CHAR: '\\'('0' | 'b' | 't' | 'n' | 'f' | 'r' | '"' | '\'' | '\\');
+
+// other tokens
+ASSIGN: '=';
+COMMA: ',';
