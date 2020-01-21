@@ -1,12 +1,27 @@
 package ast
 
-class BinaryOperator(val op : String, val precedence : Int) {
-    override fun toString(): String = op
-    companion object {
-        fun opMul() = BinaryOperator("*", 1)
-        fun opDiv() = BinaryOperator("/", 1)
-        fun opMod() = BinaryOperator("%", 1)
-        fun opAdd() = BinaryOperator("+", 2)
-        fun opSub() = BinaryOperator("-", 2)
+enum class BinaryOperator(val op : String) {
+    MUL("*"),
+    DIV("/"),
+    MOD("%"),
+    ADD("+"),
+    SUB("-"),
+    GTE(">="),
+    LTE("<="),
+    GT (">"),
+    LT ("<"),
+    EQ ("=="),
+    NEQ("!="),
+    AND("&&"),
+    OR ("||");
+
+    fun getPriority() : Int = when(this) {
+        MUL, DIV, MOD -> 1
+        ADD, SUB -> 2
+        GTE, GT, LTE, LT -> 3
+        EQ, NEQ -> 4
+        AND, OR -> 5
     }
+
+    override fun toString(): String = op
 }

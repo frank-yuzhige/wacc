@@ -8,7 +8,7 @@ sealed class Type {
         is BaseType.BoolType -> "bool"
         is BaseType.PairBaseType -> "pair"
         is ArrayType -> "$type[]"
-        is PairType -> "pair($leftType, $rightType)"
+        is PairType -> "pair($firstElemType, $secondElemType)"
     }
 
     sealed class BaseType : Type() {
@@ -20,5 +20,5 @@ sealed class Type {
     }
 
     data class ArrayType(val type: Type) : Type()
-    data class PairType(val leftType: BaseType, val rightType: BaseType) : Type()
+    data class PairType(val firstElemType: BaseType, val secondElemType: BaseType) : Type()
 }
