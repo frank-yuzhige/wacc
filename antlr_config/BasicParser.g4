@@ -4,19 +4,21 @@ options {
   tokenVocab=BasicLexer;
 }
 
-binaryOper: BINOP ;
-
-expr:
+expr: LPAR expr RPAR
+    | expr BINOP5 expr
+    | expr BINOP4 expr
+    | expr BINOP3 expr
+    | expr BINOP2 expr
+    | expr BINOP1 expr
     | INTEGER
     | TRUE
     | FALSE
     | CHARLIT
     | STRLIT
+    | NULL
     | IDENT
     | arrayElem
     | UNARYOP expr
-    | expr BINOP expr
-    | LPAR expr RPAR
     ;
 
 func: TYPE IDENT;
@@ -53,8 +55,6 @@ arrayLiter: LBRA RBRA
 arrayElem: IDENT (LBRA expr RBRA)+;
 
 pairElem: (FST | SND) expr;
-
-pairLiter: NULL;
 
 // EOF indicates that the program must consume to the end of the input.
 prog: BEGIN (func)* (stat)+ END EOF ;
