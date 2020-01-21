@@ -1,0 +1,19 @@
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script:
+    - make
+    - ./gradlew build
+  tags:
+    - shell
+
+test:
+  stage: test
+  script:
+    - ./gradlew test
+  tags:
+    - shell
+
