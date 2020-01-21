@@ -1,19 +1,19 @@
 lexer grammar BasicLexer;
 
 // binary operators
-ADD: '+' ;
-SUB: '-' ;
-MUL: '*' ;
-DIV: '/' ;
-MOD: '%' ;
-GTE: '>=';
-GT : '>' ;
-LTE: '<=';
-LT : '<' ;
-EQ : '==';
-NEQ: '!=';
-AND: '&&';
-OR : '||';
+fragment ADD: '+' ;
+fragment SUB: '-' ;
+fragment MUL: '*' ;
+fragment DIV: '/' ;
+fragment MOD: '%' ;
+fragment GTE: '>=';
+fragment GT : '>' ;
+fragment LTE: '<=';
+fragment LT : '<' ;
+fragment EQ : '==';
+fragment NEQ: '!=';
+fragment AND: '&&';
+fragment OR : '||';
 
 BINOP1: MUL | DIV | MOD;
 BINOP2: ADD | SUB;
