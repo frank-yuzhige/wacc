@@ -41,18 +41,20 @@ assignRhs: expr
          | arrayLiter
          | NEWPAIR LPAR expr COMMA expr RPAR
          | pairElem
-         | CALL IDENT LPAR (argList)? RPAR
+         | CALL IDENT LPAR RPAR
+         | CALL IDENT LPAR argList RPAR
          ;
 
 argList: expr (COMMA expr)*;
 
-arrayLiter: LBRA (expr (COMMA expr)*)? RBRA;
+arrayLiter: LBRA RBRA
+          | LBRA expr (COMMA expr)* RBRA;
 
 arrayElem: IDENT (LBRA expr RBRA)+;
 
 pairElem: (FST | SND) expr;
 
-
+pairLiter: NULL;
 
 // EOF indicates that the program must consume to the end of the input.
 prog: BEGIN (func)* (stat)+ END EOF ;
