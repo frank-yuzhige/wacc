@@ -10,3 +10,20 @@ src/antlr
 
 #ignore intellij idea files
 .idea/
+
+#ignore misc kotlin project junk files
+out/
+/js/js.translator/testData/out/
+/js/js.translator/testData/out-min/
+.gradle/
+build/
+!**/src/**/build
+!**/test/**/build
+*.iml
+!**/testData/**/*.iml
+kotlin-ultimate/
+node_modules/
+.rpt2_cache/
+libraries/tools/kotlin-test-js-runner/lib/
+libraries/tools/kotlin-source-map-loader/lib/
+local.properties
