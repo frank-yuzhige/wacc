@@ -1,6 +1,6 @@
 package ast
 
-enum class BinaryOperator(val op : String) {
+enum class BinaryOperator(val op : String) : WaccAST {
     MUL("*"),
     DIV("/"),
     MOD("%"),

@@ -23,31 +23,31 @@ class ExpressionParserTest {
     @Test
     fun parseIntLitTest() {
         val ints = listOf(1, 43, -28, 223, 141552, -2023, Int.MAX_VALUE, Int.MIN_VALUE)
-        batchCheck(ints, { Parser(it.toString()).parseExpression() == IntLit(it) })
+        batchCheck(ints, { Parser(it.toString().byteInputStream()).parseExpression() == IntLit(it) })
     }
 
     @Test
     fun parseBoolLitTest() {
-        assertEquals(Parser("true").parseExpression(), BoolLit(true))
-        assertEquals(Parser("false").parseExpression(), BoolLit(false))
+        assertEquals(Parser("true".byteInputStream()).parseExpression(), BoolLit(true))
+        assertEquals(Parser("false".byteInputStream()).parseExpression(), BoolLit(false))
     }
 
     @Test
     fun parseCharLitTest() {
         val chars = "abAB123 @#<>:;?/\b\t\n\r\"\'\\\u000C\u0000"
-        batchCheck(chars.toList(), { Parser("'$it'").parseExpression() == CharLit(it) }, { "'$it'"})
+        batchCheck(chars.toList(), { Parser("'$it'".byteInputStream()).parseExpression() == CharLit(it) }, { "'$it'"})
     }
 
     @Test
     fun parseStringLitTest() {
         val strings = listOf("hello world", "hello \n\t\\ world", "hello \\\"world\\\"")
-        batchCheck(strings, { Parser("\"$it\"").parseExpression() == StringLit(it) }, { "\"$it\""})
+        batchCheck(strings, { Parser("\"$it\"".byteInputStream()).parseExpression() == StringLit(it) }, { "\"$it\""})
     }
 
     @Test
     fun parseIdentifierTest() {
         val idents = listOf("x", "y", "_a", "PascalCase", "camelCase", "snake_case", "INSANE_CAPITALISM", "x1", "l33t", "_")
-        batchCheck(idents, { Parser(it).parseExpression() == Identifier(it) })
+        batchCheck(idents, { Parser(it.byteInputStream()).parseExpression() == Identifier(it) })
     }
 
     fun parseUnaryOperatorTest() {

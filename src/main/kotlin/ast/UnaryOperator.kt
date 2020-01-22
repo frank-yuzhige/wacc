@@ -1,6 +1,6 @@
 package ast
 
-enum class UnaryOperator(val op: String) {
+enum class UnaryOperator(val op: String) : WaccAST {
     ORD("ord"),
     CHR("chr"),
     LEN("len"),

@@ -24,18 +24,19 @@ atomExpr : LPAR expr RPAR
 param : TYPE IDENT;
 paramList : param (COMMA param)*;
 
-func: TYPE IDENT LPAR paramList? RPAR IS stat* END;
+func: TYPE IDENT LPAR paramList? RPAR IS stats END;
 
 stat: SKIP_STAT
     | TYPE IDENT ASSIGN assignRhs
     | assignLhs ASSIGN assignRhs
     | READ assignRhs
     | (FREE | RETURN | EXIT | PRINT | PRINTLN) expr
-    | IF expr THEN stat ELSE stat FI
-    | WHILE expr DO stat DONE
-    | BEGIN stat END
-    | stat SEMICOLON stat
+    | IF expr THEN stats ELSE stats FI
+    | WHILE expr DO stats DONE
+    | BEGIN stats END
     ;
+
+stats: (stat (SEMICOLON stat)*)?;
 
 assignLhs: IDENT
          | arrayElem
@@ -60,4 +61,4 @@ arrayElem: IDENT (LBRA expr RBRA)+;
 pairElem: (FST | SND) expr;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN func* stat END EOF;
+prog: BEGIN func* stats END EOF;

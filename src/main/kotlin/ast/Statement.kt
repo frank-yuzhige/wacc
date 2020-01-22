@@ -2,7 +2,7 @@ package ast
 
 import ast.Expression.Identifier
 
-sealed class Statement {
+sealed class Statement : WaccAST {
     enum class BuiltinFunc(val functionName: String) {
         FREE("free"),
         RETURN("return"),

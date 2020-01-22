@@ -1,10 +1,7 @@
 import org.antlr.v4.runtime.*
-import org.antlr.runtime.tree.ParseTree
 
 import antlr.WaccLexer
 import antlr.WaccParser
-import org.antlr.v4.runtime.tree.RuleNode
-import java.io.File
 import java.io.FileInputStream
 
 fun main(args: Array<String>) {
@@ -24,7 +21,6 @@ fun main(args: Array<String>) {
     val parser = WaccParser(tokens as TokenStream)
 
     val tree: ParserRuleContext = parser.prog()
-
 
     println("===========")
     println(tree.toStringTree())

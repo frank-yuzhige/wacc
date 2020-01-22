@@ -3,7 +3,7 @@ package ast
 import ast.Type.*
 import ast.Type.BaseType.*
 
-sealed class Expression {
+sealed class Expression : WaccAST {
     enum class PairElemFunction {
         FST, SND
     }
