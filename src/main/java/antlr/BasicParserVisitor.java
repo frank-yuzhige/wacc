@@ -1,4 +1,5 @@
-// Generated from /homes/zy7218/wacc_51/antlr_config/BasicParser.g4 by ANTLR 4.8
+// Generated from ./BasicParser.g4 by ANTLR 4.7
+package antlr;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**
@@ -45,6 +46,18 @@ public interface BasicParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitAtomExpr(BasicParser.AtomExprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link BasicParser#param}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitParam(BasicParser.ParamContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link BasicParser#paramList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitParamList(BasicParser.ParamListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link BasicParser#func}.
 	 * @param ctx the parse tree

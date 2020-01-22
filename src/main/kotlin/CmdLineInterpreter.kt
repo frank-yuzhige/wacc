@@ -1,17 +1,32 @@
+import org.antlr.v4.runtime.*
+import org.antlr.runtime.tree.ParseTree
+
+import antlr.BasicParser
+import antlr.BasicLexer
+import org.antlr.v4.runtime.tree.RuleNode
 import java.io.File
-import java.nio.file.Files
+import java.io.FileInputStream
 
 fun main(args: Array<String>) {
-    if (args.isNotEmpty()) {
-        val file = File(args[0])
-        if (file.isFile) {
-            val lines : List<String> = Files.readAllLines(file.toPath())
-
-            for ((lineNo, line : String) in lines.withIndex()) {
-                println("$lineNo $line")
-            }
-        } else {
-            println("File not found at path " + args[0])
+    var inputStream = System.`in`
+    if (args.size > 0) {
+        try {
+            inputStream = FileInputStream(args[0])
+        } catch (e: Exception) {
         }
     }
+    val input = ANTLRInputStream(inputStream)
+
+    val lexer = BasicLexer(input)
+
+    val tokens = CommonTokenStream(lexer)
+
+    val parser = BasicParser(tokens as TokenStream)
+
+    val tree: ParserRuleContext = parser.prog()
+
+
+    println("===========")
+    println(tree.toStringTree())
+    println("===========")
 }

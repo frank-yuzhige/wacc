@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'kotlin-platform-jvm' version '1.2.51'
+    id 'antlr'
 }
 
 group 'id'
@@ -10,6 +11,10 @@ sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
+
+    flatDir {
+        dirs 'lib'
+    }
 }
 
 dependencies {
@@ -18,6 +23,7 @@ dependencies {
     testCompile "org.jetbrains.kotlin:kotlin-test"
     testCompile "org.jetbrains.kotlin:kotlin-test-junit"
     testCompile group: 'junit', name: 'junit', version: '4.12'
+    antlr "org.antlr:antlr-4.7-complete"
 }
 
 compileKotlin {
