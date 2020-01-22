@@ -14,10 +14,7 @@ class ExpressionParserTest {
     fun<T> batchCheck(candidates : Iterable<T>
                       , predicate: (T) -> Boolean
                       , prettyPrinter : (T) -> String = { it.toString() }) {
-        val failCases = mutableListOf<T>()
-        candidates
-                .filterNot { predicate(it) }
-                .forEach { failCases += it }
+        val failCases = candidates.filterNot { predicate(it) }
         if (failCases.isNotEmpty()) {
             fail(" Failed cases: ${failCases.joinToString("") { prettyPrinter(it) }}")
         }
@@ -38,7 +35,7 @@ class ExpressionParserTest {
     @Test
     fun parseCharLitTest() {
         val chars = "abAB123 @#<>:;?/\b\t\n\r\"\'\\\u000C\u0000"
-        batchCheck(chars.toList(), { Parser(it.toString()).parseExpression() == CharLit(it) }, { "'$it'"})
+        batchCheck(chars.toList(), { Parser("'$it'").parseExpression() == CharLit(it) }, { "'$it'"})
     }
 
     @Test
@@ -54,6 +51,6 @@ class ExpressionParserTest {
     }
 
     fun parseUnaryOperatorTest() {
-        
+
     }
 }

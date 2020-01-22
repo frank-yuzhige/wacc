@@ -1,7 +1,7 @@
-parser grammar BasicParser;
+parser grammar WaccParser;
 
 options {
-  tokenVocab=BasicLexer;
+  tokenVocab=WaccLexer;
 }
 
 expr     : binExpr4 (BINOP5 binExpr4)*;
