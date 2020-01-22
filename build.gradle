@@ -39,4 +39,10 @@ jar {
     }
 }
 
+test {
+    filter {
+        exclude("**/*ParserTest*")
+    }
+}
+
 sourceCompatibility = "1.8"

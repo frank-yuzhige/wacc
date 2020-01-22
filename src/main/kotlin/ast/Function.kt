@@ -1,6 +1,6 @@
 package ast
 
-class Function(
+data class Function(
         val returnType : Type,
         val name : String,
         val args : List<Parameter>,
