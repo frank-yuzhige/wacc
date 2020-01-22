@@ -4,8 +4,6 @@ options {
   tokenVocab=BasicLexer;
 }
 
-
-
 expr     : binExpr4 (BINOP5 binExpr4)*;
 binExpr4 : binExpr3 (BINOP4 binExpr3)*;
 binExpr3 : binExpr2 (BINOP3 binExpr2)*;
@@ -23,7 +21,10 @@ atomExpr : LPAR expr RPAR
          | UNARYOP expr
          ;
 
-func: TYPE IDENT;
+param : TYPE IDENT;
+paramList : param (COMMA param)*;
+
+func: TYPE IDENT LPAR paramList? RPAR IS stat* END;
 
 stat: SKIP_STAT
     | TYPE IDENT ASSIGN assignRhs
@@ -59,4 +60,4 @@ arrayElem: IDENT (LBRA expr RBRA)+;
 pairElem: (FST | SND) expr;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN (func)* stat END EOF;
+prog: BEGIN func* stat END EOF;

@@ -52,9 +52,6 @@ RCUR: '}' ;
 // semicolon
 SEMICOLON: ';';
 
-// comments
-COMMENT: '#' ~('\r' | '\n')* -> skip;
-
 // key words
 BEGIN: 'begin';
 IS: 'is';
@@ -78,12 +75,13 @@ PRINT: 'print';
 PRINTLN: 'println';
 CALL: 'call';
 
-fragment BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
-fragment ARR_TYPE: BASE_TYPE ('[]')+;
-fragment PAIR_ELEM_TYPE: ARR_TYPE | BASE_TYPE | 'pair';
-fragment PAIR_TYPE: 'pair' LPAR PAIR_ELEM_TYPE ',' PAIR_ELEM_TYPE RPAR;
-
 TYPE: PAIR_TYPE | ARR_TYPE | BASE_TYPE;
+
+fragment PAIR_ELEM_TYPE: 'pair' | ARR_TYPE | BASE_TYPE;
+fragment PAIR_TYPE: 'pair' WS? '(' PAIR_ELEM_TYPE ',' WS? PAIR_ELEM_TYPE ')';
+fragment ARR_TYPE: BASE_TYPE ('[]')+;
+fragment BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
+
 
 
 // numbers
@@ -107,4 +105,6 @@ fragment IDENT_TAIL: IDENT_HEAD | DIGIT;
 
 IDENT: IDENT_HEAD IDENT_TAIL*;
 
+// comments
+COMMENT: '#' ~('\r' | '\n')* -> skip;
 WS: [ \t\n\r]+ -> skip;
