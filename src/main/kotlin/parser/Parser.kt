@@ -45,7 +45,3 @@ class Parser(private val inputStream: InputStream) {
 //    }
 
 }
-
-fun Parser.shit() {
-    println()
-}
