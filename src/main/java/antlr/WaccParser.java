@@ -470,16 +470,18 @@ public class WaccParser extends Parser {
 	}
 
 	public static class PairTypeContext extends ParserRuleContext {
+		public PairElemTypeContext first;
+		public PairElemTypeContext second;
 		public TerminalNode PAIR() { return getToken(WaccParser.PAIR, 0); }
 		public TerminalNode LPAR() { return getToken(WaccParser.LPAR, 0); }
+		public TerminalNode COMMA() { return getToken(WaccParser.COMMA, 0); }
+		public TerminalNode RPAR() { return getToken(WaccParser.RPAR, 0); }
 		public List<PairElemTypeContext> pairElemType() {
 			return getRuleContexts(PairElemTypeContext.class);
 		}
 		public PairElemTypeContext pairElemType(int i) {
 			return getRuleContext(PairElemTypeContext.class,i);
 		}
-		public TerminalNode COMMA() { return getToken(WaccParser.COMMA, 0); }
-		public TerminalNode RPAR() { return getToken(WaccParser.RPAR, 0); }
 		public PairTypeContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -502,11 +504,11 @@ public class WaccParser extends Parser {
 			setState(92);
 			match(LPAR);
 			setState(93);
-			pairElemType();
+			((PairTypeContext)_localctx).first = pairElemType();
 			setState(94);
 			match(COMMA);
 			setState(95);
-			pairElemType();
+			((PairTypeContext)_localctx).second = pairElemType();
 			setState(96);
 			match(RPAR);
 			}

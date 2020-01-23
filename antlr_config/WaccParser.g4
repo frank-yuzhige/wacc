@@ -13,7 +13,7 @@ type        : arrayType | baseType | pairType;
 arrayType   : (baseType | pairType) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
-pairType    : PAIR LPAR pairElemType COMMA pairElemType RPAR;
+pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
 
 boolLit   : TRUE | FALSE;
 

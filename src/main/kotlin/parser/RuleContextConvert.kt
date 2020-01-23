@@ -7,40 +7,35 @@ import ast.Function
 import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseType.*
-import org.antlr.v4.runtime.ParserRuleContext
 import kotlin.IllegalArgumentException
-import kotlin.concurrent.thread
 
 fun ProgContext.toAST() : ProgramAST =
-        ProgramAST(this.func().map { it.toAST() }, this.stats().toMainProgramAST())
+        ProgramAST(func().map { it.toAST() }, stats().toAST())
 
-private fun FuncContext.toAST(): Function {
-    return Function(this.type().toAST(), this.ident().text, this.paramList().toAST(), this.stats().toAST())
+private fun FuncContext.toAST(): Function =
+        Function(type().toAST(), ident().text, paramList().toAST(), stats().toAST())
+
+private fun TypeContext.toAST(): Type = when {
+    baseType() != null -> baseType().toAST()
+    arrayType() != null -> arrayType().toAST()
+    pairType() != null -> pairType().toAST()
+    else -> throw IllegalArgumentException("Unrecognized type: ${text}")
 }
 
-private fun TypeContext.toAST(): Type {
-    return when {
-        this.baseType() != null -> this.baseType().toAST()
-        this.arrayType() != null -> this.arrayType().toAST()
-        this.pairType() != null -> this.pairType().toAST()
-        else -> throw IllegalArgumentException("Unrecognized type: ${this.text}")
-    }
-}
-
-private fun BaseTypeContext.toAST() : BaseType = when (this.text) {
-    "int" -> IntType
-    "char" -> CharType
-    "bool" -> BoolType
+private fun BaseTypeContext.toAST() : BaseType = when (text) {
+    "int"    -> IntType
+    "char"   -> CharType
+    "bool"   -> BoolType
     "string" -> StringType
-    else -> throw IllegalArgumentException("Unknown base type: ${this.text}")
+    else -> throw IllegalArgumentException("Unknown base type: ${text}")
 }
 
 private fun ArrayTypeContext.toAST(): ArrayType {
-    val dimension = this.LBRA().size
+    val dimension = LBRA().size
     var tau = ArrayType(when {
-        this.baseType() != null -> this.baseType().toAST()
-        this.pairType() != null -> this.pairType().toAST()
-        else -> throw IllegalArgumentException("Unsupported array type: ${this.text}")
+        baseType() != null -> baseType().toAST()
+        pairType() != null -> pairType().toAST()
+        else -> throw IllegalArgumentException("Unsupported array type: ${text}")
     })
     for (i in 1 until dimension) {
         tau = ArrayType(tau)
@@ -54,85 +49,83 @@ private fun PairTypeContext.toAST(): PairType {
         context.arrayType() != null -> context.arrayType().toAST()
         else -> PairBaseType
     }
-    return PairType(pairElemToAST(this.pairElemType(0)), pairElemToAST(this.pairElemType(1)))
+    return PairType(pairElemToAST(first), pairElemToAST(second))
 }
 
-private fun ParamListContext.toAST() : List<Parameter> = this.param().map { it.toAST() }
+private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST() }
 
-private fun ParamContext.toAST(): Pair<String, Type> = Pair(this.ident().text, this.type().toAST())
+private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type().toAST())
 
-private fun StatsContext.toAST() : Statements = this.stat().map { it.toAST() }
-
-private fun StatsContext.toMainProgramAST(): Statements {
-    TODO()
-}
+private fun StatsContext.toAST() : Statements = stat().map { it.toAST() }
 
 private fun StatContext.toAST(): Statement = when(this) {
     is SkipContext -> Skip
-    is DeclarationContext -> Declaration(this.type().toAST(), this.ident().toAST(), this.assignRhs().toAST())
-    is AssignmentContext -> Assignment(this.assignLhs().toAST(), this.assignRhs().toAST())
-    is ReadCallContext -> Read(this.assignLhs().toAST())
+    is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
+    is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
+    is ReadCallContext -> Read(assignLhs().toAST())
     is BuiltinFuncCallContext
-        -> BuiltinFuncCall(BuiltinFunc.valueOf(this.builtinFunc().toString()), this.expr().toAST())
-    is CondBranchContext -> CondBranch(this.expr().toAST(), this.stats(0).toAST(), this.stats(1).toAST())
-    is WhileLoopContext -> WhileLoop(this.expr().toAST(), this.stats().toAST())
-    is BlockContext -> Block(this.stats().toAST())
+        -> BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
+    is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
+    is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
+    is BlockContext -> Block(stats().toAST())
     else -> throw IllegalArgumentException("Invalid statement found: $this")
 }
 
 private fun AssignLhsContext.toAST(): Expression = when {
-    this.ident() != null -> this.ident().toAST()
-    this.arrayElem() != null -> this.arrayElem().toAST()
-    this.pairElem() != null -> this.pairElem().toAST()
-    else -> throw IllegalArgumentException("Unknown left value")
+    ident() != null     -> ident().toAST()
+    arrayElem() != null -> arrayElem().toAST()
+    pairElem() != null  -> pairElem().toAST()
+    else                     -> throw IllegalArgumentException("Unknown left value")
 }
 
 private fun AssignRhsContext.toAST(): Expression = when(this) {
-    is RhsExprContext -> this.expr().toAST()
-    is RhsArrayLiterContext -> this.arrayLiter().toAST()
-    is RhsPairElemContext -> this.pairElem().toAST()
-    is RhsNewPairContext -> NewPair(this.expr(0).toAST(), this.expr(1).toAST())
-    is RhsFuncCallContext -> FunctionCall(this.ident().toString(), this.argList().toAST())
-    else -> throw IllegalArgumentException("Unknown right value")
+    is RhsExprContext       -> expr().toAST()
+    is RhsArrayLiterContext -> arrayLiter().toAST()
+    is RhsPairElemContext   -> pairElem().toAST()
+    is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
+    is RhsFuncCallContext   -> FunctionCall(ident().text, argList().toAST())
+    else                    -> throw IllegalArgumentException("Unknown right value")
 }
 
-private fun ArgListContext.toAST(): List<Expression> = this.expr().map { it.toAST() }
+private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
 
-private fun ArrayLiterContext.toAST(): Expression = ArrayLiteral(this.argList().toAST())
+private fun ArrayLiterContext.toAST(): Expression = ArrayLiteral(argList().toAST())
 
 private fun PairElemContext.toAST() : Expression =
-        PairElem(PairElemFunction.valueOf(this.pairElemFunc().toString())
-                , this.expr().toAST())
+        PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase())
+                , expr().toAST())
 
 private fun ArrayElemContext.toAST() : Expression =
-        ArrayElem(this.ident().text, this.expr().map { it.toAST() })
+        ArrayElem(ident().text, expr().map { it.toAST() })
 
-private fun IdentContext.toAST(): Identifier = Identifier(this.IDENT().toString())
+private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text)
 
 private fun ExprContext.toAST(): Expression = when (this) {
-//    is ExprBinopContext -> BinOp()
     is ExprNullContext    -> NullLit
-    is ExprIntContext     -> this.integer().toAST()
-    is ExprIdentContext   -> Identifier(this.ident().toString())
-    is ExprBoolContext    -> BoolLit(this.boolLit().TRUE() != null)
-    is ExprParensContext  -> this.expr().toAST()
-    is ExprUnaryopContext -> UnaryOp(this.unaryOp().toAST(), this.expr().toAST())
-//    is ExprBinopContext -> BinOp(, BinaryOperator(this.getBinopSign()), )
+    is ExprIntContext     -> integer().toAST()
+    is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
+    is ExprCharContext    -> CharLit(EscapeCharConverter(CHARLIT().text.trim { it == '\''}).getChar())
+    is ExprStringContext  -> StringLit(EscapeCharConverter(STRLIT().text.trim { it == '\"'}).getAll())
+    is ExprIdentContext   -> Identifier(ident().text)
+    is ExprParensContext  -> expr().toAST()
+    is ExprUnaryopContext -> UnaryExpr(UnaryOperator.valueOf(unaryOp().text.toUpperCase()), expr().toAST())
+    is ExprBinopContext
+        -> chainl(expr(0).toAST()                      // base case : first expression
+            , getBinops()                                // binary operators join each sub-expression
+            , expr().drop(1).map(ExprContext::toAST)  // remaining expressions
+            , Expression::BinExpr)                              // BinOp constructor
     else -> throw IllegalArgumentException("")
 }
 
-private fun ExprBinopContext.getBinop(): BinaryOperator {
-    return BinaryOperator.valueOf(
-            listOfNotNull(this.binop1(), this.binop2(), this.binop3(), this.binop4(), this.binop5())
-                    .map { it[0] }[0]
-                    .toString())
+private fun IntegerContext.toAST(): Expression {
+    val sig : Boolean = intsign()?.equals("+")?: true
+    val num = INTEGER().text.toInt()
+    return IntLit(if(sig) num else -num)
 }
 
-private fun UnaryOpContext.toAST(): UnaryOperator {
-    TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-}
+private fun ExprBinopContext.getBinops(): List<BinaryOperator> =
+        listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
+                .map { BinaryOperator.valueOf(it.text.toUpperCase()) }
 
-private fun IntegerContext.toAST(): Expression = IntLit((this.intsign().toString() + this.INTEGER().toString()).toInt())
-
-private fun<A, B, R> chainl(base : R, listA : Iterable<A>, listB : Iterable<B>, chainFunction: (R, A, B) -> R) : R =
-        listA.zip(listB).fold(base) { r, p -> chainFunction(r, p.first, p.second) }
+private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
+        elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }

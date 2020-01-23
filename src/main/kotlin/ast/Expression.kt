@@ -14,8 +14,8 @@ sealed class Expression : WaccAST {
     data class CharLit(val c : Char) : Expression()
     data class StringLit(val string : String) : Expression()
     data class Identifier(val ident : String) : Expression()
-    data class BinOp(val left : Expression, val op : BinaryOperator, val right : Expression) : Expression()
-    data class UnaryOp(val op : UnaryOperator, val expr : Expression) : Expression()
+    data class BinExpr(val left : Expression, val op : BinaryOperator, val right : Expression) : Expression()
+    data class UnaryExpr(val op : UnaryOperator, val expr : Expression) : Expression()
 
     data class ArrayElem(val arrayName : String, val indices : List<Expression>) : Expression()
     data class PairElem(val func : PairElemFunction, val expr: Expression) : Expression()
