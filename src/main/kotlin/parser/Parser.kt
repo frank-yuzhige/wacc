@@ -13,7 +13,7 @@ import java.io.InputStream
 
 class Parser(private val inputStream: InputStream) {
 
-    private fun doParse(): WaccParser {
+    fun doParse(): WaccParser {
         val input = CharStreams.fromStream(inputStream)
         val lexer = WaccLexer(input)
         val tokens = CommonTokenStream(lexer)

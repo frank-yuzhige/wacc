@@ -15,11 +15,11 @@ NEQ: '!=';
 AND: '&&';
 OR : '||';
 
-BINOP1: MUL | DIV | MOD;
-BINOP2: ADD | SUB;
-BINOP3: LTE | LT  | GTE | GT;
-BINOP4: EQ  | NEQ;
-BINOP5: AND | OR;
+//BINOP1: MUL | DIV | MOD;
+//BINOP2: ADD | SUB;
+//BINOP3: LTE | LT  | GTE | GT;
+//BINOP4: EQ  | NEQ;
+//BINOP5: AND | OR;
 // BINOP : ADD | SUB | MUL | DIV | MOD | GTE | GT | LTE | LT | EQ | NEQ | AND | OR;
 
 // unary operators
@@ -79,7 +79,7 @@ BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
 // numbers
 fragment DIGIT: '0'..'9' ;
-INTEGER: ('+'|'-')? DIGIT+ ;
+INTEGER: DIGIT+ ;
 
 // string literal
 STRLIT: '"' (NORMAL_CHAR | ESC_CHAR)* '"';

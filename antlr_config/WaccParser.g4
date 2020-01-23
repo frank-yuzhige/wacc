@@ -4,6 +4,9 @@ options {
   tokenVocab=WaccLexer;
 }
 
+intsign : ADD | SUB;
+integer : intsign? INTEGER;
+
 ident     : IDENT;
 
 type        : arrayType | baseType | pairType;
@@ -29,20 +32,20 @@ binop3: LTE | LT  | GTE | GT;
 binop4: EQ  | NEQ;
 binop5: AND | OR;
 
-expr     : binExpr4 (binop5 binExpr4)*;
-binExpr4 : binExpr3 (binop4 binExpr3)*;
-binExpr3 : binExpr2 (binop3 binExpr2)*;
-binExpr2 : binExpr1 (binop2 binExpr1)*;
-binExpr1 : atomExpr (binop1 atomExpr)*;
-atomExpr : LPAR expr RPAR
-         | unaryOp expr
-         | INTEGER
-         | boolLit
-         | CHARLIT
-         | STRLIT
-         | NULL
-         | ident
-         | arrayElem
+expr     : expr (binop5 expr)+ #exprBinop
+         | expr (binop4 expr)+ #exprBinop
+         | expr (binop3 expr)+ #exprBinop
+         | expr (binop2 expr)+ #exprBinop
+         | expr (binop1 expr)+ #exprBinop
+         | LPAR expr RPAR      #exprParens
+         | integer             #exprInt
+         | boolLit             #exprBool
+         | CHARLIT             #exprChar
+         | STRLIT              #exprString
+         | NULL                #exprNull
+         | ident               #exprIdent
+         | unaryOp expr        #exprUnaryop
+         | arrayElem           #exprArrElem
          ;
 
 param : type ident;
@@ -50,14 +53,16 @@ paramList : param (COMMA param)*;
 
 func: type ident LPAR paramList? RPAR IS stats END;
 
-stat: SKIP_STAT
-    | type ident ASSIGN assignRhs
-    | assignLhs ASSIGN assignRhs
-    | READ assignRhs
-    | (FREE | RETURN | EXIT | PRINT | PRINTLN) expr
-    | IF expr THEN stats ELSE stats FI
-    | WHILE expr DO stats DONE
-    | BEGIN stats END
+builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
+
+stat: SKIP_STAT                        #skip
+    | type ident ASSIGN assignRhs      #declaration
+    | assignLhs ASSIGN assignRhs       #assignment
+    | READ assignLhs                   #readCall
+    | builtinFunc expr                 #builtinFuncCall
+    | IF expr THEN stats ELSE stats FI #condBranch
+    | WHILE expr DO stats DONE         #whileLoop
+    | BEGIN stats END                  #block
     ;
 
 stats: (stat (SEMICOLON stat)*)?;
@@ -67,22 +72,22 @@ assignLhs: ident
          | pairElem
          ;
 
-assignRhs: expr
-         | arrayLiter
-         | NEWPAIR LPAR expr COMMA expr RPAR
-         | pairElem
-         | CALL ident LPAR RPAR
-         | CALL ident LPAR argList RPAR
+assignRhs: expr                              #rhsExpr
+         | arrayLiter                        #rhsArrayLiter
+         | NEWPAIR LPAR expr COMMA expr RPAR #rhsNewPair
+         | pairElem                          #rhsPairElem
+         | CALL ident LPAR argList? RPAR     #rhsFuncCall
          ;
 
 argList: expr (COMMA expr)*;
 
-arrayLiter: LBRA RBRA
-          | LBRA expr (COMMA expr)* RBRA;
+arrayLiter: LBRA argList? RBRA;
 
 arrayElem: ident (LBRA expr RBRA)+;
 
-pairElem: (FST | SND) expr;
+pairElemFunc: FST | SND;
+
+pairElem: pairElemFunc expr;
 
 // EOF indicates that the program must consume to the end of the input.
 prog: BEGIN func* stats END EOF;

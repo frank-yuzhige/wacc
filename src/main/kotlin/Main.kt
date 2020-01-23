@@ -1,3 +1,7 @@
+import parser.Parser
+
 fun main(args: Array<String>) {
-    println('\n')
+
+    val prog2 = "int[][][][]"
+    println(Parser(prog2.byteInputStream()).doParse().type().arrayType().LBRA().size)
 }

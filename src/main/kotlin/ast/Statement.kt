@@ -14,7 +14,7 @@ sealed class Statement : WaccAST {
     object Skip : Statement()
     data class Declaration(val type : Type, val variable: Identifier, val rhs : Expression) : Statement()
     data class Assignment(val lhs: Expression, val rhs : Expression) : Statement()
-    data class Read(val variable: Identifier) : Statement()
+    data class Read(val target: Expression) : Statement()
     data class BuiltinFuncCall(val func : BuiltinFunc, val expr: Expression) : Statement()
     data class CondBranch(val expr: Expression, val trueBranch: Statements, val falseBranch: Statements) : Statement()
     data class WhileLoop(val expr: Expression, val body: Statements) : Statement()
