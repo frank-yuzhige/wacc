@@ -1,19 +1,19 @@
 lexer grammar WaccLexer;
 
 // binary operators
-fragment ADD: '+' ;
-fragment SUB: '-' ;
-fragment MUL: '*' ;
-fragment DIV: '/' ;
-fragment MOD: '%' ;
-fragment GTE: '>=';
-fragment GT : '>' ;
-fragment LTE: '<=';
-fragment LT : '<' ;
-fragment EQ : '==';
-fragment NEQ: '!=';
-fragment AND: '&&';
-fragment OR : '||';
+ADD: '+' ;
+SUB: '-' ;
+MUL: '*' ;
+DIV: '/' ;
+MOD: '%' ;
+GTE: '>=';
+GT : '>' ;
+LTE: '<=';
+LT : '<' ;
+EQ : '==';
+NEQ: '!=';
+AND: '&&';
+OR : '||';
 
 BINOP1: MUL | DIV | MOD;
 BINOP2: ADD | SUB;
@@ -29,14 +29,6 @@ ORD: 'ord';
 CHR: 'chr';
 FST: 'fst';
 SND: 'snd';
-
-UNARYOP: NOT
-       | LEN
-       | ORD
-       | CHR
-       | FST
-       | SND
-       ;
 
 // skip
 SKIP_STAT: 'skip';

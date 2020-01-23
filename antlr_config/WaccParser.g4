@@ -7,19 +7,35 @@ options {
 ident     : IDENT;
 
 type        : arrayType | baseType | pairType;
-arrayType   : baseType (LBRA RBRA)+;
+arrayType   : (baseType | pairType) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
 pairType    : PAIR LPAR pairElemType COMMA pairElemType RPAR;
 
 boolLit   : TRUE | FALSE;
 
-expr     : binExpr4 (BINOP5 binExpr4)*;
-binExpr4 : binExpr3 (BINOP4 binExpr3)*;
-binExpr3 : binExpr2 (BINOP3 binExpr2)*;
-binExpr2 : binExpr1 (BINOP2 binExpr1)*;
-binExpr1 : atomExpr (BINOP1 atomExpr)*;
+unaryOp: NOT
+       | LEN
+       | ORD
+       | CHR
+       | FST
+       | SND
+       | SUB
+       ;
+       
+binop1: MUL | DIV | MOD;
+binop2: ADD | SUB;
+binop3: LTE | LT  | GTE | GT;
+binop4: EQ  | NEQ;
+binop5: AND | OR;
+
+expr     : binExpr4 (binop5 binExpr4)*;
+binExpr4 : binExpr3 (binop4 binExpr3)*;
+binExpr3 : binExpr2 (binop3 binExpr2)*;
+binExpr2 : binExpr1 (binop2 binExpr1)*;
+binExpr1 : atomExpr (binop1 atomExpr)*;
 atomExpr : LPAR expr RPAR
+         | unaryOp expr
          | INTEGER
          | boolLit
          | CHARLIT
@@ -27,7 +43,6 @@ atomExpr : LPAR expr RPAR
          | NULL
          | ident
          | arrayElem
-         | UNARYOP expr
          ;
 
 param : type ident;
