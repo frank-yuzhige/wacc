@@ -8,7 +8,7 @@ fun ProgContext.toAST() : ProgramAST =
         ProgramAST(this.func().map { it.toAST() }, this.stats().toMainProgramAST())
 
 private fun FuncContext.toAST(): Function {
-    return Function(TODO(), this.IDENT().symbol.text, this.paramList().toAST(), this.stats().toFunctionBodyAST())
+    return Function(TODO(), this.ident().text, this.paramList().toAST(), this.stats().toFunctionBodyAST())
 }
 
 private fun ParamListContext.toAST() : List<Parameter> {

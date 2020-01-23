@@ -11,6 +11,48 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#ident}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitIdent(WaccParser.IdentContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#type}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitType(WaccParser.TypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#arrayType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayType(WaccParser.ArrayTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#pairElemType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPairElemType(WaccParser.PairElemTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#baseType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBaseType(WaccParser.BaseTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#pairType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPairType(WaccParser.PairTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#boolLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBoolLit(WaccParser.BoolLitContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

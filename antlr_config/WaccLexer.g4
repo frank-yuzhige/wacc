@@ -74,13 +74,14 @@ EXIT: 'exit';
 PRINT: 'print';
 PRINTLN: 'println';
 CALL: 'call';
+PAIR: 'pair';
 
-TYPE: PAIR_TYPE | ARR_TYPE | BASE_TYPE;
+//TYPE: PAIR_TYPE | ARR_TYPE | BASE_TYPE;
 
-fragment PAIR_ELEM_TYPE: 'pair' | ARR_TYPE | BASE_TYPE;
-fragment PAIR_TYPE: 'pair' WS? '(' PAIR_ELEM_TYPE ',' WS? PAIR_ELEM_TYPE ')';
-fragment ARR_TYPE: BASE_TYPE ('[]')+;
-fragment BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
+//fragment PAIR_ELEM_TYPE: 'pair' | ARR_TYPE | BASE_TYPE;
+//fragment PAIR_TYPE: 'pair' WS? '(' PAIR_ELEM_TYPE ',' WS? PAIR_ELEM_TYPE ')';
+//fragment ARR_TYPE: BASE_TYPE ('[]')+;
+BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
 
 

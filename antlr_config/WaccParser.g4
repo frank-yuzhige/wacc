@@ -4,6 +4,16 @@ options {
   tokenVocab=WaccLexer;
 }
 
+ident     : IDENT;
+
+type        : arrayType | baseType | pairType;
+arrayType   : baseType (LBRA RBRA)+;
+pairElemType: arrayType | baseType | PAIR;
+baseType    : BASE_TYPE;
+pairType    : PAIR LPAR pairElemType COMMA pairElemType RPAR;
+
+boolLit   : TRUE | FALSE;
+
 expr     : binExpr4 (BINOP5 binExpr4)*;
 binExpr4 : binExpr3 (BINOP4 binExpr3)*;
 binExpr3 : binExpr2 (BINOP3 binExpr2)*;
@@ -11,23 +21,22 @@ binExpr2 : binExpr1 (BINOP2 binExpr1)*;
 binExpr1 : atomExpr (BINOP1 atomExpr)*;
 atomExpr : LPAR expr RPAR
          | INTEGER
-         | TRUE
-         | FALSE
+         | boolLit
          | CHARLIT
          | STRLIT
          | NULL
-         | IDENT
+         | ident
          | arrayElem
          | UNARYOP expr
          ;
 
-param : TYPE IDENT;
+param : type ident;
 paramList : param (COMMA param)*;
 
-func: TYPE IDENT LPAR paramList? RPAR IS stats END;
+func: type ident LPAR paramList? RPAR IS stats END;
 
 stat: SKIP_STAT
-    | TYPE IDENT ASSIGN assignRhs
+    | type ident ASSIGN assignRhs
     | assignLhs ASSIGN assignRhs
     | READ assignRhs
     | (FREE | RETURN | EXIT | PRINT | PRINTLN) expr
@@ -38,7 +47,7 @@ stat: SKIP_STAT
 
 stats: (stat (SEMICOLON stat)*)?;
 
-assignLhs: IDENT
+assignLhs: ident
          | arrayElem
          | pairElem
          ;
@@ -47,8 +56,8 @@ assignRhs: expr
          | arrayLiter
          | NEWPAIR LPAR expr COMMA expr RPAR
          | pairElem
-         | CALL IDENT LPAR RPAR
-         | CALL IDENT LPAR argList RPAR
+         | CALL ident LPAR RPAR
+         | CALL ident LPAR argList RPAR
          ;
 
 argList: expr (COMMA expr)*;
@@ -56,7 +65,7 @@ argList: expr (COMMA expr)*;
 arrayLiter: LBRA RBRA
           | LBRA expr (COMMA expr)* RBRA;
 
-arrayElem: IDENT (LBRA expr RBRA)+;
+arrayElem: ident (LBRA expr RBRA)+;
 
 pairElem: (FST | SND) expr;
 

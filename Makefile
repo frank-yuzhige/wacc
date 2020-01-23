@@ -33,7 +33,7 @@ compile:
 	./gradlew build
 
 clean:
-	$(RM) rules $(OUTPUT_DIR) $(SOURCE_DIR)
+	$(RM) rules $(OUTPUT_DIR)
 	./gradlew clean
 
 .PHONY: all rules clean
