@@ -1,6 +1,9 @@
 package ast
 
 sealed class Type {
+
+    interface PairElemType
+
     override fun toString(): String = when (this) {
         is BaseType.IntType -> "int"
         is BaseType.CharType -> "char"
@@ -11,7 +14,7 @@ sealed class Type {
         is PairType -> "pair($firstElemType, $secondElemType)"
     }
 
-    sealed class BaseType : Type() {
+    sealed class BaseType : Type(), PairElemType {
         object IntType : BaseType()
         object CharType : BaseType()
         object StringType : BaseType()
@@ -19,6 +22,6 @@ sealed class Type {
         object PairBaseType : BaseType()
     }
 
-    data class ArrayType(val type: Type) : Type()
-    data class PairType(val firstElemType: BaseType, val secondElemType: BaseType) : Type()
+    data class ArrayType(val type: Type) : Type(), PairElemType
+    data class PairType(val firstElemType: PairElemType, val secondElemType: PairElemType) : Type()
 }
