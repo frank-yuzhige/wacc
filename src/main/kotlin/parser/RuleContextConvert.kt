@@ -83,8 +83,22 @@ private fun AssignRhsContext.toAST(): Expression = when(this) {
     is RhsArrayLiterContext -> arrayLiter().toAST()
     is RhsPairElemContext   -> pairElem().toAST()
     is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
-    is RhsFuncCallContext   -> FunctionCall(ident().text, argList().toAST())
+    is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
     else                    -> throw IllegalArgumentException("Unknown right value")
+}
+
+fun ExprContext.toAST(): Expression = when (this) {
+    is ExprNullContext    -> NullLit
+    is ExprIntContext     -> integer().toAST()
+    is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
+    is ExprCharContext    -> CharLit(EscapeCharConverter(CHARLIT().text.trim { it == '\''}).getChar())
+    is ExprStringContext  -> StringLit(EscapeCharConverter(STRLIT().text.trim { it == '\"'}).getAll())
+    is ExprIdentContext   -> Identifier(ident().text)
+    is ExprParensContext  -> expr().toAST()
+    is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
+    is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
+    is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
+    else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
 }
 
 private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
@@ -100,20 +114,6 @@ private fun ArrayElemContext.toAST() : Expression =
 
 private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text)
 
-fun ExprContext.toAST(): Expression = when (this) {
-    is ExprNullContext    -> NullLit
-    is ExprIntContext     -> integer().toAST()
-    is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
-    is ExprCharContext    -> CharLit(EscapeCharConverter(CHARLIT().text.trim { it == '\''}).getChar())
-    is ExprStringContext  -> StringLit(EscapeCharConverter(STRLIT().text.trim { it == '\"'}).getAll())
-    is ExprIdentContext   -> Identifier(ident().text)
-    is ExprParensContext  -> expr().toAST()
-    is ExprUnaryopContext -> UnaryExpr(UnaryOperator.valueOf(unaryOp().text.toUpperCase()), expr().toAST())
-    is ExprBinopContext
-        -> BinExpr(left.toAST(), getBinOp(), right.toAST())
-    else -> throw IllegalArgumentException("")
-}
-
 private fun IntegerContext.toAST(): Expression {
     val sig : Boolean = intsign()?.equals("+")?: true
     val num = INTEGER().text.toInt()
@@ -122,10 +122,10 @@ private fun IntegerContext.toAST(): Expression {
 
 private fun ExprBinopContext.getBinOp(): BinaryOperator {
     val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
-    return BinaryOperator.valueOf(opContext.text.toUpperCase())
-
+    return BinaryOperator.read(opContext.text)
 }
 
 
 private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
         elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }
+
