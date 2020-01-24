@@ -12,14 +12,14 @@ import kotlin.IllegalArgumentException
 fun ProgContext.toAST() : ProgramAST =
         ProgramAST(func().map { it.toAST() }, stats().toAST())
 
-private fun FuncContext.toAST(): Function =
-        Function(type().toAST(), ident().text, paramList().toAST(), stats().toAST())
+fun FuncContext.toAST(): Function =
+        Function(type().toAST(), ident().text, paramList()?.toAST()?: listOf(), stats().toAST())
 
 private fun TypeContext.toAST(): Type = when {
     baseType() != null -> baseType().toAST()
     arrayType() != null -> arrayType().toAST()
     pairType() != null -> pairType().toAST()
-    else -> throw IllegalArgumentException("Unrecognized type: ${text}")
+    else -> throw IllegalArgumentException("Unrecognized type: $text")
 }
 
 private fun BaseTypeContext.toAST() : BaseType = when (text) {
@@ -27,7 +27,7 @@ private fun BaseTypeContext.toAST() : BaseType = when (text) {
     "char"   -> CharType
     "bool"   -> BoolType
     "string" -> StringType
-    else -> throw IllegalArgumentException("Unknown base type: ${text}")
+    else -> throw IllegalArgumentException("Unknown base type: $text")
 }
 
 private fun ArrayTypeContext.toAST(): ArrayType {
@@ -35,7 +35,7 @@ private fun ArrayTypeContext.toAST(): ArrayType {
     var tau = ArrayType(when {
         baseType() != null -> baseType().toAST()
         pairType() != null -> pairType().toAST()
-        else -> throw IllegalArgumentException("Unsupported array type: ${text}")
+        else -> throw IllegalArgumentException("Unsupported array type: $text")
     })
     for (i in 1 until dimension) {
         tau = ArrayType(tau)
@@ -44,12 +44,12 @@ private fun ArrayTypeContext.toAST(): ArrayType {
 }
 
 private fun PairTypeContext.toAST(): PairType {
-    fun pairElemToAST(context : PairElemTypeContext): PairElemType = when {
+    fun pairElemTypeToAST(context : PairElemTypeContext): PairElemType = when {
         context.baseType() != null -> context.baseType().toAST()
         context.arrayType() != null -> context.arrayType().toAST()
         else -> PairBaseType
     }
-    return PairType(pairElemToAST(first), pairElemToAST(second))
+    return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
 }
 
 private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST() }
@@ -58,7 +58,7 @@ private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type()
 
 private fun StatsContext.toAST() : Statements = stat().map { it.toAST() }
 
-private fun StatContext.toAST(): Statement = when(this) {
+fun StatContext.toAST(): Statement = when(this) {
     is SkipContext -> Skip
     is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
     is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
@@ -100,7 +100,7 @@ private fun ArrayElemContext.toAST() : Expression =
 
 private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text)
 
-private fun ExprContext.toAST(): Expression = when (this) {
+fun ExprContext.toAST(): Expression = when (this) {
     is ExprNullContext    -> NullLit
     is ExprIntContext     -> integer().toAST()
     is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
@@ -110,10 +110,7 @@ private fun ExprContext.toAST(): Expression = when (this) {
     is ExprParensContext  -> expr().toAST()
     is ExprUnaryopContext -> UnaryExpr(UnaryOperator.valueOf(unaryOp().text.toUpperCase()), expr().toAST())
     is ExprBinopContext
-        -> chainl(expr(0).toAST()                      // base case : first expression
-            , getBinops()                                // binary operators join each sub-expression
-            , expr().drop(1).map(ExprContext::toAST)  // remaining expressions
-            , Expression::BinExpr)                              // BinOp constructor
+        -> BinExpr(left.toAST(), getBinOp(), right.toAST())
     else -> throw IllegalArgumentException("")
 }
 
@@ -123,9 +120,12 @@ private fun IntegerContext.toAST(): Expression {
     return IntLit(if(sig) num else -num)
 }
 
-private fun ExprBinopContext.getBinops(): List<BinaryOperator> =
-        listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
-                .map { BinaryOperator.valueOf(it.text.toUpperCase()) }
+private fun ExprBinopContext.getBinOp(): BinaryOperator {
+    val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
+    return BinaryOperator.valueOf(opContext.text.toUpperCase())
+
+}
+
 
 private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
         elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }

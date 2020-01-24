@@ -75,8 +75,6 @@ PAIR: 'pair';
 //fragment ARR_TYPE: BASE_TYPE ('[]')+;
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
-
-
 // numbers
 fragment DIGIT: '0'..'9' ;
 INTEGER: DIGIT+ ;

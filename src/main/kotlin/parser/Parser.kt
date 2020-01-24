@@ -21,22 +21,13 @@ class Parser(private val inputStream: InputStream) {
     }
 
 
-    fun parseProgram(): ProgramAST {
+    fun parseProgram(): ProgramAST = doParse().prog().toAST()
 
-        TODO()
-    }
+    fun parseFunction(): Function = doParse().func().toAST()
 
-    fun parseFunction(): Function {
-        TODO()
-    }
+    fun parseStatement(): Statement = doParse().stat().toAST()
 
-    fun parseStatement(): Statement {
-        TODO()
-    }
-
-    fun parseExpression(): Expression {
-        TODO()
-    }
+    fun parseExpression(): Expression = doParse().expr().toAST()
 //
 //    fun ParserRuleContext.toAST() : WaccAST {
 //        return when(this) {

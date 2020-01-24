@@ -2,27 +2,19 @@ import org.antlr.v4.runtime.*
 
 import antlr.WaccLexer
 import antlr.WaccParser
+import parser.Parser
 import java.io.FileInputStream
 
 fun main(args: Array<String>) {
-    var inputStream = System.`in`
-    if (args.isNotEmpty()) {
-        try {
-            inputStream = FileInputStream(args[0])
-        } catch (e: Exception) {
-        }
+    val inputStream = if (args.isNotEmpty()) {
+        FileInputStream(args[0])
+    } else {
+        System.`in`
     }
-    val input = ANTLRInputStream(inputStream)
 
-    val lexer = WaccLexer(input)
-
-    val tokens = CommonTokenStream(lexer)
-
-    val parser = WaccParser(tokens as TokenStream)
-
-    val tree: ParserRuleContext = parser.prog()
+    val parser = Parser(inputStream)
 
     println("===========")
-    println(tree.toStringTree())
+    println(parser.parseProgram())
     println("===========")
 }

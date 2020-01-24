@@ -71,6 +71,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitUnaryOp(WaccParser.UnaryOpContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#pairElemFunc}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPairElemFunc(WaccParser.PairElemFuncContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#binop1}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -315,12 +321,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitArrayElem(WaccParser.ArrayElemContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link WaccParser#pairElemFunc}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPairElemFunc(WaccParser.PairElemFuncContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#pairElem}.
 	 * @param ctx the parse tree
