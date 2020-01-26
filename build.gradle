@@ -47,7 +47,7 @@ jar {
 
 test {
     filter {
-        exclude("**/*ParserTest*")
+//        exclude("**/*ParserTest*")
     }
 }
 
