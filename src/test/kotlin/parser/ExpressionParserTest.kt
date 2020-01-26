@@ -1,16 +1,16 @@
 package parser
 
-import ast.Expression
 import ast.Expression.*
+import ast.UnaryOperator
+import cartesianProduct
 import toInputStream
-import java.lang.AssertionError
-import java.lang.StringBuilder
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class ExpressionParserTest {
+
+    private val commonExprs = listOf("x", "12", "'c'", "\"hello world\"")
 
     fun <T> batchCheck(candidates: Iterable<T>
                        , predicate: (T) -> Boolean
@@ -64,7 +64,18 @@ class ExpressionParserTest {
         batchCheck(idents, { Parser(it.byteInputStream()).parseExpression() == Identifier(it) })
     }
 
+    @Test
     fun parseUnaryOperatorTest() {
-
+        val unaryOps = UnaryOperator.keyValueMap
+        val candidates = cartesianProduct(unaryOps.keys, commonExprs)
+        val batchChecker : (Pair<String, String>) -> Boolean = { pair ->
+            val fullExpr = pair.first + " " + pair.second
+            val parsedExpr = Parser(fullExpr.byteInputStream()).parseExpression()
+            val op = unaryOps.getValue(pair.first)
+            val expr = Parser(pair.second.byteInputStream()).parseExpression()
+            parsedExpr == UnaryExpr(op, expr)
+        }
+        /** Exclude "- 12" case since it will be parsed to intlit -12 **/
+        batchCheck(candidates.filterNot{ it == "-" to "12" }, batchChecker)
     }
 }

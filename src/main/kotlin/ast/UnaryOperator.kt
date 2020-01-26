@@ -10,7 +10,7 @@ enum class UnaryOperator(val op: String) : WaccAST {
     NOT("!");
 
     companion object {
-        private val keyValueMap = values().map { it.op }.zip(values()).toMap()
+        val keyValueMap = values().map { it.op }.zip(values()).toMap()
         fun read(op : String) : UnaryOperator =
                 keyValueMap[op]?: throw IllegalArgumentException("Unknown unary operator: $op")
     }
