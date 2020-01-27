@@ -4,7 +4,10 @@ import antlr.WaccLexer
 import antlr.WaccParser
 import ast.AstIndexMap
 import parser.Parser
+import parser.exceptions.ParseException
+import parser.exceptions.SemanticException
 import java.io.FileInputStream
+import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val inputStream = if (args.isNotEmpty()) {
@@ -13,10 +16,18 @@ fun main(args: Array<String>) {
         System.`in`
     }
 
-    val parser = Parser(inputStream)
+    val parser = try {
+        Parser(inputStream)
+    } catch (pe: ParseException) {
+        print(pe.message);
+        exitProcess(100)
+    } catch (se: SemanticException) {
+        print(se.message)
+        exitProcess(200)
+    }
 
     println("===========")
     println(parser.parseProgram())
     println("===========")
-    AstIndexMap.map.entries.sortedBy { it.value.first }.forEach { println(it) }
+//    AstIndexMap.map.entries.sortedBy { it.value.first }.forEach { println(it) }
 }

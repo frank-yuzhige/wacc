@@ -1,5 +1,9 @@
 import parser.Parser
 import parser.toAST
+import utils.catchError
+import java.lang.Exception
+import java.lang.IllegalArgumentException
+import java.lang.UnsupportedOperationException
 import java.util.*
 
 fun main(args: Array<String>) {
@@ -11,4 +15,5 @@ fun main(args: Array<String>) {
     val x = '\''
     val deque = "\\\'".toCollection(ArrayDeque())
     deque.forEach { println(it) }
+
 }
