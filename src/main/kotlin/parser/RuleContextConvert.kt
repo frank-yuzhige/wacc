@@ -108,7 +108,7 @@ fun ExprContext.toAST(): Expression = when (this) {
 
 private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
 
-private fun ArrayLiterContext.toAST(): Expression = ArrayLiteral(argList().toAST())
+private fun ArrayLiterContext.toAST(): Expression = ArrayLiteral(argList()?.toAST()?: arrayListOf())
 
 private fun PairElemContext.toAST() : Expression =
         PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase())
