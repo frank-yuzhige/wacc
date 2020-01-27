@@ -1,5 +1,6 @@
 package parser
 
+import antlr.WaccParser
 import antlr.WaccParser.*
 import ast.*
 import ast.Expression.*
@@ -91,8 +92,8 @@ fun ExprContext.toAST(): Expression = when (this) {
     is ExprNullContext    -> NullLit
     is ExprIntContext     -> integer().toAST()
     is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
-    is ExprCharContext    -> CharLit(EscapeCharConverter(CHARLIT().text.trim { it == '\''}).getChar())
-    is ExprStringContext  -> StringLit(EscapeCharConverter(STRLIT().text.trim { it == '\"'}).getAll())
+    is ExprCharContext    -> CharLit(EscapeCharConverter(getContent(CHARLIT().text)).getChar())
+    is ExprStringContext  -> StringLit(EscapeCharConverter(getContent(STRLIT().text)).getAll())
     is ExprIdentContext   -> Identifier(ident().text)
     is ExprParensContext  -> expr().toAST()
     is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
@@ -114,17 +115,17 @@ private fun ArrayElemContext.toAST() : Expression =
 
 private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text)
 
-private fun IntegerContext.toAST(): Expression {
-    val sig : Boolean = intsign()?.equals("+")?: true
-    val num = INTEGER().text.toInt()
-    return IntLit(if(sig) num else -num)
-}
+private fun IntegerContext.toAST(): Expression = IntLit(this.text.toInt())
 
 private fun ExprBinopContext.getBinOp(): BinaryOperator {
     val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
     return BinaryOperator.read(opContext.text)
 }
 
+private fun getContent(quotedString: CharSequence) : CharSequence {
+    val len = quotedString.length
+    return quotedString.subSequence(1, len - 1)
+}
 
 private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
         elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }

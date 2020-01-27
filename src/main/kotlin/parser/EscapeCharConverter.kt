@@ -2,6 +2,7 @@ package parser
 
 import java.lang.StringBuilder
 import java.util.*
+import kotlin.NoSuchElementException
 import kotlin.collections.HashMap
 
 class EscapeCharConverter(input: CharSequence) {
@@ -24,9 +25,11 @@ class EscapeCharConverter(input: CharSequence) {
     }
 
     fun getChar() : Char {
+        if (sequence.isEmpty()) throw NoSuchElementException()
         val first = sequence.pop()
         if (first == '\\') {
-            val next : Char = sequence.pop() ?: throw EmptyStackException()
+            if (sequence.isEmpty()) throw IllegalArgumentException("Empty escape!")
+            val next  = sequence.pop()
             return escapeMap[next] ?: throw IllegalArgumentException("unknown escape character '\\$next'")
         }
         return first
