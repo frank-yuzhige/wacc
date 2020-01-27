@@ -1,5 +1,6 @@
 import parser.Parser
 import parser.toAST
+import utils.Catcher
 import utils.catchError
 import java.lang.Exception
 import java.lang.IllegalArgumentException
@@ -16,4 +17,9 @@ fun main(args: Array<String>) {
     val deque = "\\\'".toCollection(ArrayDeque())
     deque.forEach { println(it) }
 
+    val c : Char by lazy {
+        throw IllegalArgumentException()
+    }
+
+    Catcher(c).catchError(IllegalArgumentException::class) { throw UnsupportedOperationException() }
 }

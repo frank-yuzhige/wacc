@@ -1,6 +1,6 @@
 package ast
 
-import java.lang.IllegalArgumentException
+import parser.exceptions.ParseException.UnknownUnaryOpException
 
 enum class UnaryOperator(val op: String) {
     ORD("ord"),
@@ -12,7 +12,7 @@ enum class UnaryOperator(val op: String) {
     companion object {
         val keyValueMap = values().map { it.op }.zip(values()).toMap()
         fun read(op : String) : UnaryOperator =
-                keyValueMap[op]?: throw IllegalArgumentException("Unknown unary operator: $op")
+                keyValueMap[op]?: throw UnknownUnaryOpException(op)
     }
 
     override fun toString(): String = op

@@ -10,15 +10,22 @@ import ast.Type.BaseType.*
 import kotlin.IllegalArgumentException
 import org.antlr.v4.runtime.ParserRuleContext
 import parser.exceptions.ParseException
-import utils.appendParseError
-import utils.catchError
+import parser.exceptions.ParseException.IntegerParseException
+import parser.exceptions.ParseException.UnsupportedArrayBaseTypeException
+import java.lang.NumberFormatException
 
 fun ProgContext.toAST() : ProgramAST =
-        ProgramAST(func().map { it.toAST() }, stats().toAST()).record(index())
+        ProgramAST(func().map { it.toAST() }, stats().toAST()) record index()
 
-fun FuncContext.toAST(): Function =
-        Function(type().toAST(), ident().text, paramList()?.toAST()?: listOf(), stats().toAST()).record(index())
-                .appendParseError("In a function: \"${type().text} ${ident().text}\"")
+fun FuncContext.toAST(): Function = try {
+        Function(type().toAST(), ident().text,
+                paramList()?.toAST()?: emptyList(),
+                stats().toAST()) record index()
+} catch (pe : ParseException) {
+    val params = paramList()?.param()?.joinToString("") { it.text } ?: ""
+    val funcDef = "${type().text} ${ident().text} ($params)"
+    throw pe.forwardWith("In a function defined at ${index()}: $funcDef")
+}
 
 /** Types **/
 
@@ -42,7 +49,7 @@ private fun ArrayTypeContext.toAST(): ArrayType {
     var tau = ArrayType(when {
         baseType() != null -> baseType().toAST()
         pairType() != null -> pairType().toAST()
-        else -> throw IllegalArgumentException("Unsupported array type: $text")
+        else -> throw UnsupportedArrayBaseTypeException(this.text)
     })
     for (i in 1 until dimension) {
         tau = ArrayType(tau)
@@ -67,53 +74,61 @@ private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type()
 
 private fun StatsContext.toAST() : Statements = stat().map { it.toAST() }
 
-fun StatContext.toAST(): Statement = when(this) {
-    is SkipContext -> Skip
-    is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
-    is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
-    is ReadCallContext -> Read(assignLhs().toAST())
-    is BuiltinFuncCallContext
+fun StatContext.toAST(): Statement = try {
+    when(this) {
+        is SkipContext -> Skip
+        is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
+        is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
+        is ReadCallContext -> Read(assignLhs().toAST())
+        is BuiltinFuncCallContext
         -> BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
-    is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
-    is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
-    is BlockContext -> Block(stats().toAST())
-    else -> throw IllegalArgumentException("Invalid statement found: $this")
-} .record(index())
-        .appendParseError("In a statement at ${index()}: \"$text\"")
+        is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
+        is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
+        is BlockContext -> Block(stats().toAST())
+        else -> throw IllegalArgumentException("Invalid statement found: $this")
+    } record index()
+} catch (pe: ParseException) {
+    throw pe.forwardWith("In a statement at ${index()}: \"$text\"")
+}
+
 
 private fun AssignLhsContext.toAST(): Expression = when {
     ident() != null     -> ident().toAST()
     arrayElem() != null -> arrayElem().toAST()
     pairElem() != null  -> pairElem().toAST()
     else                -> throw IllegalArgumentException("Unknown left value")
-} .record(index())
+} record index()
 
-private fun AssignRhsContext.toAST(): Expression = (when(this) {
-    is RhsExprContext       -> expr().toAST()
-    is RhsArrayLiterContext -> arrayLiter().toAST()
-    is RhsPairElemContext   -> pairElem().toAST()
-    is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
-    is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
-    else                    -> throw IllegalArgumentException("Unknown right value")
-} .record(index()))
-        .appendParseError("In an assign-RHS-expression at ${index()}: \"$text\"")
+private fun AssignRhsContext.toAST(): Expression =
+    when(this) {
+        is RhsExprContext       -> expr().toAST()
+        is RhsArrayLiterContext -> arrayLiter().toAST()
+        is RhsPairElemContext   -> pairElem().toAST()
+        is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
+        is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
+        else                    -> throw IllegalArgumentException("Unknown right value")
+    } record index()
 
-fun ExprContext.toAST(): Expression = when (this) {
-    is ExprNullContext    -> NullLit
-    is ExprIntContext     -> integer().toAST()
-    is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
-    is ExprCharContext    -> {
-        CharLit(EscapeCharConverter(getContent(CHARLIT().text)).getChar())
-    }
-    is ExprStringContext  -> StringLit(EscapeCharConverter(getContent(STRLIT().text)).getAll())
-    is ExprIdentContext   -> Identifier(ident().text)
-    is ExprParensContext  -> expr().toAST()
-    is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
-    is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
-    is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
-    else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
-} .record(index())
-        .appendParseError("In a pure expression at ${index()}: \"$text\"")
+
+fun ExprContext.toAST(): Expression = try {
+    when (this) {
+        is ExprNullContext    -> NullLit
+        is ExprIntContext     -> integer().toAST()
+        is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
+        is ExprCharContext    -> {
+            CharLit(EscapeCharConverter(getContent(CHARLIT().text)).getChar())
+        }
+        is ExprStringContext  -> StringLit(EscapeCharConverter(getContent(STRLIT().text)).getAll())
+        is ExprIdentContext   -> Identifier(ident().text)
+        is ExprParensContext  -> expr().toAST()
+        is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
+        is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
+        is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
+        else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
+    } record index()
+} catch (pe: ParseException) {
+    throw pe.forwardWith("In a pure expression at ${index()}: \"$text\"")
+}
 
 private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
 
@@ -126,9 +141,13 @@ private fun PairElemContext.toAST() : Expression =
 private fun ArrayElemContext.toAST() : Expression =
         ArrayElem(ident().text, expr().map { it.toAST() })
 
-private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text) .record(index())
+private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text) record index()
 
-private fun IntegerContext.toAST(): Expression = IntLit(this.text.toInt())
+private fun IntegerContext.toAST(): Expression = try {
+    IntLit(this.text.toInt())
+} catch (e: NumberFormatException) {
+    throw IntegerParseException(this.text).at(index())
+}
 
 private fun ExprBinopContext.getBinOp(): BinaryOperator {
     val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
@@ -140,7 +159,7 @@ private fun getContent(quotedString: CharSequence) : CharSequence {
     return quotedString.subSequence(1, len - 1)
 }
 
-fun<T : WaccAST> T.record(index: Pair<Int, Int>): T {
+infix fun<T : WaccAST> T.record(index: Pair<Int, Int>): T {
     AstIndexMap.map[this] = index
     return this
 }

@@ -1,6 +1,6 @@
 package ast
 
-import java.lang.IllegalArgumentException
+import parser.exceptions.ParseException.UnknownBinaryOpException
 
 enum class BinaryOperator(val op : String) {
 
@@ -21,7 +21,7 @@ enum class BinaryOperator(val op : String) {
     companion object {
         private val keyValueMap = values().map { it.op }.zip(values()).toMap()
         fun read(op : String) : BinaryOperator =
-                keyValueMap[op]?: throw IllegalArgumentException("Unknown binary operator: $op")
+                keyValueMap[op]?: throw UnknownBinaryOpException(op)
     }
 
     fun getPriority() : Int = when(this) {
