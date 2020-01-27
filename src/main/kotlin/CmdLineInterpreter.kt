@@ -1,8 +1,3 @@
-import org.antlr.v4.runtime.*
-
-import antlr.WaccLexer
-import antlr.WaccParser
-import ast.AstIndexMap
 import parser.Parser
 import parser.exceptions.ParseException
 import parser.exceptions.SemanticException
