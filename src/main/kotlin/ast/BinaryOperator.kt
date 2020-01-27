@@ -2,7 +2,7 @@ package ast
 
 import java.lang.IllegalArgumentException
 
-enum class BinaryOperator(val op : String) : WaccAST {
+enum class BinaryOperator(val op : String) {
 
     MUL("*"),
     DIV("/"),

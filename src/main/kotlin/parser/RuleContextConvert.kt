@@ -1,6 +1,5 @@
 package parser
 
-import antlr.WaccParser
 import antlr.WaccParser.*
 import ast.*
 import ast.Expression.*
@@ -9,12 +8,15 @@ import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseType.*
 import kotlin.IllegalArgumentException
+import org.antlr.v4.runtime.ParserRuleContext
 
 fun ProgContext.toAST() : ProgramAST =
-        ProgramAST(func().map { it.toAST() }, stats().toAST())
+        ProgramAST(func().map { it.toAST() }, stats().toAST()) record index()
 
 fun FuncContext.toAST(): Function =
-        Function(type().toAST(), ident().text, paramList()?.toAST()?: listOf(), stats().toAST())
+        Function(type().toAST(), ident().text, paramList()?.toAST()?: listOf(), stats().toAST()) record index()
+
+/** Types **/
 
 private fun TypeContext.toAST(): Type = when {
     baseType() != null -> baseType().toAST()
@@ -53,6 +55,8 @@ private fun PairTypeContext.toAST(): PairType {
     return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
 }
 
+/** Statements **/
+
 private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST() }
 
 private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type().toAST())
@@ -70,14 +74,14 @@ fun StatContext.toAST(): Statement = when(this) {
     is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
     is BlockContext -> Block(stats().toAST())
     else -> throw IllegalArgumentException("Invalid statement found: $this")
-}
+} record index()
 
 private fun AssignLhsContext.toAST(): Expression = when {
     ident() != null     -> ident().toAST()
     arrayElem() != null -> arrayElem().toAST()
     pairElem() != null  -> pairElem().toAST()
-    else                     -> throw IllegalArgumentException("Unknown left value")
-}
+    else                -> throw IllegalArgumentException("Unknown left value")
+} record index()
 
 private fun AssignRhsContext.toAST(): Expression = when(this) {
     is RhsExprContext       -> expr().toAST()
@@ -86,7 +90,7 @@ private fun AssignRhsContext.toAST(): Expression = when(this) {
     is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
     is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
     else                    -> throw IllegalArgumentException("Unknown right value")
-}
+} record index()
 
 fun ExprContext.toAST(): Expression = when (this) {
     is ExprNullContext    -> NullLit
@@ -100,7 +104,7 @@ fun ExprContext.toAST(): Expression = when (this) {
     is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
     is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
     else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
-}
+} record index()
 
 private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
 
@@ -113,7 +117,7 @@ private fun PairElemContext.toAST() : Expression =
 private fun ArrayElemContext.toAST() : Expression =
         ArrayElem(ident().text, expr().map { it.toAST() })
 
-private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text)
+private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text) record index()
 
 private fun IntegerContext.toAST(): Expression = IntLit(this.text.toInt())
 
@@ -126,6 +130,13 @@ private fun getContent(quotedString: CharSequence) : CharSequence {
     val len = quotedString.length
     return quotedString.subSequence(1, len - 1)
 }
+
+infix fun<T : WaccAST> T.record(index: Pair<Int, Int>): T {
+    AstIndexMap.map[this] = index
+    return this
+}
+
+private fun ParserRuleContext.index(): Pair<Int, Int> = this.start.line to this.start.charPositionInLine
 
 private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
         elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }

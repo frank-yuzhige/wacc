@@ -2,7 +2,7 @@ package ast
 
 import java.lang.IllegalArgumentException
 
-enum class UnaryOperator(val op: String) : WaccAST {
+enum class UnaryOperator(val op: String) {
     ORD("ord"),
     CHR("chr"),
     LEN("len"),

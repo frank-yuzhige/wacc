@@ -3,12 +3,13 @@ package ast
 import ast.Type.*
 import ast.Type.BaseType.*
 
-sealed class Expression : WaccAST {
+sealed class Expression() : WaccAST {
+
     enum class PairElemFunction(val value : String) {
         FST("fst"), SND("snd")
-    }
 
-    object NullLit : Expression()
+    }
+    object NullLit: Expression()
     data class IntLit(val x : Int) : Expression()
     data class BoolLit(val b : Boolean) : Expression()
     data class CharLit(val c : Char) : Expression()
@@ -22,7 +23,6 @@ sealed class Expression : WaccAST {
     data class ArrayLiteral(val elements : List<Expression>) : Expression()
     data class NewPair(val first : Expression, val second : Expression) : Expression()
     data class FunctionCall(val ident: String, val args : List<Expression>) : Expression()
-
 
 
     fun getType() : Type  = when (this) {
