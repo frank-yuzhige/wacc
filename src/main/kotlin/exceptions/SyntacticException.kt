@@ -35,6 +35,9 @@ sealed class SyntacticException(var msg: String) : Exception() {
     class UnknownExprTypeException() :
             SyntacticException("Unknown type of expression!")
 
+    class EmptyMainProgramException():
+            SyntacticException("Program body is empty!")
+
     class AntlrLexerGivenException(antlrMsg: String) :
             SyntacticException("Lexing Error $antlrMsg")
     class AntlrParserGivenException(antlrMsg: String) :

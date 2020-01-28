@@ -13,7 +13,7 @@ import exceptions.SyntacticException
 import exceptions.SyntacticException.*
 
 fun ProgContext.toAST() : ProgramAST =
-        ProgramAST(func().map { it.toAST() }, stats().toMainProgramAST()) record index()
+        ProgramAST(func().map { it.toAST() }, stats()?.toMainProgramAST() ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))) record index()
 
 private fun StatsContext.toMainProgramAST(): List<Statement> {
     return try {

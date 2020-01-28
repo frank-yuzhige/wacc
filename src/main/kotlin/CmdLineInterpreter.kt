@@ -11,18 +11,18 @@ fun main(args: Array<String>) {
         System.`in`
     }
 
-    val parser = try {
-        Parser(inputStream)
+    val ast = try {
+        Parser(inputStream).parseProgram()
     } catch (pe: SyntacticException) {
-        print(pe.message);
+        println(pe.msg);
         exitProcess(100)
     } catch (se: SemanticException) {
-        print(se.message)
+        println(se.message)
         exitProcess(200)
     }
 
     println("===========")
-    println(parser.parseProgram())
+    println(ast)
     println("===========")
 //    AstIndexMap.map.entries.sortedBy { it.value.first }.forEach { println(it) }
 }
