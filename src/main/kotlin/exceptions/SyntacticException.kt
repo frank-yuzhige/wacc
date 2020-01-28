@@ -42,9 +42,6 @@ sealed class SyntacticException(var msg: String) : Exception() {
             SyntacticException("The last statement should be a return, exit, " +
                     "\n  or an if-statement with both branches end with a terminator")
 
-    class ReturnInMainProgramException(indices: List<Pair<Int, Int>>):
-            SyntacticException("Found return statement(s) in main program! at ${indices.joinToString(", ")}")
-
     class AntlrLexerGivenException(antlrMsg: String) :
             SyntacticException("Lexing Error $antlrMsg")
     class AntlrParserGivenException(antlrMsg: String) :

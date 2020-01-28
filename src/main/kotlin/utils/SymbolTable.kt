@@ -1,6 +1,7 @@
 package utils
 
 import exceptions.SemanticException
+import exceptions.SemanticException.MultipleDefinitionException
 import java.util.*
 
 typealias Scope = MutableMap<String, Attributes>
@@ -11,7 +12,7 @@ object SymbolTable {
     fun define(ident: String, attr: Attributes) {
         val currScope = this.scopeList.last()
         if (currScope.containsKey(ident)) {
-            throw SemanticException("variable or function \"$ident\" is defined twice!")
+            throw MultipleDefinitionException(ident)
         }
         currScope[ident] = attr
     }

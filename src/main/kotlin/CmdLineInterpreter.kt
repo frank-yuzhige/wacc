@@ -2,11 +2,18 @@ import parser.Parser
 import exceptions.SyntacticException
 import exceptions.SemanticException
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val inputStream = if (args.isNotEmpty()) {
-        FileInputStream(args[0])
+        try {
+            FileInputStream(args[0])
+        } catch (fnfe: FileNotFoundException) {
+            println("File not found!")
+            println("Unable to locate file at ${args[0]}")
+            exitProcess(1)
+        }
     } else {
         System.`in`
     }
@@ -14,15 +21,14 @@ fun main(args: Array<String>) {
     val ast = try {
         Parser(inputStream).parseProgram()
     } catch (pe: SyntacticException) {
-        println(pe.msg);
+        System.err.println(pe.msg);
         exitProcess(100)
     } catch (se: SemanticException) {
-        println(se.message)
+        System.err.println(se.message)
         exitProcess(200)
     }
 
     println("===========")
     println(ast)
     println("===========")
-//    AstIndexMap.map.entries.sortedBy { it.value.first }.forEach { println(it) }
 }

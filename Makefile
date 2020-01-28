@@ -27,15 +27,15 @@ rules:
 	$(MKDIR) $(OUTPUT_DIR)
 	$(JAVAC) $(JFLAGS) @$@
 	$(RM) rules
-	./gradlew build
+	./gradlew build -x test
 
 compile:
-	./gradlew build
+	./gradlew build -x test
 
 clean:
 	$(RM) rules $(OUTPUT_DIR)
 	./gradlew clean
 
-.PHONY: all rules clean
+.PHONY: all rules clean test
 
 

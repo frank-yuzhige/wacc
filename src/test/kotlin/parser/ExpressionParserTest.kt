@@ -2,8 +2,8 @@ package parser
 
 import ast.Expression.*
 import ast.UnaryOperator
-import cartesianProduct
-import toInputStream
+import utils.cartesianProduct
+import utils.toInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail

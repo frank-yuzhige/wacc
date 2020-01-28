@@ -7,6 +7,8 @@ import ast.Function
 import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseType.*
+import exceptions.SemanticException
+import exceptions.SemanticException.ReturnInMainProgramException
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
 import exceptions.SyntacticException
@@ -17,33 +19,36 @@ fun ProgContext.toAST() : ProgramAST =
 
 private fun StatsContext.toMainProgramAST(): List<Statement> {
     try {
-        fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = context.stat().flatMap {
-            when (it) {
-                is BuiltinFuncCallContext -> if (it.builtinFunc().RETURN() != null) {
-                    listOf(it.index())
-                } else {
-                    emptyList()
-                }
-                is CondBranchContext -> it.stats().flatMap { x ->  containsReturn(x)}
-                is WhileLoopContext -> containsReturn(it.stats())
-                is BlockContext -> containsReturn(it.stats())
-                else -> emptyList()
-            }
-        }
         val returnIndices = containsReturn(this)
         if (returnIndices.isNotEmpty()) {
             throw ReturnInMainProgramException(returnIndices)
         }
-        return stat().map { it.toAST() }
+        return this.toAST()
     } catch (pe: SyntacticException) {
         throw pe.forwardWith("In the main program")
     }
 }
 
+private fun StatsContext.toFuncBodyAST(): Statements {
+    fun StatContext.isTerminator(): Boolean = when(this) {
+        is BuiltinFuncCallContext ->
+            this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
+        is CondBranchContext ->
+            this.stats().all { it.stat().last()?.isTerminator()?: false }
+        else -> false
+    }
+
+    if (!this.stat().last().isTerminator()) {
+        throw LastStatIsNotTerminatorException()
+    }
+    return this.toAST()
+}
+
+
 fun FuncContext.toAST(): Function = try {
         Function(type().toAST(), ident().text,
                 paramList()?.toAST()?: emptyList(),
-                stats().toAST()) record index()
+                stats().toFuncBodyAST()) record index()
 } catch (pe : SyntacticException) {
     val params = paramList()?.param()?.joinToString(", ") { it.originalText() } ?: ""
     val funcDef = "${type().text} ${ident().text} ($params)"
@@ -107,20 +112,7 @@ private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST(
 private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type().toAST())
 
 private fun StatsContext.toAST() : Statements {
-    fun StatContext.isTerminator(): Boolean = when(this) {
-        is BuiltinFuncCallContext ->
-            this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
-        is CondBranchContext ->
-            this.stats().all { it.stat().last()?.isTerminator()?: false }
-        else -> false
-    }
-
-    if (!this.stat().last().isTerminator()) {
-        throw LastStatIsNotTerminatorException()
-    }
-
     return stat().map { it.toAST() }
-
 }
 
 fun StatContext.toAST(): Statement = try {
@@ -201,6 +193,20 @@ private fun IntegerContext.toAST(): Expression = try {
 private fun ExprBinopContext.getBinOp(): BinaryOperator {
     val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
     return BinaryOperator.read(opContext.text)
+}
+
+private fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = context.stat().flatMap {
+    when (it) {
+        is BuiltinFuncCallContext -> if (it.builtinFunc().RETURN() != null) {
+            listOf(it.index())
+        } else {
+            emptyList()
+        }
+        is CondBranchContext -> it.stats().flatMap(::containsReturn)
+        is WhileLoopContext -> containsReturn(it.stats())
+        is BlockContext -> containsReturn(it.stats())
+        else -> emptyList()
+    }
 }
 
 private fun getContent(quotedString: CharSequence) : CharSequence {
