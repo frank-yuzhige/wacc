@@ -14,7 +14,7 @@ class LexerParserFailureTest {
         try {
             Parser(prog.byteInputStream()).parseProgram()
             fail("An error should have been thrown here!")
-        } catch (ipe: AntlrParserGivenException) {
+        } catch (ipe: SyntacticException) {
             assertTrue(ipe.msg.contains("Parse Error at \\(\\d+, \\d+\\):".toRegex()))
         }
     }
