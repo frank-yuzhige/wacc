@@ -3,11 +3,9 @@ package parser
 import ast.Expression.*
 import ast.UnaryOperator
 import cartesianProduct
-import parser.exceptions.SyntacticException.IntegerSyntacticException
 import toInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class ExpressionParserTest {
@@ -79,18 +77,5 @@ class ExpressionParserTest {
         }
         /** Exclude "- 12" case since it will be parsed to intlit -12 **/
         batchCheck(candidates.filterNot{ it == "-" to "12" }, batchChecker)
-    }
-
-    @Test
-    fun parseFailOnLargeInteger() {
-        val prog = "begin int x = 10000000000000000000 end"
-        try {
-            println(Parser(prog.byteInputStream()).parseProgram())
-            fail("An error should have been thrown here!")
-        } catch (ipe: IntegerSyntacticException) {
-            assertTrue(ipe.msg.contains("not a valid integer"))
-            assertTrue(ipe.msg.contains("pure expression"))
-            assertTrue(ipe.msg.contains("statement"))
-        }
     }
 }

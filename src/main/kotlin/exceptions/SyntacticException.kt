@@ -1,11 +1,9 @@
-package parser.exceptions
+package exceptions
 
-sealed class SyntacticException(var msg: String) :
-        Exception("[PARSE ERROR!]\n$msg") {
-
+sealed class SyntacticException(var msg: String) : Exception() {
 
     class SyntacticExceptionBundle(bundle: Iterable<SyntacticException>)
-        : SyntacticException(bundle.joinToString("\n===================\n") { it.toString() })
+        : SyntacticException("[PARSE ERROR!]\n" + bundle.joinToString("\n===================\n") { it.msg })
 
     class UnrecognizedTypeException(typeName: String) :
             SyntacticException("Unrecognized type \"$typeName\"!")
@@ -39,12 +37,6 @@ sealed class SyntacticException(var msg: String) :
             SyntacticException("Lexing Error $antlrMsg")
     class AntlrParserGivenException(antlrMsg: String) :
             SyntacticException("Parse Error $antlrMsg")
-
-
-    fun at(index: Any): SyntacticException {
-        this.msg += "  [at $index]"
-        return this
-    }
 
     fun forwardWith(postfix: String): SyntacticException {
         this.msg += "\n$postfix"

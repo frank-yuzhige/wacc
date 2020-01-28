@@ -1,6 +1,6 @@
 package parser
 
-import parser.exceptions.SyntacticException.InvalidEscapeCharException
+import exceptions.SyntacticException.InvalidEscapeCharException
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.NoSuchElementException

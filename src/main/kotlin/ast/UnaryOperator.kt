@@ -1,6 +1,6 @@
 package ast
 
-import parser.exceptions.SyntacticException.UnknownUnaryOpException
+import exceptions.SyntacticException.UnknownUnaryOpException
 
 enum class UnaryOperator(val op: String) {
     ORD("ord"),

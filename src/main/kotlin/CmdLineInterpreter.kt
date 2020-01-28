@@ -1,6 +1,6 @@
 import parser.Parser
-import parser.exceptions.SyntacticException
-import parser.exceptions.SemanticException
+import exceptions.SyntacticException
+import exceptions.SemanticException
 import java.io.FileInputStream
 import kotlin.system.exitProcess
 

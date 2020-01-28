@@ -1,23 +1,21 @@
+import exceptions.ParseErrorListener
 import parser.Parser
-import parser.exceptions.SyntacticException
+import exceptions.SyntacticException
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val program = """
         begin
-        int foo(int x, char y) is
-            int k = x + 100;
-            return k
-        end
-        int x = call foo(1);
-        println "hello \ "
+        int x = -12000000000000000
         end
     """.trimIndent()
 
     try {
-        println(Parser(program.byteInputStream()).parseProgram())
+        val parser = Parser(program.byteInputStream())
+        println(parser.parseProgram())
+        parser.throwsPotentialErrors()
     } catch (pe: SyntacticException) {
-        println(pe.message)
+        println(pe.msg)
         exitProcess(100)
     }
 

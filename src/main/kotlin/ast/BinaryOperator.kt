@@ -1,6 +1,6 @@
 package ast
 
-import parser.exceptions.SyntacticException.UnknownBinaryOpException
+import exceptions.SyntacticException.UnknownBinaryOpException
 
 enum class BinaryOperator(val op : String) {
 

@@ -1,6 +1,6 @@
 package utils
 
-import parser.exceptions.SemanticException
+import exceptions.SemanticException
 import java.util.*
 
 typealias Scope = MutableMap<String, Attributes>

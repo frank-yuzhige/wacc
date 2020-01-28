@@ -9,8 +9,8 @@ import ast.Type.*
 import ast.Type.BaseType.*
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
-import parser.exceptions.SyntacticException
-import parser.exceptions.SyntacticException.*
+import exceptions.SyntacticException
+import exceptions.SyntacticException.*
 
 fun ProgContext.toAST() : ProgramAST =
         ProgramAST(func().map { it.toAST() }, stats().toMainProgramAST()) record index()
@@ -163,7 +163,7 @@ private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text) record i
 private fun IntegerContext.toAST(): Expression = try {
     IntLit(this.text.toInt())
 } catch (e: NumberFormatException) {
-    throw IntegerSyntacticException(this.text).at(index())
+    throw IntegerSyntacticException(this.text)
 }
 
 private fun ExprBinopContext.getBinOp(): BinaryOperator {
