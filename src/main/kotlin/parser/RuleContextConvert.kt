@@ -7,24 +7,41 @@ import ast.Function
 import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseType.*
-import kotlin.IllegalArgumentException
 import org.antlr.v4.runtime.ParserRuleContext
+import org.antlr.v4.runtime.RuleContext
+import org.antlr.v4.runtime.misc.Interval
+import org.antlr.v4.runtime.tree.ParseTree
+import org.antlr.v4.runtime.tree.TerminalNode
 import parser.exceptions.ParseException
 import parser.exceptions.ParseException.IntegerParseException
 import parser.exceptions.ParseException.UnsupportedArrayBaseTypeException
-import java.lang.NumberFormatException
 
 fun ProgContext.toAST() : ProgramAST =
-        ProgramAST(func().map { it.toAST() }, stats().toAST()) record index()
+        ProgramAST(func().map { it.toAST() }, stats().toMainProgramAST()) record index()
+
+private fun StatsContext.toMainProgramAST(): List<Statement> {
+    return try {
+        toAST()
+    } catch (pe: ParseException) {
+        throw pe.forwardWith("In the main program")
+    }
+}
 
 fun FuncContext.toAST(): Function = try {
         Function(type().toAST(), ident().text,
                 paramList()?.toAST()?: emptyList(),
                 stats().toAST()) record index()
 } catch (pe : ParseException) {
-    val params = paramList()?.param()?.joinToString("") { it.text } ?: ""
+    val params = paramList()?.param()?.joinToString(", ") { it.originalText() } ?: ""
     val funcDef = "${type().text} ${ident().text} ($params)"
     throw pe.forwardWith("In a function defined at ${index()}: $funcDef")
+}
+
+private fun ParserRuleContext.originalText(): String {
+    val start = this.start.startIndex
+    val stop = this.stop.stopIndex
+    val input = this.start.inputStream
+    return input.getText(Interval(start, stop))
 }
 
 /** Types **/
@@ -85,10 +102,10 @@ fun StatContext.toAST(): Statement = try {
         is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
         is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
         is BlockContext -> Block(stats().toAST())
-        else -> throw IllegalArgumentException("Invalid statement found: $this")
+        else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
     } record index()
 } catch (pe: ParseException) {
-    throw pe.forwardWith("In a statement at ${index()}: \"$text\"")
+    throw pe.forwardWith("In a statement at ${index()}: \"${originalText()}\"")
 }
 
 
@@ -127,7 +144,7 @@ fun ExprContext.toAST(): Expression = try {
         else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
     } record index()
 } catch (pe: ParseException) {
-    throw pe.forwardWith("In a pure expression at ${index()}: \"$text\"")
+    throw pe.forwardWith("In a pure expression at ${index()}: \"${originalText()}\"")
 }
 
 private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
@@ -166,6 +183,4 @@ infix fun<T : WaccAST> T.record(index: Pair<Int, Int>): T {
 
 private fun ParserRuleContext.index(): Pair<Int, Int> = this.start.line to this.start.charPositionInLine
 
-private fun<T, R> chainl(base : R, elems : Iterable<T>, nodes : Iterable<R>, chainFunction: (R, T, R) -> R) : R =
-        elems.zip(nodes).fold(base) { r, p -> chainFunction(r, p.first, p.second) }
 

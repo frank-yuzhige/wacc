@@ -1,4 +1,5 @@
 import parser.Parser
+import parser.exceptions.ParseException
 import parser.toAST
 import utils.Catcher
 import utils.catchError
@@ -8,18 +9,21 @@ import java.lang.UnsupportedOperationException
 import java.util.*
 
 fun main(args: Array<String>) {
+    val program = """
+        begin
+        int foo(int x, char y) is
+            int k = x + 100;
+            return k;
+        end
+        int x = foo(1);
+        println x + 11100000000000;
+        end
+    """.trimIndent()
 
-    val prog2 = "!true"
-    println(Parser(prog2.byteInputStream()).doParse().unaryOp().text)
-    println(Parser("begin int func(int x) is int k = x + 1; bool b = x == k; return k end int c = call func(4); return c end".byteInputStream())
-            .doParse().prog().toAST())
-    val x = '\''
-    val deque = "\\\'".toCollection(ArrayDeque())
-    deque.forEach { println(it) }
-
-    val c : Char by lazy {
-        throw IllegalArgumentException()
+    try {
+        println(Parser(program.byteInputStream()).parseProgram())
+    } catch (pe: ParseException) {
+        println(pe.msg)
     }
 
-    Catcher(c).catchError(IllegalArgumentException::class) { throw UnsupportedOperationException() }
 }
