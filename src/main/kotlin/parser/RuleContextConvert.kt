@@ -17,14 +17,14 @@ fun ProgContext.toAST() : ProgramAST =
 
 private fun StatsContext.toMainProgramAST(): List<Statement> {
     try {
-        fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = this.stat().flatMap { it: StatContext ->
+        fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = context.stat().flatMap {
             when (it) {
                 is BuiltinFuncCallContext -> if (it.builtinFunc().RETURN() != null) {
                     listOf(it.index())
                 } else {
                     emptyList()
                 }
-                is CondBranchContext -> it.stats().flatMap(::containsReturn)
+                is CondBranchContext -> it.stats().flatMap { x ->  containsReturn(x)}
                 is WhileLoopContext -> containsReturn(it.stats())
                 is BlockContext -> containsReturn(it.stats())
                 else -> emptyList()
