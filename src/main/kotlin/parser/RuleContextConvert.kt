@@ -16,8 +16,25 @@ fun ProgContext.toAST() : ProgramAST =
         ProgramAST(func().map { it.toAST() }, stats()?.toMainProgramAST() ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))) record index()
 
 private fun StatsContext.toMainProgramAST(): List<Statement> {
-    return try {
-        toAST()
+    try {
+        fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = this.stat().flatMap { it: StatContext ->
+            when (it) {
+                is BuiltinFuncCallContext -> if (it.builtinFunc().RETURN() != null) {
+                    listOf(it.index())
+                } else {
+                    emptyList()
+                }
+                is CondBranchContext -> it.stats().flatMap(::containsReturn)
+                is WhileLoopContext -> containsReturn(it.stats())
+                is BlockContext -> containsReturn(it.stats())
+                else -> emptyList()
+            }
+        }
+        val returnIndices = containsReturn(this)
+        if (returnIndices.isNotEmpty()) {
+            throw ReturnInMainProgramException(returnIndices)
+        }
+        return stat().map { it.toAST() }
     } catch (pe: SyntacticException) {
         throw pe.forwardWith("In the main program")
     }
@@ -89,7 +106,22 @@ private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST(
 
 private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type().toAST())
 
-private fun StatsContext.toAST() : Statements = stat().map { it.toAST() }
+private fun StatsContext.toAST() : Statements {
+    fun StatContext.isTerminator(): Boolean = when(this) {
+        is BuiltinFuncCallContext ->
+            this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
+        is CondBranchContext ->
+            this.stats().all { it.stat().last()?.isTerminator()?: false }
+        else -> false
+    }
+
+    if (!this.stat().last().isTerminator()) {
+        throw LastStatIsNotTerminatorException()
+    }
+
+    return stat().map { it.toAST() }
+
+}
 
 fun StatContext.toAST(): Statement = try {
     when(this) {

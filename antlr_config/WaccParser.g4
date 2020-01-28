@@ -56,14 +56,14 @@ func: type ident LPAR paramList? RPAR IS stats? END;
 
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
-stat: SKIP_STAT                        #skip
-    | type ident ASSIGN assignRhs      #declaration
-    | assignLhs ASSIGN assignRhs       #assignment
-    | READ assignLhs                   #readCall
-    | builtinFunc expr                 #builtinFuncCall
+stat: SKIP_STAT                          #skip
+    | type ident ASSIGN assignRhs        #declaration
+    | assignLhs ASSIGN assignRhs         #assignment
+    | READ assignLhs                     #readCall
+    | builtinFunc expr                   #builtinFuncCall
     | IF expr THEN stats? ELSE stats? FI #condBranch
-    | WHILE expr DO stats? DONE         #whileLoop
-    | BEGIN stats? END                  #block
+    | WHILE expr DO stats? DONE          #whileLoop
+    | BEGIN stats? END                   #block
     ;
 
 stats: stat (SEMICOLON stat)*;
