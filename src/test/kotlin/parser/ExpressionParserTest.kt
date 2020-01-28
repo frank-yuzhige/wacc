@@ -3,10 +3,7 @@ package parser
 import ast.Expression.*
 import ast.UnaryOperator
 import cartesianProduct
-import org.hamcrest.MatcherAssert.assertThat
-import org.hamcrest.core.Is.`is`
-import parser.exceptions.ParseException
-import parser.exceptions.ParseException.IntegerParseException
+import parser.exceptions.SyntacticException.IntegerSyntacticException
 import toInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -90,7 +87,7 @@ class ExpressionParserTest {
         try {
             println(Parser(prog.byteInputStream()).parseProgram())
             fail("An error should have been thrown here!")
-        } catch (ipe: IntegerParseException) {
+        } catch (ipe: IntegerSyntacticException) {
             assertTrue(ipe.msg.contains("not a valid integer"))
             assertTrue(ipe.msg.contains("pure expression"))
             assertTrue(ipe.msg.contains("statement"))

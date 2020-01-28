@@ -1,6 +1,5 @@
 package utils
 
-import parser.exceptions.ParseException
 import java.lang.Exception
 import kotlin.reflect.KClass
 

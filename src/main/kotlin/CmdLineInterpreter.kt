@@ -1,5 +1,5 @@
 import parser.Parser
-import parser.exceptions.ParseException
+import parser.exceptions.SyntacticException
 import parser.exceptions.SemanticException
 import java.io.FileInputStream
 import kotlin.system.exitProcess
@@ -13,7 +13,7 @@ fun main(args: Array<String>) {
 
     val parser = try {
         Parser(inputStream)
-    } catch (pe: ParseException) {
+    } catch (pe: SyntacticException) {
         print(pe.message);
         exitProcess(100)
     } catch (se: SemanticException) {

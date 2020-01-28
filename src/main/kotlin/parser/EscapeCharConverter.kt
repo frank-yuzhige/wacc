@@ -1,5 +1,6 @@
 package parser
 
+import parser.exceptions.SyntacticException.InvalidEscapeCharException
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.NoSuchElementException
@@ -28,9 +29,9 @@ class EscapeCharConverter(input: CharSequence) {
         if (sequence.isEmpty()) throw NoSuchElementException()
         val first = sequence.pop()
         if (first == '\\') {
-            if (sequence.isEmpty()) throw IllegalArgumentException("Empty escape!")
+            if (sequence.isEmpty()) throw InvalidEscapeCharException(null)
             val next  = sequence.pop()
-            return escapeMap[next] ?: throw IllegalArgumentException("unknown escape character '\\$next'")
+            return escapeMap[next] ?: throw InvalidEscapeCharException(next)
         }
         return first
     }

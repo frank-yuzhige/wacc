@@ -8,13 +8,9 @@ import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseType.*
 import org.antlr.v4.runtime.ParserRuleContext
-import org.antlr.v4.runtime.RuleContext
 import org.antlr.v4.runtime.misc.Interval
-import org.antlr.v4.runtime.tree.ParseTree
-import org.antlr.v4.runtime.tree.TerminalNode
-import parser.exceptions.ParseException
-import parser.exceptions.ParseException.IntegerParseException
-import parser.exceptions.ParseException.UnsupportedArrayBaseTypeException
+import parser.exceptions.SyntacticException
+import parser.exceptions.SyntacticException.*
 
 fun ProgContext.toAST() : ProgramAST =
         ProgramAST(func().map { it.toAST() }, stats().toMainProgramAST()) record index()
@@ -22,7 +18,7 @@ fun ProgContext.toAST() : ProgramAST =
 private fun StatsContext.toMainProgramAST(): List<Statement> {
     return try {
         toAST()
-    } catch (pe: ParseException) {
+    } catch (pe: SyntacticException) {
         throw pe.forwardWith("In the main program")
     }
 }
@@ -31,7 +27,7 @@ fun FuncContext.toAST(): Function = try {
         Function(type().toAST(), ident().text,
                 paramList()?.toAST()?: emptyList(),
                 stats().toAST()) record index()
-} catch (pe : ParseException) {
+} catch (pe : SyntacticException) {
     val params = paramList()?.param()?.joinToString(", ") { it.originalText() } ?: ""
     val funcDef = "${type().text} ${ident().text} ($params)"
     throw pe.forwardWith("In a function defined at ${index()}: $funcDef")
@@ -41,7 +37,11 @@ private fun ParserRuleContext.originalText(): String {
     val start = this.start.startIndex
     val stop = this.stop.stopIndex
     val input = this.start.inputStream
-    return input.getText(Interval(start, stop))
+    return if(start < stop) {
+        input.getText(Interval(start, stop))
+    } else {
+        "**NOT AVAILABLE**"
+    }
 }
 
 /** Types **/
@@ -104,7 +104,7 @@ fun StatContext.toAST(): Statement = try {
         is BlockContext -> Block(stats().toAST())
         else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
     } record index()
-} catch (pe: ParseException) {
+} catch (pe: SyntacticException) {
     throw pe.forwardWith("In a statement at ${index()}: \"${originalText()}\"")
 }
 
@@ -141,9 +141,9 @@ fun ExprContext.toAST(): Expression = try {
         is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
         is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
         is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
-        else -> throw IllegalArgumentException("Unknown expression context! $javaClass")
+        else -> throw UnknownExprTypeException()
     } record index()
-} catch (pe: ParseException) {
+} catch (pe: SyntacticException) {
     throw pe.forwardWith("In a pure expression at ${index()}: \"${originalText()}\"")
 }
 
@@ -163,7 +163,7 @@ private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text) record i
 private fun IntegerContext.toAST(): Expression = try {
     IntLit(this.text.toInt())
 } catch (e: NumberFormatException) {
-    throw IntegerParseException(this.text).at(index())
+    throw IntegerSyntacticException(this.text).at(index())
 }
 
 private fun ExprBinopContext.getBinOp(): BinaryOperator {

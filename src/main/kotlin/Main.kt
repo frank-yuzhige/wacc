@@ -1,29 +1,24 @@
 import parser.Parser
-import parser.exceptions.ParseException
-import parser.toAST
-import utils.Catcher
-import utils.catchError
-import java.lang.Exception
-import java.lang.IllegalArgumentException
-import java.lang.UnsupportedOperationException
-import java.util.*
+import parser.exceptions.SyntacticException
+import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val program = """
         begin
         int foo(int x, char y) is
             int k = x + 100;
-            return k;
+            return k
         end
-        int x = foo(1);
-        println x + 11100000000000;
+        int x = call foo(1);
+        println "hello \ "
         end
     """.trimIndent()
 
     try {
         println(Parser(program.byteInputStream()).parseProgram())
-    } catch (pe: ParseException) {
-        println(pe.msg)
+    } catch (pe: SyntacticException) {
+        println(pe.message)
+        exitProcess(100)
     }
 
 }
