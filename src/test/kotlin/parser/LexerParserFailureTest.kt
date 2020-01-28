@@ -1,6 +1,6 @@
 package parser
 
-import org.junit.Test
+import kotlin.test.Test
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
 import kotlin.test.assertTrue
@@ -19,7 +19,17 @@ class LexerParserFailureTest {
         }
     }
 
-    //@Test
+    @Test
+    fun antlrParseFailCatchMultipleErrors() {
+        val prog = "begin auto x = 128; int x == 1 end"
+        try {
+            Parser(prog.byteInputStream()).parseProgram()
+            fail("An error should have been thrown here!")
+        } catch (ipe: SyntacticExceptionBundle) {
+            assertTrue(ipe.count == 2)
+            assertTrue(ipe.msg.contains("Parse Error at \\(\\d+, \\d+\\):".toRegex()))
+        }
+    }
 
 
     @Test

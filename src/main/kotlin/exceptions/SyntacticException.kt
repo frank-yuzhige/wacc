@@ -3,7 +3,9 @@ package exceptions
 sealed class SyntacticException(var msg: String) : Exception() {
 
     class SyntacticExceptionBundle(bundle: Iterable<SyntacticException>)
-        : SyntacticException("[PARSE ERROR!]\n" + bundle.joinToString("\n===================\n") { it.msg })
+        : SyntacticException("[PARSE ERROR!]\n" + bundle.joinToString("\n===================\n") { it.msg }) {
+        val count: Int = bundle.count()
+    }
 
     class UnrecognizedTypeException(typeName: String) :
             SyntacticException("Unrecognized type \"$typeName\"!")
