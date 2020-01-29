@@ -1,8 +1,17 @@
 package ast
 
-import ast.BaseTypeKind.*
+import ast.Type.BaseTypeKind.*
 
 sealed class Type {
+
+    enum class BaseTypeKind(val symbol: String) {
+        INT("int"),
+        BOOL("bool"),
+        CHAR("char"),
+        STRING("string"),
+        ANY("?")
+    }
+
     companion object {
         fun pairBaseType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
@@ -17,7 +26,7 @@ sealed class Type {
     }
     data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
         override fun toString(): String =
-        if (firstElemType != BaseType(ANY) && secondElemType != BaseType(ANY)) {
+        if (firstElemType != BaseType(ANY) || secondElemType != BaseType(ANY)) {
             "pair($firstElemType, $secondElemType)"
         } else {
             "pair"
@@ -28,3 +37,4 @@ sealed class Type {
                 "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
     }
 }
+

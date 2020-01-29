@@ -17,14 +17,7 @@ class EscapeCharMap {
                 '\\' to "\\\\"
         )
 
-        fun fromEscape(c: Char): String {
-            val esc = escCharMap[c]
-            return if (esc == null) {
-                c.toString()
-            } else {
-                "\\$esc"
-            }
-        }
+        fun fromEscape(c: Char): String = escCharMap[c] ?: c.toString()
 
         fun fromEscape(str: CharSequence): CharSequence {
             val sb = StringBuilder()

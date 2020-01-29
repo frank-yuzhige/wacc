@@ -119,7 +119,7 @@ private fun StatsContext.toAST() : Statements {
 
 fun StatContext.toAST(): Statement = try {
     when(this) {
-        is SkipContext -> Skip()
+        is SkipContext -> Skip
         is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
         is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
         is ReadCallContext -> Read(assignLhs().toAST())
@@ -155,7 +155,7 @@ private fun AssignRhsContext.toAST(): Expression =
 
 fun ExprContext.toAST(): Expression = try {
     when (this) {
-        is ExprNullContext    -> NullLit()
+        is ExprNullContext    -> NullLit
         is ExprIntContext     -> integer().toAST()
         is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
         is ExprCharContext    -> {

@@ -1,7 +1,7 @@
 package ast
 
-import ast.BaseTypeKind.*
 import ast.Type.*
+import ast.Type.BaseTypeKind.*
 import utils.EscapeCharMap.Companion.fromEscape
 
 sealed class Expression() : WaccAST {
@@ -10,12 +10,9 @@ sealed class Expression() : WaccAST {
         FST("fst"), SND("snd")
 
     }
-    class NullLit: Expression() {
+
+    object NullLit : Expression() {
         override fun prettyPrint(): String = "null"
-
-        override fun equals(other: Any?): Boolean = this === other
-
-        override fun hashCode(): Int = System.identityHashCode(this)
     }
 
     data class IntLit(val x : Int) : Expression() {
@@ -68,7 +65,7 @@ sealed class Expression() : WaccAST {
 
     fun getType() : Type  = when (this) {
         is IntLit -> BaseType(INT)
-        is BoolLit -> BaseType(CHAR)
+        is BoolLit -> BaseType(BOOL)
         is CharLit -> BaseType(CHAR)
         is StringLit -> BaseType(STRING)
         else -> TODO()

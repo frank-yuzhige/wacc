@@ -12,10 +12,8 @@ sealed class Statement : WaccAST {
         PRINTLN("println")
     }
 
-    class Skip : Statement() {
+    object Skip : Statement() {
         override fun prettyPrint(): String = "skip"
-        override fun equals(other: Any?): Boolean = this === other
-        override fun hashCode(): Int = System.identityHashCode(this)
     }
 
     data class Declaration(val type : Type, val variable: Identifier, val rhs : Expression) : Statement() {
