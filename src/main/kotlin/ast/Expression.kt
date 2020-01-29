@@ -1,8 +1,18 @@
 package ast
 
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
+import ast.Type.Companion.intType
+import ast.Type.Companion.pairBaseType
+import exceptions.SemanticException
+import exceptions.SemanticException.*
+import semantics.TypeChecker
+import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader
+import sun.reflect.annotation.ExceptionProxy
 import utils.EscapeCharMap.Companion.fromEscape
+import utils.SymbolTable
 
 sealed class Expression() : WaccAST {
 
@@ -63,11 +73,55 @@ sealed class Expression() : WaccAST {
         override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
     }
 
-    fun getType() : Type  = when (this) {
+    fun getType(symbolTable: SymbolTable) : Type  = when (this) {
+        is NullLit -> pairBaseType()
         is IntLit -> BaseType(INT)
         is BoolLit -> BaseType(BOOL)
         is CharLit -> BaseType(CHAR)
         is StringLit -> BaseType(STRING)
-        else -> TODO()
+        is Identifier -> symbolTable.lookupVar(ident)?.type?: throw UndefinedVarException(ident)
+        is BinExpr -> op.retType
+        is UnaryExpr -> op.retType
+        is ArrayElem -> {
+            var type = symbolTable.lookupVar(arrayName)?.type?: throw UndefinedVarException(arrayName)
+            for (expr in indices) {
+                val actual = expr.getType(symbolTable)
+                if (actual != intType()) {
+                    throw TypeMismatchException(intType(), actual)
+                }
+                type = type.unwrapArrayType()?: throw TypeMismatchException(type, type)
+            }
+            type
+        }
+        is PairElem -> {
+            val exprType = expr.getType(symbolTable)
+            when(exprType) {
+                is PairType -> when(func) {
+                    FST -> exprType.firstElemType
+                    SND -> exprType.secondElemType
+                }
+                else -> throw TypeMismatchException(pairBaseType(), exprType)
+            }
+        }
+        is ArrayLiteral -> {
+            if (elements.isEmpty()) {
+                BaseType(ANY)
+            } else {
+                val fstType = elements[0].getType(symbolTable)
+                for (expr in elements.drop(1)) {
+                    val sndType = expr.getType(symbolTable)
+                    if (sndType != fstType) {
+                        throw TypeMismatchException(fstType, sndType)
+                    }
+                }
+                fstType
+            }
+        }
+        is NewPair -> {
+            PairType(first.getType(symbolTable), second.getType(symbolTable))
+        }
+        is FunctionCall -> {
+            symbolTable.lookupFunc(ident)?.type?.retType?: throw UndefinedFuncException(ident)
+        }
     }
 }

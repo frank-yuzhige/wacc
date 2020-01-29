@@ -4,17 +4,18 @@ import ast.Type
 import exceptions.SemanticException.*
 import java.util.*
 
-object SymbolTable {
+class SymbolTable {
     private val scopeList: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
 
-    fun define(ident: String, type: Type, index: Index) {
+    fun define(ident: String, type: Type, index: Index): VarAttributes? {
         val currScope = this.scopeList.last()
         val entry = currScope[ident]
         if (entry != null) {
-            throw MultipleVarDefException(ident, entry.type, entry.index)
+            return entry
         }
         currScope[ident] = VarAttributes(type, index)
+        return null
     }
 
     fun defineFunc(ident: String, funcType: Type.FuncType, index: Index) {
@@ -25,14 +26,12 @@ object SymbolTable {
         functions[ident] = FuncAttributes(funcType, index)
     }
 
-    fun push() {
-        scopeList.addFirst(hashMapOf())
-    }
+    fun pushScope() = scopeList.addFirst(hashMapOf())
 
-    fun pop(): MutableMap<String, VarAttributes>? = scopeList.pollFirst()
+    fun popScope(): MutableMap<String, VarAttributes>? = scopeList.pollFirst()
 
-    fun get(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident] }.first()
-
+    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident] }.first()
+    fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
 
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
     data class VarAttributes(val type: Type, val index: Index)

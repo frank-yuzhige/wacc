@@ -1,6 +1,10 @@
 package ast
 
+import ast.Expression.*
 import ast.Type.BaseTypeKind.*
+import com.sun.org.apache.bcel.internal.generic.BALOAD
+import com.sun.org.apache.xpath.internal.operations.Bool
+import kotlin.math.exp
 
 sealed class Type {
 
@@ -15,6 +19,10 @@ sealed class Type {
     companion object {
         fun pairBaseType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
+        fun intType(): BaseType = BaseType(INT)
+        fun boolType(): BaseType = BaseType(BOOL)
+        fun charType(): BaseType = BaseType(CHAR)
+        fun stringType(): BaseType = BaseType(STRING)
     }
 
     data class BaseType(val kind: BaseTypeKind) : Type() {
@@ -36,5 +44,11 @@ sealed class Type {
         override fun toString(): String =
                 "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
     }
+
+    fun unwrapArrayType(): Type? = when (this) {
+        is ArrayType -> type
+        else -> null
+    }
+
 }
 
