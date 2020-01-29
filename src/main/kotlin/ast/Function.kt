@@ -14,6 +14,6 @@ data class Function (
             "end\n"
 
     private fun showHeader(): String {
-        return "$returnType $name (${args.joinToString(",") { it.toString() }})"
+        return "$returnType $name (${args.joinToString(",") { "${it.second} ${it.first}"}})"
     }
 }

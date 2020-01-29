@@ -2,6 +2,7 @@ package ast
 
 import ast.BaseTypeKind.*
 import ast.Type.*
+import utils.EscapeCharMap.Companion.fromEscape
 
 sealed class Expression() : WaccAST {
 
@@ -26,11 +27,11 @@ sealed class Expression() : WaccAST {
     }
 
     data class CharLit(val c : Char) : Expression() {
-        override fun prettyPrint(): String = "'$c'"
+        override fun prettyPrint(): String = "'${fromEscape(c)}'"
     }
 
     data class StringLit(val string : String) : Expression() {
-        override fun prettyPrint(): String = "\"$string\""
+        override fun prettyPrint(): String = "\"${fromEscape(string)}\""
     }
 
     data class Identifier(val ident : String) : Expression() {
@@ -50,7 +51,7 @@ sealed class Expression() : WaccAST {
     }
 
     data class PairElem(val func : PairElemFunction, val expr: Expression) : Expression() {
-        override fun prettyPrint(): String = "$func ${expr.prettyPrint()}"
+        override fun prettyPrint(): String = "${func.value} ${expr.prettyPrint()}"
     }
 
     data class ArrayLiteral(val elements : List<Expression>) : Expression() {
