@@ -6,11 +6,8 @@ import ast.Type.*
 import ast.Type.BaseTypeKind.*
 import ast.Type.Companion.intType
 import ast.Type.Companion.pairBaseType
-import exceptions.SemanticException
 import exceptions.SemanticException.*
 import semantics.TypeChecker
-import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader
-import sun.reflect.annotation.ExceptionProxy
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.SymbolTable
 

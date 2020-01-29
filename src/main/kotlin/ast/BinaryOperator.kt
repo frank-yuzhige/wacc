@@ -1,13 +1,14 @@
 package ast
 
+import ast.BinaryOperator.BinOpType.Companion.binOpOf
+import ast.BinaryOperator.BinOpType.Companion.compareOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
-import exceptions.SemanticException
 import exceptions.SemanticException.OperatorNotSupportTypeException
-import exceptions.SemanticException.TypeMismatchException
 import exceptions.SyntacticException.UnknownBinaryOpException
-import sun.tools.jstat.Operator
+import semantics.TypeChecker
+import semantics.TypeChecker.Companion.match
 
 enum class BinaryOperator(val op: String, val retType: Type) {
 
@@ -25,10 +26,40 @@ enum class BinaryOperator(val op: String, val retType: Type) {
     AND("&&", boolType()),
     OR("||", boolType());
 
+    data class BinOpType(val lhsChecker: TypeChecker, val type: Type, val rhsChecker: TypeChecker) {
+        companion object {
+            fun binOpOf(type: Type): BinOpType = BinOpType(match(type), type, match(type))
+            fun compareOf(type: Type): BinOpType = BinOpType(match(type), boolType(), match(type))
+        }
+    }
+
     companion object {
         private val keyValueMap = values().map { it.op }.zip(values()).toMap()
         fun read(op: String): BinaryOperator =
                 keyValueMap[op] ?: throw UnknownBinaryOpException(op)
+        val typeMap = mapOf(
+                MUL to listOf(binOpOf(intType())),
+                DIV to listOf(binOpOf(intType())),
+                MOD to listOf(binOpOf(intType())),
+                ADD to listOf(binOpOf(intType())),
+                SUB to listOf(binOpOf(intType())),
+                GTE to listOf(compareOf(intType())),
+                LTE to listOf(compareOf(intType())),
+                GT to listOf(compareOf(intType())),
+                LT to listOf(compareOf(intType())),
+                EQ to listOf(
+                        compareOf(intType()),
+                        compareOf(boolType()),
+                        compareOf(charType())
+                ),
+                NEQ to listOf(
+                        compareOf(intType()),
+                        compareOf(boolType()),
+                        compareOf(charType())
+                ),
+                AND to listOf(binOpOf(boolType())),
+                OR to listOf(binOpOf(boolType()))
+        )
     }
 
     fun getPriority(): Int = when (this) {

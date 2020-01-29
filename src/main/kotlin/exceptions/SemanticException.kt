@@ -1,10 +1,17 @@
 package exceptions
 
+import ast.AstIndexMap
 import ast.Type
+import ast.WaccAST
 import utils.Index
 import java.lang.Exception
 
 sealed class SemanticException(var msg: String): Exception() {
+
+    fun forwardWith(sentenceKind: String, ast: WaccAST): SemanticException {
+        this.msg += "in $sentenceKind at ${AstIndexMap.map[ast]}:\n ${ast.prettyPrint()}"
+        return this
+    }
 
     class SemanticExceptionBundle(variable: Iterable<SemanticException>):
             SemanticException("SEM ERROR: ${variable.joinToString("\n==========\n") { it.msg }}")
@@ -23,6 +30,17 @@ sealed class SemanticException(var msg: String): Exception() {
 
     class TypeMismatchException(expected: Type, actual: Type):
             SemanticException("Couldn't match expected type '$expected' with actual type: '$actual'")
+    sealed class TypeException(msg: String):
+            SemanticException("Type mismatch!\n$msg") {
+        data class NoMatchingCandidatesException(val actual: Type, val candidates: Iterable<Type>):
+                TypeException("couldn't match any of the expecting types:" +
+                        " ${candidates.joinToString(", ") { it.toString() }}" +
+                        "with actual type: $actual")
+        data class SingleTypeMismatchException(val expected: Type, val actual: Type):
+                TypeException("Couldn't match expected type '$expected' with actual type: '$actual'")
+        data class InsufficientArrayRankException(val arrType: Type, val attempt: Int):
+                TypeException("$arrType does not have more than $attempt rank")
+    }
 
     class OperatorNotSupportTypeException(expected: Type, operator: String):
             SemanticException("'$operator' does not support expected type '$expected'!")

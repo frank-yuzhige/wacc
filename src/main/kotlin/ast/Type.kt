@@ -2,9 +2,6 @@ package ast
 
 import ast.Expression.*
 import ast.Type.BaseTypeKind.*
-import com.sun.org.apache.bcel.internal.generic.BALOAD
-import com.sun.org.apache.xpath.internal.operations.Bool
-import kotlin.math.exp
 
 sealed class Type {
 
@@ -48,6 +45,14 @@ sealed class Type {
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
         else -> null
+    }
+    
+    fun unwrapArrayType(count: Int): Type? {
+        var t: Type? = this
+        for (i in 0 until count) {
+            t = t?.unwrapArrayType()
+        }
+        return t
     }
 
 }
