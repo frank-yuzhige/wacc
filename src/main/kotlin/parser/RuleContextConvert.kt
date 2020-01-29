@@ -6,13 +6,15 @@ import ast.Expression.*
 import ast.Function
 import ast.Statement.*
 import ast.Type.*
-import ast.Type.BaseType.*
-import exceptions.SemanticException
+import ast.Type.Companion.pairBaseType
 import exceptions.SemanticException.ReturnInMainProgramException
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
+import utils.EscapeCharConverter
+import utils.Index
+import utils.Parameter
 
 fun ProgContext.toAST() : ProgramAST =
         ProgramAST(func().map { it.toAST() }, stats()?.toMainProgramAST() ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))) record index()
@@ -76,10 +78,10 @@ private fun TypeContext.toAST(): Type = when {
 }
 
 private fun BaseTypeContext.toAST() : BaseType = when (text) {
-    "int"    -> IntType
-    "char"   -> CharType
-    "bool"   -> BoolType
-    "string" -> StringType
+    "int"    -> BaseType(BaseTypeKind.INT)
+    "char"   -> BaseType(BaseTypeKind.CHAR)
+    "bool"   -> BaseType(BaseTypeKind.BOOL)
+    "string" -> BaseType(BaseTypeKind.STRING)
     else -> throw IllegalArgumentException("Unknown base type: $text")
 }
 
@@ -97,10 +99,10 @@ private fun ArrayTypeContext.toAST(): ArrayType {
 }
 
 private fun PairTypeContext.toAST(): PairType {
-    fun pairElemTypeToAST(context : PairElemTypeContext): PairElemType = when {
+    fun pairElemTypeToAST(context : PairElemTypeContext): Type = when {
         context.baseType() != null -> context.baseType().toAST()
         context.arrayType() != null -> context.arrayType().toAST()
-        else -> PairBaseType
+        else -> pairBaseType()
     }
     return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
 }
@@ -117,7 +119,7 @@ private fun StatsContext.toAST() : Statements {
 
 fun StatContext.toAST(): Statement = try {
     when(this) {
-        is SkipContext -> Skip
+        is SkipContext -> Skip()
         is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
         is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
         is ReadCallContext -> Read(assignLhs().toAST())
@@ -153,7 +155,7 @@ private fun AssignRhsContext.toAST(): Expression =
 
 fun ExprContext.toAST(): Expression = try {
     when (this) {
-        is ExprNullContext    -> NullLit
+        is ExprNullContext    -> NullLit()
         is ExprIntContext     -> integer().toAST()
         is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
         is ExprCharContext    -> {
@@ -195,7 +197,7 @@ private fun ExprBinopContext.getBinOp(): BinaryOperator {
     return BinaryOperator.read(opContext.text)
 }
 
-private fun containsReturn(context: StatsContext): List<Pair<Int, Int>> = context.stat().flatMap {
+private fun containsReturn(context: StatsContext): List<Index> = context.stat().flatMap {
     when (it) {
         is BuiltinFuncCallContext -> if (it.builtinFunc().RETURN() != null) {
             listOf(it.index())
@@ -214,11 +216,11 @@ private fun getContent(quotedString: CharSequence) : CharSequence {
     return quotedString.subSequence(1, len - 1)
 }
 
-infix fun<T : WaccAST> T.record(index: Pair<Int, Int>): T {
+infix fun<T : WaccAST> T.record(index: Index): T {
     AstIndexMap.map[this] = index
     return this
 }
 
-private fun ParserRuleContext.index(): Pair<Int, Int> = this.start.line to this.start.charPositionInLine
+private fun ParserRuleContext.index(): Index = this.start.line to this.start.charPositionInLine
 
 

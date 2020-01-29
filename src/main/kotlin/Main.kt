@@ -1,18 +1,23 @@
-import exceptions.ParseErrorListener
+import ast.*
+import ast.Expression.*
+import ast.Statement.Declaration
+import ast.Type.BaseType
 import parser.Parser
 import exceptions.SyntacticException
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
-    val program = """
-        begin
-        int x = -12000000000000000
-        end
-    """.trimIndent()
+    val stat1 = Declaration(BaseType(BaseTypeKind.INT), Identifier("x"), IntLit(1))
+    val stat2 = Declaration(BaseType(BaseTypeKind.INT), Identifier("y"), IntLit(2))
+    val stats: Statements = listOf<Statement>(stat1, stat2)
+
+    val program = "begin\n${ stats.joinToString("\n") { it.prettyPrint() }.prependIndent() }\nend"
+
+    println(program)
 
     try {
         val parser = Parser(program.byteInputStream())
-        println(parser.parseProgram())
+        println(parser.parseProgram().prettyPrint())
         parser.throwsPotentialErrors()
     } catch (pe: SyntacticException) {
         println(pe.msg)

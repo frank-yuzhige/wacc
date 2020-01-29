@@ -29,6 +29,6 @@ fun main(args: Array<String>) {
     }
 
     println("===========")
-    println(ast)
+    println(ast.prettyPrint())
     println("===========")
 }

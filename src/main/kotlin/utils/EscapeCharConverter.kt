@@ -1,4 +1,4 @@
-package parser
+package utils
 
 import exceptions.SyntacticException.InvalidEscapeCharException
 import java.lang.StringBuilder
@@ -43,5 +43,4 @@ class EscapeCharConverter(input: CharSequence) {
         }
         return result.toString()
     }
-
 }

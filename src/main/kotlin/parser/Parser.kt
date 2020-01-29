@@ -8,8 +8,8 @@ import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.TokenStream
 import exceptions.ParseErrorListener
-import exceptions.SyntacticException
 import exceptions.SyntacticException.SyntacticExceptionBundle
+import org.antlr.v4.runtime.ParserRuleContext
 import java.io.InputStream
 import java.io.PrintStream
 
@@ -19,7 +19,7 @@ class Parser(private val inputStream: InputStream,
 
     private val parseErrorListener = ParseErrorListener()
 
-    fun doParse(): WaccParser {
+    fun runParser(): WaccParser {
         val input = CharStreams.fromStream(inputStream)
         val lexer = WaccLexer(input)
         lexer.removeErrorListeners()
@@ -33,16 +33,16 @@ class Parser(private val inputStream: InputStream,
     }
 
     fun parseProgram(): ProgramAST {
-        val ruleContext = doParse().prog()
+        val ruleContext = runParser().prog()
         throwsPotentialErrors()
         return ruleContext.toAST()
     }
 
-    fun parseFunction(): Function = doParse().func().toAST()
+    fun parseFunction(): Function = runParser().func().toAST()
 
-    fun parseStatement(): Statement = doParse().stat().toAST()
+    fun parseStatement(): Statement = runParser().stat().toAST()
 
-    fun parseExpression(): Expression = doParse().expr().toAST()
+    fun parseExpression(): Expression = runParser().expr().toAST()
 
     fun throwsPotentialErrors() {
         if (parseErrorListener.errorBundle.isNotEmpty()) {

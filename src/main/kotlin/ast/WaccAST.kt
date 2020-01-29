@@ -1,4 +1,6 @@
 package ast
 
-interface WaccAST
+interface WaccAST {
+    fun prettyPrint(): String
+}
 
