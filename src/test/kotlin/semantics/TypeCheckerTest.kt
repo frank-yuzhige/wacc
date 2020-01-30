@@ -1,14 +1,11 @@
 package semantics
 
-import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
-import ast.Type.BaseTypeKind.ANYOUT
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
-import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import semantics.TypeChecker.Companion.match
 import java.lang.Exception
@@ -69,9 +66,9 @@ class TypeCheckerTest {
 
     @Test
     fun checkAnyoutTypeTest() {
-        pass(match(intType()).check(BaseType(ANYOUT)))
-        pass(match(ArrayType(ArrayType(ArrayType(charType())))).check(BaseType(ANYOUT)))
-        pass(match(PairType(anyPairType(), intType())).check(BaseType(ANYOUT)))
+        pass(match(intType()).check(BaseType(ANY)))
+        pass(match(ArrayType(ArrayType(ArrayType(charType())))).check(BaseType(ANY)))
+        pass(match(PairType(anyPairType(), intType())).check(BaseType(ANY)))
     }
 
 }

@@ -13,7 +13,7 @@ class SymbolTable {
 //    }
 
     fun defineVar(ident: String, type: Type, index: Index): VarAttributes? {
-        val currScope = this.scopeList.last()
+        val currScope = this.scopeList.first()
         val entry = currScope[ident]
         if (entry != null) {
             return entry

@@ -18,7 +18,7 @@ import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
-import exceptions.SemanticException.TypeException.InsufficientArrayRankException
+import exceptions.SemanticException.TypeException.*
 import semantics.LhsTypeCheckResult.Failure
 import semantics.LhsTypeCheckResult.Success
 import semantics.TypeChecker.Companion.match
@@ -209,7 +209,13 @@ class SemanticAnalyzer {
 //                                ?:listOf(InsufficientArrayRankException(entry.type, indices.count())) }
 //                        ?: listOf(UndefinedVarException(arrayName))
             }
-            is PairElem -> expr.check(matchPairByElem(func, tc))
+            is PairElem -> {
+                if (expr == NullLit) {
+                    listOf(AccessMemberOfNullLitException(func))
+                } else {
+                    expr.check(matchPairByElem(func, tc))
+                }
+            }
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
                     tc.check(anyoutArrayType())
@@ -230,10 +236,13 @@ class SemanticAnalyzer {
                     listOf(UndefinedFuncException(ident))
                 } else {
                     val funcType = funcEntry.type
-                    if (this.args.size != funcType.paramTypes.size) {
-                        listOf()
+                    val retType = funcType.retType
+                    val expectedCount = args.size
+                    val actualCount = funcType.paramTypes.size
+                    if (expectedCount != actualCount) {
+                        listOf(FuncCallArgCountMismatchException(ident, funcType, expectedCount, actualCount))
                     } else {
-                        args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}.flatten()
+                        tc.check(retType) + args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}.flatten()
                     }
 
                 }

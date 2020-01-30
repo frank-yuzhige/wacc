@@ -1,7 +1,10 @@
 package exceptions
 
 import ast.AstIndexMap
+import ast.Expression
+import ast.Expression.PairElemFunction
 import ast.Type
+import ast.Type.FuncType
 import ast.WaccAST
 import utils.Index
 import java.lang.Exception
@@ -40,6 +43,16 @@ sealed class SemanticException(var msg: String): Exception(msg) {
                 TypeException("Couldn't match expected type '$expected' with actual type: '$actual'")
         data class InsufficientArrayRankException(val arrType: Type, val attempt: Int):
                 TypeException("$arrType does not have more than $attempt rank")
+        data class NotAPairException(val actual: Type):
+                TypeException("Expecting any pair, but $actual is not a pair!")
+        data class AccessMemberOfNullLitException(val func: PairElemFunction):
+                TypeException("Cannot access the $func element of a null-literal!")
+        data class FuncCallArgCountMismatchException(val func: String,
+                                                     val funcType: FuncType,
+                                                     val expected: Int,
+                                                     val actual: Int):
+                TypeException("A call to function $func : $funcType needs $expected parameters, " +
+                        "but only $actual parameters has been provided")
     }
 
     class OperatorNotSupportTypeException(expected: Type, operator: String):

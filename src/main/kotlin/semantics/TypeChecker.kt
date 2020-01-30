@@ -1,6 +1,5 @@
 package semantics
 
-import ast.Expression
 import ast.Expression.*
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
@@ -8,8 +7,7 @@ import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
 import exceptions.SemanticException
-import exceptions.SemanticException.TypeException.NoMatchingCandidatesException
-import exceptions.SemanticException.TypeException.SingleTypeMismatchException
+import exceptions.SemanticException.TypeException.*
 
 
 class TypeChecker private constructor(val check: (Type) -> List<SemanticException>) {
@@ -27,9 +25,11 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
 
         fun pass() = TypeChecker { emptyList() }
 
+        fun fail(se: SemanticException) = TypeChecker { listOf(se) }
+
         fun isJust(expected: Type) = { actual: Type ->
             when {
-                actual is BaseType && actual.kind == ANYOUT -> true
+                actual is BaseType && actual.kind == ANY -> true
                 else -> expected == actual
             }
         } throws { actual ->
@@ -41,9 +41,10 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
         }
 
         fun match(expected: Type): TypeChecker = when (expected) {
+            BaseType(ANY) -> pass()
             is PairType -> TypeChecker { actual ->
                 when {
-                    actual is BaseType && actual.kind == ANYOUT -> emptyList()
+                    actual is BaseType && actual.kind == ANY -> emptyList()
                     actual is PairType -> {
                         match(expected.firstElemType).check(actual.firstElemType) +
                                 match(expected.secondElemType).check(actual.secondElemType)
@@ -51,7 +52,20 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
                     else -> listOf(SingleTypeMismatchException(expected, actual))
                 }
             }
-            BaseType(ANY) -> pass()
+            is ArrayType -> TypeChecker { actual ->
+                when {
+                    actual is BaseType && actual.kind == ANY -> emptyList()
+                    actual is BaseType && actual.kind == STRING -> {
+                        if (expected.type == Type.charType()) {
+                            emptyList()
+                        } else {
+                            listOf(SingleTypeMismatchException(expected, actual))
+                        }
+                    }
+                    actual is ArrayType -> match(expected.type).check(actual.type)
+                    else -> listOf(SingleTypeMismatchException(expected, actual))
+                }
+            }
             else -> isJust(expected)
         }
 
@@ -65,14 +79,14 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
                     FST -> tc.check(actual.firstElemType)
                     SND -> tc.check(actual.secondElemType)
                 }
-                else -> TODO() // throw not a type
+                else -> listOf(NotAPairException(actual))
             }
         }
 
         fun unwrapPair(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
             when (func) {
-               FST -> tc.check(PairType(actual, BaseType(ANYOUT)))
-               SND -> tc.check(PairType(BaseType(ANYOUT), actual))
+               FST -> tc.check(PairType(actual, BaseType(ANY)))
+               SND -> tc.check(PairType(BaseType(ANY), actual))
             }
         }
 

@@ -12,14 +12,13 @@ sealed class Type {
         BOOL("bool"),
         CHAR("char"),
         STRING("string"),
-        ANY("?"),
-        ANYOUT("_")
+        ANY("?")
     }
 
     companion object {
-        fun anyoutArrayType(): ArrayType = ArrayType(BaseType(ANYOUT))
+        fun anyoutArrayType(): ArrayType = ArrayType(BaseType(ANY))
         fun anyArrayType(): ArrayType = ArrayType(BaseType(ANY))
-        fun nullType(): PairType = PairType(BaseType(ANYOUT), BaseType(ANYOUT))
+        fun nullType(): PairType = PairType(BaseType(ANY), BaseType(ANY))
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
         fun intType(): BaseType = BaseType(INT)

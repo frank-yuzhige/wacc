@@ -6,11 +6,14 @@ import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
 import semantics.SemanticAnalyzer
+import utils.EmulatorMode.PARSE_ONLY
 import java.io.File
 import java.io.PrintStream
 import java.lang.Exception
 
-class CompilerEmulator(private val inputFile: File, private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
+class CompilerEmulator(private val inputFile: File,
+                       private val mode: EmulatorMode,
+                       private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
 
     class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?)
 
@@ -20,7 +23,9 @@ class CompilerEmulator(private val inputFile: File, private val errorStream: Pri
         var exception: Exception? = null
         val ast = try {
             val temp = parser.parseProgram()
-//            SemanticAnalyzer().doCheck(temp)
+            if (mode != PARSE_ONLY) {
+                SemanticAnalyzer().doCheck(temp)
+            }
             println("ALL IS GOOD: ${inputFile.path}")
             temp
         } catch (sye: SyntacticException) {
