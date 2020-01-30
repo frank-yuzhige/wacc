@@ -33,11 +33,11 @@ binop3: LTE | LT  | GTE | GT;
 binop4: EQ  | NEQ;
 binop5: AND | OR;
 
-expr     : left=expr binop5 right=expr #exprBinop
-         | left=expr binop4 right=expr #exprBinop
-         | left=expr binop3 right=expr #exprBinop
+expr     : left=expr binop1 right=expr #exprBinop
          | left=expr binop2 right=expr #exprBinop
-         | left=expr binop1 right=expr #exprBinop
+         | left=expr binop3 right=expr #exprBinop
+         | left=expr binop4 right=expr #exprBinop
+         | left=expr binop5 right=expr #exprBinop
          | LPAR expr RPAR   #exprParens
          | integer          #exprInt
          | boolLit          #exprBool
