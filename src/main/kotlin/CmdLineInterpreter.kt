@@ -1,6 +1,7 @@
 import parser.Parser
 import exceptions.SyntacticException
 import exceptions.SemanticException
+import semantics.SemanticAnalyzer
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import kotlin.system.exitProcess
@@ -19,7 +20,9 @@ fun main(args: Array<String>) {
     }
 
     val ast = try {
-        Parser(inputStream).parseProgram()
+        val temp = Parser(inputStream).parseProgram()
+        SemanticAnalyzer().doCheck(temp)
+        temp
     } catch (pe: SyntacticException) {
         System.err.println(pe.msg);
         exitProcess(100)

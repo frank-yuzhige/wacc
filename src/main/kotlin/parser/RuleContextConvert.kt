@@ -6,7 +6,7 @@ import ast.Expression.*
 import ast.Function
 import ast.Statement.*
 import ast.Type.*
-import ast.Type.Companion.pairBaseType
+import ast.Type.Companion.anyPairType
 import exceptions.SemanticException.ReturnInMainProgramException
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
@@ -102,7 +102,7 @@ private fun PairTypeContext.toAST(): PairType {
     fun pairElemTypeToAST(context : PairElemTypeContext): Type = when {
         context.baseType() != null -> context.baseType().toAST()
         context.arrayType() != null -> context.arrayType().toAST()
-        else -> pairBaseType()
+        else -> anyPairType()
     }
     return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
 }

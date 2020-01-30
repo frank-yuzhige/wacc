@@ -5,6 +5,7 @@ import ast.WaccAST
 import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
+import semantics.SemanticAnalyzer
 import java.io.File
 import java.io.PrintStream
 import java.lang.Exception
@@ -19,6 +20,7 @@ class CompilerEmulator(private val inputFile: File, private val errorStream: Pri
         var exception: Exception? = null
         val ast = try {
             val temp = parser.parseProgram()
+//            SemanticAnalyzer().doCheck(temp)
             println("ALL IS GOOD: ${inputFile.path}")
             temp
         } catch (sye: SyntacticException) {
@@ -35,6 +37,7 @@ class CompilerEmulator(private val inputFile: File, private val errorStream: Pri
             System.err.println("FATAL ERROR: ${inputFile.path}")
             System.err.println("A non-syntactic, non-semantic exception was thrown!")
             System.err.println(e.message)
+            System.err.println(e.cause)
             System.err.println(e.stackTrace)
             exception = e
             exitCode = 1 //  error output

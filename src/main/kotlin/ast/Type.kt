@@ -10,11 +10,15 @@ sealed class Type {
         BOOL("bool"),
         CHAR("char"),
         STRING("string"),
-        ANY("?")
+        ANY("?"),
+        ANYOUT("_")
     }
 
     companion object {
-        fun pairBaseType(): PairType =
+        fun anyoutArrayType(): ArrayType = ArrayType(BaseType(ANYOUT))
+        fun anyArrayType(): ArrayType = ArrayType(BaseType(ANY))
+        fun nullType(): PairType = PairType(BaseType(ANYOUT), BaseType(ANYOUT))
+        fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
@@ -51,6 +55,9 @@ sealed class Type {
         var t: Type? = this
         for (i in 0 until count) {
             t = t?.unwrapArrayType()
+            if(t == null) {
+                return null
+            }
         }
         return t
     }

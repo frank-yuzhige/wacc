@@ -8,6 +8,10 @@ class SymbolTable {
     private val scopeList: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
 
+    init {
+        scopeList.add(hashMapOf())
+    }
+
     fun define(ident: String, type: Type, index: Index): VarAttributes? {
         val currScope = this.scopeList.last()
         val entry = currScope[ident]

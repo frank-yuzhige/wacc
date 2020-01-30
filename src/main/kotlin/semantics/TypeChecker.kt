@@ -1,5 +1,9 @@
 package semantics
 
+import ast.Expression
+import ast.Expression.*
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
 import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
@@ -33,8 +37,9 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
 
         fun match(expected: Type): TypeChecker = when (expected) {
             is PairType -> TypeChecker { actual ->
-                when(actual) {
-                    is PairType -> {
+                when {
+                    actual is BaseType && actual.kind == ANYOUT -> emptyList()
+                    actual is PairType -> {
                         match(expected.firstElemType).check(actual.firstElemType) +
                                 match(expected.secondElemType).check(actual.secondElemType)
                     }
@@ -43,6 +48,36 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
             }
             BaseType(ANY) -> pass()
             else -> isJust(expected)
+        }
+
+        fun matchPair(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
+            when (actual) {
+                is PairType -> when (func) {
+                    FST -> tc.check(actual.firstElemType)
+                    SND -> tc.check(actual.secondElemType)
+                }
+                else -> TODO() // throw not a type
+            }
+        }
+
+        fun unwrapPair(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
+            when (func) {
+               FST -> tc.check(PairType(actual, BaseType(ANYOUT)))
+               SND -> tc.check(PairType(BaseType(ANYOUT), actual))
+            }
+        }
+
+        fun unwrapArray(tc: TypeChecker): TypeChecker = TypeChecker { actual ->
+            tc.check(ArrayType(actual))
+        }
+    }
+
+    infix fun `||`(other: TypeChecker): TypeChecker = TypeChecker { actual ->
+        val fst = this.check(actual)
+        if (fst.isNotEmpty()) {
+            other.check(actual)
+        } else {
+            fst
         }
     }
 
