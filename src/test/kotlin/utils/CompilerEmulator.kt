@@ -30,15 +30,16 @@ class CompilerEmulator(private val inputFile: File, private val errorStream: Pri
             null
         } catch (sme: SemanticException) {
             System.err.println("SEM ERROR: ${inputFile.path}")
-            exception =sme
+            exception = sme
             exitCode = 200 // 200 as semantic error exit code
             null
         } catch (e: Exception) {
             System.err.println("FATAL ERROR: ${inputFile.path}")
             System.err.println("A non-syntactic, non-semantic exception was thrown!")
             System.err.println(e.message)
+            System.err.println(e.localizedMessage)
             System.err.println(e.cause)
-            System.err.println(e.stackTrace)
+            e.printStackTrace(System.err)
             exception = e
             exitCode = 1 //  error output
             null

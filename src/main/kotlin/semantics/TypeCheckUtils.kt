@@ -29,3 +29,10 @@ infix fun Type.check(actual: Type): Boolean {
     }
 }
 
+fun<T> List<List<T>>.anyEmptyOrAll(handler: (List<List<T>>) -> List<T> = { it.flatten() }): List<T> {
+    return if (this.any { it.isEmpty() }) {
+        emptyList()
+    } else {
+        handler(this)
+    }
+}

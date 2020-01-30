@@ -27,7 +27,12 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
 
         fun pass() = TypeChecker { emptyList() }
 
-        fun isJust(expected: Type) = (expected::equals) throws { actual ->
+        fun isJust(expected: Type) = { actual: Type ->
+            when {
+                actual is BaseType && actual.kind == ANYOUT -> true
+                else -> expected == actual
+            }
+        } throws { actual ->
             SingleTypeMismatchException(expected, actual)
         }
 
@@ -50,7 +55,11 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
             else -> isJust(expected)
         }
 
-        fun matchPair(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
+        fun match(vararg expected: Type): TypeChecker {
+            return expected.map { match(it) }.reduceRight{ a, b -> a `||` b}
+        }
+
+        fun matchPairByElem(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
             when (actual) {
                 is PairType -> when (func) {
                     FST -> tc.check(actual.firstElemType)
@@ -78,6 +87,14 @@ class TypeChecker private constructor(val check: (Type) -> List<SemanticExceptio
             other.check(actual)
         } else {
             fst
+        }
+    }
+
+    fun withError(vararg se: SemanticException): TypeChecker = TypeChecker { actual ->
+        if (this.check(actual).isEmpty()) {
+            emptyList()
+        } else {
+            se.asList()
         }
     }
 

@@ -24,10 +24,12 @@ fun main(args: Array<String>) {
         SemanticAnalyzer().doCheck(temp)
         temp
     } catch (pe: SyntacticException) {
-        System.err.println(pe.msg);
+        System.err.println(pe.msg)
+        pe.printStackTrace()
         exitProcess(100)
     } catch (se: SemanticException) {
         System.err.println(se.message)
+        se.printStackTrace()
         exitProcess(200)
     }
 

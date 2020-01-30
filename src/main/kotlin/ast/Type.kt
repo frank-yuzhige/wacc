@@ -1,6 +1,8 @@
 package ast
 
 import ast.Expression.*
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
 
 sealed class Type {
@@ -60,6 +62,14 @@ sealed class Type {
             }
         }
         return t
+    }
+
+    fun unwrapPairType(elem: PairElemFunction): Type? = when(this) {
+        is PairType -> when (elem) {
+            FST -> this.firstElemType
+            SND -> this.secondElemType
+        }
+        else -> null
     }
 
 }

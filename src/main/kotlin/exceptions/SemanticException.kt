@@ -6,10 +6,10 @@ import ast.WaccAST
 import utils.Index
 import java.lang.Exception
 
-sealed class SemanticException(var msg: String): Exception() {
+sealed class SemanticException(var msg: String): Exception(msg) {
 
     fun forwardWith(sentenceKind: String, ast: WaccAST): SemanticException {
-        this.msg += "in $sentenceKind at ${AstIndexMap.map[ast]}:\n ${ast.prettyPrint()}"
+        this.msg += "\nin $sentenceKind at ${AstIndexMap.map[ast]}: ${ast.prettyPrint()}"
         return this
     }
 

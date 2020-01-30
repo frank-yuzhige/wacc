@@ -17,7 +17,8 @@ class ParserEmulateTest {
     fun batchTestParseError() {
         File("src/test/resources/").walkTopDown().forEach {
             if (it.path.endsWith(".wacc")) {
-                val exitCode = CompilerEmulator(it, PrintStream(NullOutputStream())).run().exitCode
+                val result = CompilerEmulator(it, PrintStream(NullOutputStream())).run()
+                val exitCode = result.exitCode
                 if (it.path.contains("syntaxErr")) {
                     assertTrue(exitCode == 100)
                 } else {
@@ -33,7 +34,7 @@ class ParserEmulateTest {
             if (it.path.endsWith(".wacc")) {
                 val result = CompilerEmulator(it).run()
                 if (result.exception != null) {
-                    fail("program at ${it.path} fail to parse due to exception: ${result.exception.javaClass.canonicalName}")
+                    fail("program at ${it.path} fail to parse due to exception: ${result.exception.stackTrace}")
                 }
                 val progString = result.ast!!.prettyPrint()
                 val tempFile = createTempFile(directory = File("src/test"))

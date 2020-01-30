@@ -8,11 +8,11 @@ class SymbolTable {
     private val scopeList: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
 
-    init {
-        scopeList.add(hashMapOf())
-    }
+//    init {
+//        scopeList.add(hashMapOf())
+//    }
 
-    fun define(ident: String, type: Type, index: Index): VarAttributes? {
+    fun defineVar(ident: String, type: Type, index: Index): VarAttributes? {
         val currScope = this.scopeList.last()
         val entry = currScope[ident]
         if (entry != null) {
@@ -34,7 +34,7 @@ class SymbolTable {
 
     fun popScope(): MutableMap<String, VarAttributes>? = scopeList.pollFirst()
 
-    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident] }.first()
+    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident] }.firstOrNull()
     fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
 
     data class FuncAttributes(val type: Type.FuncType, val index: Index)

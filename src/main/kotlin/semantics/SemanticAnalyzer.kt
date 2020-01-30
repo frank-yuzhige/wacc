@@ -1,6 +1,7 @@
 package semantics
 
 import ast.*
+import ast.BinaryOperator.*
 import ast.Expression.*
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
@@ -13,6 +14,7 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.anyPairType
+import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
@@ -20,7 +22,7 @@ import exceptions.SemanticException.TypeException.InsufficientArrayRankException
 import semantics.LhsTypeCheckResult.Failure
 import semantics.LhsTypeCheckResult.Success
 import semantics.TypeChecker.Companion.match
-import semantics.TypeChecker.Companion.matchPair
+import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
@@ -38,29 +40,38 @@ class SemanticAnalyzer {
     }
 
     private fun ProgramAST.check(): List<SemanticException> {
-        functions.map { symbolTable.define(
+        functions.map { symbolTable.defineFunc(
                         it.name,
                         Type.FuncType(it.returnType, it.args.map { a -> a.second }),
                         AstIndexMap.map[it] ?: throw UnknownError())
         }
-        return functions.flatMap { it.checkBody(match(it.returnType)) } +
-                mainProgram.flatMap { it.check() }
+        return functions.flatMap { it.checkFunc(match(it.returnType)) } +
+                mainProgram.checkBlock()
     }
 
-    private fun Function.checkBody(retCheck: TypeChecker): List<SemanticException> {
+    private fun Function.checkFunc(retCheck: TypeChecker): List<SemanticException> {
         symbolTable.pushScope()
-        args.map { param -> symbolTable.define(param.first, param.second, AstIndexMap.map.getValue(this)) }
+        args.map { param ->
+            symbolTable.defineVar(param.first, param.second, AstIndexMap.map.getValue(this))
+        }
         val errors = this.body.flatMap { it.check(retCheck) }
         symbolTable.popScope()
         return errors
     }
 
-    private fun Statement.check(retCheck: TypeChecker = pass()): List<SemanticException> {
+    private fun Statements.checkBlock(retCheck: TypeChecker = pass()): List<SemanticException> {
+        symbolTable.pushScope()
+        val errors = this.flatMap { it.check(retCheck) }
+        symbolTable.popScope()
+        return errors
+    }
+
+    private fun Statement.check(retCheck: TypeChecker): List<SemanticException> {
         return when(this@check) {
             Statement.Skip -> emptyList()
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.define(variable.ident, type, AstIndexMap.map.getValue(this))
+                        = symbolTable.defineVar(variable.ident, type, AstIndexMap.map.getValue(this))
                 if (prevAttr != null) {
                     listOf(MultipleVarDefException(variable.ident, prevAttr.type, prevAttr.index))
                 } else {
@@ -83,7 +94,7 @@ class SemanticAnalyzer {
                 }
             }
             is Statement.BuiltinFuncCall -> when (func) {
-                PRINT, PRINTLN -> expr.check(match(stringType()))
+                PRINT, PRINTLN -> expr.check(pass())
                 FREE -> expr.check(match(anyArrayType()) `||` match(anyPairType()))
                 EXIT -> expr.check(match(intType()))
                 RETURN -> expr.check(retCheck)
@@ -98,13 +109,6 @@ class SemanticAnalyzer {
             }
             is Statement.Block -> body.checkBlock(retCheck)
         }
-    }
-
-    private fun Statements.checkBlock(retCheck: TypeChecker): List<SemanticException> {
-        symbolTable.pushScope()
-        val errors = this.flatMap { it.check(retCheck) }
-        symbolTable.popScope()
-        return errors
     }
 
     private fun Expression.checkLhs(tc: TypeChecker = pass()): LhsTypeCheckResult<Type> {
@@ -122,7 +126,19 @@ class SemanticAnalyzer {
                     Failure(listOf(UndefinedVarException(ident)))
                 }
             }
-            is PairElem -> TODO()
+            is PairElem -> {
+                val errors = expr.check(matchPairByElem(func, tc))
+                if (errors.isNotEmpty()) {
+                    Failure(errors)
+                } else {
+                    val result = expr.getType(symbolTable).unwrapPairType(func)
+                    if (result != null) {
+                        Success(result)
+                    } else {
+                        throw UnknownError()
+                    }
+                }
+            }
             is ArrayElem -> {
                 val entry = symbolTable.lookupVar(arrayName)
                 if (entry != null) {
@@ -147,7 +163,7 @@ class SemanticAnalyzer {
 
     private fun Expression.check(tc: TypeChecker): List<SemanticException> {
         return when(this) {
-            is NullLit -> tc.check(anyPairType())
+            is NullLit -> tc.check(nullType())
             is IntLit -> tc.check(intType())
             is BoolLit -> tc.check(boolType())
             is CharLit -> tc.check(charType())
@@ -161,13 +177,17 @@ class SemanticAnalyzer {
                 }
             }
             is BinExpr -> {
-                val allCases = BinaryOperator.typeMap.getValue(op).map { entry ->
-                    tc.check(entry.type) + left.check(entry.lhsChecker) + right.check(entry.rhsChecker)
-                }
-                if(allCases.count { it.isEmpty() } != 0) {
-                    allCases.flatten()
-                } else {
-                    emptyList()
+                when (op) {
+                    EQ, NEQ -> tc.check(boolType()) + listOf(
+                            left.check(match(right.getType(symbolTable))),
+                            right.check(match(left.getType(symbolTable)))
+                    ).anyEmptyOrAll()
+                    else -> {
+                        val allCases = BinaryOperator.typeMap.getValue(op).map { entry ->
+                            tc.check(entry.type) + left.check(entry.lhsChecker) + right.check(entry.rhsChecker)
+                        }
+                        allCases.anyEmptyOrAll()
+                    }
                 }
             }
             is ArrayElem -> {
@@ -189,7 +209,7 @@ class SemanticAnalyzer {
 //                                ?:listOf(InsufficientArrayRankException(entry.type, indices.count())) }
 //                        ?: listOf(UndefinedVarException(arrayName))
             }
-            is PairElem -> expr.check(matchPair(func, tc))
+            is PairElem -> expr.check(matchPairByElem(func, tc))
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
                     tc.check(anyoutArrayType())
@@ -219,7 +239,7 @@ class SemanticAnalyzer {
                 }
 
             }
-        }
+        }.map { err -> err.forwardWith("an expression", this) }
     }
 
 
