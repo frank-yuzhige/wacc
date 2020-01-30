@@ -6,7 +6,7 @@ build:
   stage: build
   script:
     - make
-    - ./gradlew build
+    - ./gradlew build -x test
   tags:
     - shell
 

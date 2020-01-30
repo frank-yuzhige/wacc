@@ -5,12 +5,9 @@ import ast.Expression.PairElemFunction.SND
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
 import ast.Type.Companion.intType
-import ast.Type.Companion.pairBaseType
-import exceptions.SemanticException
+import ast.Type.Companion.anyPairType
+import ast.Type.Companion.nullType
 import exceptions.SemanticException.*
-import semantics.TypeChecker
-import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader
-import sun.reflect.annotation.ExceptionProxy
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.SymbolTable
 
@@ -74,7 +71,7 @@ sealed class Expression() : WaccAST {
     }
 
     fun getType(symbolTable: SymbolTable) : Type  = when (this) {
-        is NullLit -> pairBaseType()
+        is NullLit -> nullType()
         is IntLit -> BaseType(INT)
         is BoolLit -> BaseType(BOOL)
         is CharLit -> BaseType(CHAR)
@@ -100,7 +97,7 @@ sealed class Expression() : WaccAST {
                     FST -> exprType.firstElemType
                     SND -> exprType.secondElemType
                 }
-                else -> throw TypeMismatchException(pairBaseType(), exprType)
+                else -> throw TypeMismatchException(anyPairType(), exprType)
             }
         }
         is ArrayLiteral -> {
