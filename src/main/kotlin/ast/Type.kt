@@ -1,10 +1,9 @@
 package ast
 
 import ast.Expression.*
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
-import com.sun.org.apache.bcel.internal.generic.BALOAD
-import com.sun.org.apache.xpath.internal.operations.Bool
-import kotlin.math.exp
 
 sealed class Type {
 
@@ -17,7 +16,10 @@ sealed class Type {
     }
 
     companion object {
-        fun pairBaseType(): PairType =
+        fun anyoutArrayType(): ArrayType = ArrayType(BaseType(ANY))
+        fun anyArrayType(): ArrayType = ArrayType(BaseType(ANY))
+        fun nullType(): PairType = PairType(BaseType(ANY), BaseType(ANY))
+        fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
@@ -47,6 +49,25 @@ sealed class Type {
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
+        else -> null
+    }
+    
+    fun unwrapArrayType(count: Int): Type? {
+        var t: Type? = this
+        for (i in 0 until count) {
+            t = t?.unwrapArrayType()
+            if(t == null) {
+                return null
+            }
+        }
+        return t
+    }
+
+    fun unwrapPairType(elem: PairElemFunction): Type? = when(this) {
+        is PairType -> when (elem) {
+            FST -> this.firstElemType
+            SND -> this.secondElemType
+        }
         else -> null
     }
 

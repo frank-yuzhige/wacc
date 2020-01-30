@@ -917,8 +917,8 @@ public class WaccParser extends Parser {
 	public static class ExprBinopContext extends ExprContext {
 		public ExprContext left;
 		public ExprContext right;
-		public Binop5Context binop5() {
-			return getRuleContext(Binop5Context.class,0);
+		public Binop1Context binop1() {
+			return getRuleContext(Binop1Context.class,0);
 		}
 		public List<ExprContext> expr() {
 			return getRuleContexts(ExprContext.class);
@@ -926,17 +926,17 @@ public class WaccParser extends Parser {
 		public ExprContext expr(int i) {
 			return getRuleContext(ExprContext.class,i);
 		}
-		public Binop4Context binop4() {
-			return getRuleContext(Binop4Context.class,0);
+		public Binop2Context binop2() {
+			return getRuleContext(Binop2Context.class,0);
 		}
 		public Binop3Context binop3() {
 			return getRuleContext(Binop3Context.class,0);
 		}
-		public Binop2Context binop2() {
-			return getRuleContext(Binop2Context.class,0);
+		public Binop4Context binop4() {
+			return getRuleContext(Binop4Context.class,0);
 		}
-		public Binop1Context binop1() {
-			return getRuleContext(Binop1Context.class,0);
+		public Binop5Context binop5() {
+			return getRuleContext(Binop5Context.class,0);
 		}
 		public ExprBinopContext(ExprContext ctx) { copyFrom(ctx); }
 		@Override
@@ -1151,7 +1151,7 @@ public class WaccParser extends Parser {
 						setState(131);
 						if (!(precpred(_ctx, 14))) throw new FailedPredicateException(this, "precpred(_ctx, 14)");
 						setState(132);
-						binop5();
+						binop1();
 						setState(133);
 						((ExprBinopContext)_localctx).right = expr(15);
 						}
@@ -1164,7 +1164,7 @@ public class WaccParser extends Parser {
 						setState(135);
 						if (!(precpred(_ctx, 13))) throw new FailedPredicateException(this, "precpred(_ctx, 13)");
 						setState(136);
-						binop4();
+						binop2();
 						setState(137);
 						((ExprBinopContext)_localctx).right = expr(14);
 						}
@@ -1190,7 +1190,7 @@ public class WaccParser extends Parser {
 						setState(143);
 						if (!(precpred(_ctx, 11))) throw new FailedPredicateException(this, "precpred(_ctx, 11)");
 						setState(144);
-						binop2();
+						binop4();
 						setState(145);
 						((ExprBinopContext)_localctx).right = expr(12);
 						}
@@ -1203,7 +1203,7 @@ public class WaccParser extends Parser {
 						setState(147);
 						if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
 						setState(148);
-						binop1();
+						binop5();
 						setState(149);
 						((ExprBinopContext)_localctx).right = expr(11);
 						}
@@ -2430,13 +2430,13 @@ public class WaccParser extends Parser {
 		"\177\u0080\5\24\13\2\u0080\u0081\5\"\22\4\u0081\u0084\3\2\2\2\u0082\u0084"+
 		"\58\35\2\u0083t\3\2\2\2\u0083y\3\2\2\2\u0083z\3\2\2\2\u0083{\3\2\2\2\u0083"+
 		"|\3\2\2\2\u0083}\3\2\2\2\u0083~\3\2\2\2\u0083\177\3\2\2\2\u0083\u0082"+
-		"\3\2\2\2\u0084\u009b\3\2\2\2\u0085\u0086\f\20\2\2\u0086\u0087\5 \21\2"+
+		"\3\2\2\2\u0084\u009b\3\2\2\2\u0085\u0086\f\20\2\2\u0086\u0087\5\30\r\2"+
 		"\u0087\u0088\5\"\22\21\u0088\u009a\3\2\2\2\u0089\u008a\f\17\2\2\u008a"+
-		"\u008b\5\36\20\2\u008b\u008c\5\"\22\20\u008c\u009a\3\2\2\2\u008d\u008e"+
+		"\u008b\5\32\16\2\u008b\u008c\5\"\22\20\u008c\u009a\3\2\2\2\u008d\u008e"+
 		"\f\16\2\2\u008e\u008f\5\34\17\2\u008f\u0090\5\"\22\17\u0090\u009a\3\2"+
-		"\2\2\u0091\u0092\f\r\2\2\u0092\u0093\5\32\16\2\u0093\u0094\5\"\22\16\u0094"+
-		"\u009a\3\2\2\2\u0095\u0096\f\f\2\2\u0096\u0097\5\30\r\2\u0097\u0098\5"+
-		"\"\22\r\u0098\u009a\3\2\2\2\u0099\u0085\3\2\2\2\u0099\u0089\3\2\2\2\u0099"+
+		"\2\2\u0091\u0092\f\r\2\2\u0092\u0093\5\36\20\2\u0093\u0094\5\"\22\16\u0094"+
+		"\u009a\3\2\2\2\u0095\u0096\f\f\2\2\u0096\u0097\5 \21\2\u0097\u0098\5\""+
+		"\22\r\u0098\u009a\3\2\2\2\u0099\u0085\3\2\2\2\u0099\u0089\3\2\2\2\u0099"+
 		"\u008d\3\2\2\2\u0099\u0091\3\2\2\2\u0099\u0095\3\2\2\2\u009a\u009d\3\2"+
 		"\2\2\u009b\u0099\3\2\2\2\u009b\u009c\3\2\2\2\u009c#\3\2\2\2\u009d\u009b"+
 		"\3\2\2\2\u009e\u009f\5\b\5\2\u009f\u00a0\5\6\4\2\u00a0%\3\2\2\2\u00a1"+
