@@ -9,13 +9,15 @@ import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.TokenStream
 import exceptions.ParseErrorListener
 import exceptions.SyntacticException.SyntacticExceptionBundle
-import org.antlr.v4.runtime.ParserRuleContext
+import utils.AstIndexMap
 import java.io.InputStream
 import java.io.PrintStream
+import java.util.*
 
 class Parser(private val inputStream: InputStream,
              private val outputStream: PrintStream = System.out,
-             private val errorStream: PrintStream = System.err) {
+             private val errorStream: PrintStream = System.err,
+             val astIndexMap: AstIndexMap = IdentityHashMap()) {
 
     private val parseErrorListener = ParseErrorListener()
 
@@ -33,16 +35,28 @@ class Parser(private val inputStream: InputStream,
     }
 
     fun parseProgram(): ProgramAST {
-        val ruleContext = runParser().prog()
+        val program = runParser().prog()
         throwsPotentialErrors()
-        return ruleContext.toAST()
+        return RuleContextConverter(astIndexMap).convertProgram(program)
     }
 
-    fun parseFunction(): Function = runParser().func().toAST()
+    fun parseFunction(): Function {
+        val function = runParser().func()
+        throwsPotentialErrors()
+        return RuleContextConverter(astIndexMap).convertFunction(function)
+    }
 
-    fun parseStatement(): Statement = runParser().stat().toAST()
+    fun parseStatement(): Statement {
+        val statement = runParser().stat()
+        throwsPotentialErrors()
+        return RuleContextConverter(astIndexMap).convertStatement(statement)
+    }
 
-    fun parseExpression(): Expression = runParser().expr().toAST()
+    fun parseExpression(): Expression {
+        val expression = runParser().expr()
+        throwsPotentialErrors()
+        return RuleContextConverter(astIndexMap).convertExpression(expression)
+    }
 
     fun throwsPotentialErrors() {
         if (parseErrorListener.errorBundle.isNotEmpty()) {

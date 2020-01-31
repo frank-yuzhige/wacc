@@ -16,13 +16,4 @@ fun main(args: Array<String>) {
 
     println(program)
 
-    try {
-        val parser = Parser(program.byteInputStream())
-        println(parser.parseProgram().prettyPrint())
-        parser.throwsPotentialErrors()
-    } catch (pe: SyntacticException) {
-        println(pe.msg)
-        exitProcess(100)
-    }
-
 }

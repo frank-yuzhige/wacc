@@ -2,6 +2,7 @@ import parser.Parser
 import exceptions.SyntacticException
 import exceptions.SemanticException
 import semantics.SemanticAnalyzer
+import utils.AstIndexMap
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import kotlin.system.exitProcess
@@ -19,9 +20,11 @@ fun main(args: Array<String>) {
         System.`in`
     }
 
+    val astIndexMap = AstIndexMap()
+
     val ast = try {
-        val temp = Parser(inputStream).parseProgram()
-        SemanticAnalyzer().doCheck(temp)
+        val temp = Parser(inputStream, astIndexMap = astIndexMap).parseProgram()
+        SemanticAnalyzer(astIndexMap).doCheck(temp)
         temp
     } catch (pe: SyntacticException) {
         System.err.println(pe.msg)

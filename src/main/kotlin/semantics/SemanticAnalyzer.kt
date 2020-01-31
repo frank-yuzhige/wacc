@@ -26,9 +26,10 @@ import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
+import utils.AstIndexMap
 import utils.SymbolTable
 
-class SemanticAnalyzer {
+class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
 
     val symbolTable = SymbolTable()
 
@@ -43,7 +44,7 @@ class SemanticAnalyzer {
         functions.map { symbolTable.defineFunc(
                         it.name,
                         Type.FuncType(it.returnType, it.args.map { a -> a.second }),
-                        AstIndexMap.map[it] ?: throw UnknownError())
+                        astIndexMap[it] ?: throw UnknownError())
         }
         return functions.flatMap { it.checkFunc(match(it.returnType)) } +
                 mainProgram.checkBlock()
@@ -52,7 +53,7 @@ class SemanticAnalyzer {
     private fun Function.checkFunc(retCheck: TypeChecker): List<SemanticException> {
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.first, param.second, AstIndexMap.map.getValue(this))
+            symbolTable.defineVar(param.first, param.second, astIndexMap.getValue(this))
         }
         val errors = this.body.flatMap { it.check(retCheck) }
         symbolTable.popScope()
@@ -71,7 +72,7 @@ class SemanticAnalyzer {
             Statement.Skip -> emptyList()
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.defineVar(variable.ident, type, AstIndexMap.map.getValue(this))
+                        = symbolTable.defineVar(variable.ident, type, astIndexMap.getValue(this))
                 if (prevAttr != null) {
                     listOf(MultipleVarDefException(variable.ident, prevAttr.type, prevAttr.index))
                 } else {
@@ -162,7 +163,7 @@ class SemanticAnalyzer {
     }
 
     private fun Expression.check(tc: TypeChecker): List<SemanticException> {
-        return when(this) {
+        val errors = when(this) {
             is NullLit -> tc.check(nullType())
             is IntLit -> tc.check(intType())
             is BoolLit -> tc.check(boolType())
@@ -248,9 +249,9 @@ class SemanticAnalyzer {
                 }
 
             }
-        }.map { err -> err.forwardWith("an expression", this) }
+        }
+        return errors.map { err -> err.forwardWith("an expression", this, astIndexMap) }
     }
-
 
 }
 

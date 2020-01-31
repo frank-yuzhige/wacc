@@ -1,7 +1,6 @@
 package exceptions
 
-import ast.AstIndexMap
-import ast.Expression
+import utils.AstIndexMap
 import ast.Expression.PairElemFunction
 import ast.Type
 import ast.Type.FuncType
@@ -11,8 +10,8 @@ import java.lang.Exception
 
 sealed class SemanticException(var msg: String): Exception(msg) {
 
-    fun forwardWith(sentenceKind: String, ast: WaccAST): SemanticException {
-        this.msg += "\nin $sentenceKind at ${AstIndexMap.map[ast]}: ${ast.prettyPrint()}"
+    fun forwardWith(sentenceKind: String, ast: WaccAST, astIndexMap: AstIndexMap): SemanticException {
+        this.msg += "\nin $sentenceKind at ${astIndexMap[ast]}: ${ast.prettyPrint()}"
         return this
     }
 
