@@ -11,7 +11,7 @@ import exceptions.SemanticException.*
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.SymbolTable
 
-sealed class Expression() : WaccAST {
+sealed class Expression(var inParens: Boolean = false) : WaccAST {
 
     enum class PairElemFunction(val value : String) {
         FST("fst"), SND("snd")
@@ -43,7 +43,14 @@ sealed class Expression() : WaccAST {
     }
 
     data class BinExpr(val left : Expression, val op : BinaryOperator, val right : Expression) : Expression() {
-        override fun prettyPrint(): String = "${left.prettyPrint()} ${op.op} ${right.prettyPrint()}"
+        override fun prettyPrint(): String {
+            val content = "${left.prettyPrint()} ${op.op} ${right.prettyPrint()}"
+            return if (super.inParens) {
+                "($content)"
+            } else {
+                content
+            }
+        }
     }
 
     data class UnaryExpr(val op : UnaryOperator, val expr : Expression) : Expression() {
@@ -102,7 +109,7 @@ sealed class Expression() : WaccAST {
         }
         is ArrayLiteral -> {
             if (elements.isEmpty()) {
-                BaseType(ANY)
+                ArrayType(BaseType(ANY))
             } else {
                 val fstType = elements[0].getType(symbolTable)
                 for (expr in elements.drop(1)) {

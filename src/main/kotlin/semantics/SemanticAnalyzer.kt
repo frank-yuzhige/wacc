@@ -18,7 +18,6 @@ import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
-import exceptions.SemanticException.TypeException.*
 import semantics.LhsTypeCheckResult.Failure
 import semantics.LhsTypeCheckResult.Success
 import semantics.TypeChecker.Companion.match
@@ -36,7 +35,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
     fun doCheck(ast: ProgramAST) {
         val errors = ast.check()
         if (errors.isNotEmpty()) {
-            throw SemanticExceptionBundle(errors)
+            throw SemanticExceptionBundle(errors, "\n==========\n")
         }
     }
 
@@ -47,7 +46,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                         astIndexMap[it] ?: throw UnknownError())
         }
         return functions.flatMap { it.checkFunc(match(it.returnType)) } +
-                mainProgram.checkBlock()
+                mainProgram.checkBlock().map { it.forwardText("in the main program") }
     }
 
     private fun Function.checkFunc(retCheck: TypeChecker): List<SemanticException> {
@@ -57,7 +56,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
         }
         val errors = this.body.flatMap { it.check(retCheck) }
         symbolTable.popScope()
-        return errors
+        return errors.map { it.forwardText("in function defined at ${astIndexMap[this]}: ${showHeader()}") }
     }
 
     private fun Statements.checkBlock(retCheck: TypeChecker = pass()): List<SemanticException> {
@@ -90,7 +89,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 val result =  target.checkLhs()
                 val readChecker = match(intType())`||` match(charType()) `||` match(stringType())
                 when (result) {
-                    is Success -> readChecker.check(result.result)
+                    is Success -> readChecker.test(result.result)
                     is Failure -> result.errors
                 }
             }
@@ -109,7 +108,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 expr.check(match(boolType())) + body.checkBlock(retCheck)
             }
             is Statement.Block -> body.checkBlock(retCheck)
-        }
+        }.map { err -> err.forwardWith("a statement", this, astIndexMap) }
     }
 
     private fun Expression.checkLhs(tc: TypeChecker = pass()): LhsTypeCheckResult<Type> {
@@ -117,7 +116,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             is Identifier -> {
                 val actual = symbolTable.lookupVar(ident)?.type
                 if (actual != null) {
-                    val errors = tc.check(actual)
+                    val errors = tc.test(actual)
                     if (errors.isEmpty()) {
                         Success(actual)
                     } else {
@@ -145,7 +144,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 if (entry != null) {
                     val actual = entry.type.unwrapArrayType(indices.count())
                     if (actual != null) {
-                        val errors = tc.check(actual)
+                        val errors = tc.test(actual)
                         if (errors.isEmpty()) {
                             Success(actual)
                         } else {
@@ -164,30 +163,32 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
 
     private fun Expression.check(tc: TypeChecker): List<SemanticException> {
         val errors = when(this) {
-            is NullLit -> tc.check(nullType())
-            is IntLit -> tc.check(intType())
-            is BoolLit -> tc.check(boolType())
-            is CharLit -> tc.check(charType())
-            is StringLit -> tc.check(stringType())
+            is NullLit -> tc.test(nullType())
+            is IntLit -> tc.test(intType())
+            is BoolLit -> tc.test(boolType())
+            is CharLit -> tc.test(charType())
+            is StringLit -> tc.test(stringType())
             is Identifier -> {
                 val actual = symbolTable.lookupVar(ident)?.type
                 if (actual != null) {
-                    tc.check(actual)
+                    tc.test(actual)
                 } else {
                     listOf(UndefinedVarException(ident))
                 }
             }
             is BinExpr -> {
                 when (op) {
-                    EQ, NEQ -> tc.check(boolType()) + listOf(
-                            left.check(match(right.getType(symbolTable))),
-                            right.check(match(left.getType(symbolTable)))
-                    ).anyEmptyOrAll()
+                    EQ, NEQ -> tc.test(boolType()).ifEmptyJust(listOf(
+                            left.check(match(right.getType(symbolTable)))
+                    ).ifNotEmptyDo { listOf(SemanticExceptionBundle(it.flatten())) })
                     else -> {
                         val allCases = BinaryOperator.typeMap.getValue(op).map { entry ->
-                            tc.check(entry.type) + left.check(entry.lhsChecker) + right.check(entry.rhsChecker)
+                            val returnChecker = tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
+                            returnChecker.test(entry.retType)
+                                    .ifEmptyJust(left.check(entry.lhsChecker)
+                                            .ifEmptyJust(right.check(entry.rhsChecker)))
                         }
-                        allCases.anyEmptyOrAll()
+                        allCases.ifNotEmptyDo { listOf(SemanticExceptionBundle(it.flatten())) }
                     }
                 }
             }
@@ -196,7 +197,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 if (entry != null) {
                     val newtype = entry.type.unwrapArrayType(indices.count())
                     if (newtype != null) {
-                        tc.check(newtype)
+                        tc.test(newtype)
                     } else {
                         listOf(InsufficientArrayRankException(entry.type, indices.count()))
                     }
@@ -219,7 +220,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             }
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
-                    tc.check(anyoutArrayType())
+                    tc.test(anyoutArrayType())
                 } else {
                     elements.flatMap { it.check(unwrapArray(tc)) }
                 }
@@ -229,7 +230,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 val entry = UnaryOperator.typeMap().getValue(op)
                 val checker = entry.first
                 val retType = entry.second
-                tc.check(retType) + expr.check(checker)
+                tc.test(retType) + expr.check(checker)
             }
             is FunctionCall -> {
                 val funcEntry = symbolTable.lookupFunc(ident)
@@ -243,7 +244,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     if (expectedCount != actualCount) {
                         listOf(FuncCallArgCountMismatchException(ident, funcType, expectedCount, actualCount))
                     } else {
-                        tc.check(retType) + args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}.flatten()
+                        tc.test(retType) + args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}.flatten()
                     }
 
                 }

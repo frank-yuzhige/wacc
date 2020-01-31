@@ -28,11 +28,11 @@ fun main(args: Array<String>) {
         temp
     } catch (pe: SyntacticException) {
         System.err.println(pe.msg)
-        pe.printStackTrace()
+//        pe.printStackTrace()
         exitProcess(100)
     } catch (se: SemanticException) {
         System.err.println(se.message)
-        se.printStackTrace()
+//        se.printStackTrace()
         exitProcess(200)
     }
 

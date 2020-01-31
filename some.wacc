@@ -1,0 +1,6 @@
+begin
+int f() is
+bool x = true;
+end
+skip
+end

@@ -13,7 +13,7 @@ data class Function (
             "${body.prettyPrint().prependIndent()}\n" +
             "end\n"
 
-    private fun showHeader(): String {
+    fun showHeader(): String {
         return "$returnType $name (${args.joinToString(",") { "${it.second} ${it.first}"}})"
     }
 }

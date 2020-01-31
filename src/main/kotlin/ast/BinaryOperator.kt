@@ -26,7 +26,7 @@ enum class BinaryOperator(val op: String, val retType: Type) {
     AND("&&", boolType()),
     OR("||", boolType());
 
-    data class BinOpType(val lhsChecker: TypeChecker, val type: Type, val rhsChecker: TypeChecker) {
+    data class BinOpType(val lhsChecker: TypeChecker, val retType: Type, val rhsChecker: TypeChecker) {
         companion object {
             fun binOpOf(type: Type): BinOpType = BinOpType(match(type), type, match(type))
             fun compareOf(type: Type): BinOpType = BinOpType(match(type), boolType(), match(type))

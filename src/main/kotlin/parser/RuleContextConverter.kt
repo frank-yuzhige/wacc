@@ -176,7 +176,7 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
             }
             is ExprStringContext  -> StringLit(EscapeCharConverter(getContent(STRLIT().text)).getAll())
             is ExprIdentContext   -> Identifier(ident().text)
-            is ExprParensContext  -> expr().toAST()
+            is ExprParensContext  -> expr().toAST().markParens()
             is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
             is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
@@ -235,6 +235,11 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
     }
 
     private fun ParserRuleContext.index(): Index = this.start.line to this.start.charPositionInLine
+
+    fun<T: Expression> T.markParens(): T {
+        this.inParens = true
+        return this
+    }
 }
 
 

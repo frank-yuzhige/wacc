@@ -19,10 +19,10 @@ class TypeCheckerTest {
 
     @Test
     fun checkBasicTypeTest() {
-        pass(match(intType()).check(intType()))
-        pass(match(charType()).check(charType()))
-        pass(match(boolType()).check(boolType()))
-        pass(match(stringType()).check(stringType()))
+        pass(match(intType()).test(intType()))
+        pass(match(charType()).test(charType()))
+        pass(match(boolType()).test(boolType()))
+        pass(match(stringType()).test(stringType()))
     }
 
     @Test
@@ -32,7 +32,7 @@ class TypeCheckerTest {
                 ArrayType(ArrayType(ArrayType(charType()))),
                 ArrayType(PairType(intType(), boolType()))
         )
-        candidates.forEach { pass(match(it).check(it)) }
+        candidates.forEach { pass(match(it).test(it)) }
     }
 
     @Test
@@ -42,15 +42,15 @@ class TypeCheckerTest {
                 PairType(anyPairType(), boolType()),
                 PairType(anyPairType(), anyPairType())
         )
-        pairs.forEach { pass(match(it).check(it)) }
+        pairs.forEach { pass(match(it).test(it)) }
     }
 
     @Test
     fun anyCheckTypeTest() {
         val any = BaseType(ANY)
-        pass(match(any).check(intType()))
-        pass(match(any).check(ArrayType(ArrayType(ArrayType(charType())))))
-        pass(match(any).check(PairType(intType(), intType())))
+        pass(match(any).test(intType()))
+        pass(match(any).test(ArrayType(ArrayType(ArrayType(charType())))))
+        pass(match(any).test(PairType(intType(), intType())))
 
 
     }
@@ -58,17 +58,17 @@ class TypeCheckerTest {
     @Test
     fun pairBaseTypeTest() {
         val any = BaseType(ANY)
-        pass(match(anyPairType()).check(PairType(intType(), intType())))
-        pass(match(anyPairType()).check(PairType(intType(), anyPairType())))
-        match(anyPairType()).check(anyPairType())
-        match(PairType(intType(), anyPairType())).check(anyPairType())
+        pass(match(anyPairType()).test(PairType(intType(), intType())))
+        pass(match(anyPairType()).test(PairType(intType(), anyPairType())))
+        match(anyPairType()).test(anyPairType())
+        match(PairType(intType(), anyPairType())).test(anyPairType())
     }
 
     @Test
     fun checkAnyoutTypeTest() {
-        pass(match(intType()).check(BaseType(ANY)))
-        pass(match(ArrayType(ArrayType(ArrayType(charType())))).check(BaseType(ANY)))
-        pass(match(PairType(anyPairType(), intType())).check(BaseType(ANY)))
+        pass(match(intType()).test(BaseType(ANY)))
+        pass(match(ArrayType(ArrayType(ArrayType(charType())))).test(BaseType(ANY)))
+        pass(match(PairType(anyPairType(), intType())).test(BaseType(ANY)))
     }
 
 }
