@@ -1,5 +1,6 @@
 package ast
 
+import utils.AstIndexMap
 import utils.Parameter
 
 data class Function (
@@ -13,7 +14,13 @@ data class Function (
             "${body.prettyPrint().prependIndent()}\n" +
             "end\n"
 
+    override fun tellIdentity(): String = "a function"
+
     fun showHeader(): String {
         return "$returnType $name (${args.joinToString(",") { "${it.second} ${it.first}"}})"
+    }
+
+    override fun getTraceLog(astIndexMap: AstIndexMap): String {
+        return "In a function defined at ${astIndexMap[this]}: ${showHeader()}"
     }
 }

@@ -8,4 +8,6 @@ data class ProgramAST (val functions: List<Function>, val mainProgram : Statemen
                 "${mainProgram.prettyPrint().prependIndent()}\n" +
                 "end"
     }
+
+    override fun tellIdentity(): String = "a program"
 }

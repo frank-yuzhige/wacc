@@ -42,6 +42,7 @@ sealed class Type {
             "pair"
         }
     }
+
     data class FuncType(val retType: Type, val paramTypes: List<Type>): Type() {
         override fun toString(): String =
                 "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"

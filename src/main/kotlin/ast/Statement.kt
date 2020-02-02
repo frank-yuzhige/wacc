@@ -4,6 +4,9 @@ import ast.Expression.Identifier
 import kotlin.math.exp
 
 sealed class Statement : WaccAST {
+
+    override fun tellIdentity(): String = "in an statement"
+
     enum class BuiltinFunc(val functionName: String) {
         FREE("free"),
         RETURN("return"),
@@ -27,6 +30,7 @@ sealed class Statement : WaccAST {
     data class Read(val target: Expression) : Statement() {
         override fun prettyPrint(): String = "read ${target.prettyPrint()}"
     }
+
     data class BuiltinFuncCall(val func : BuiltinFunc, val expr: Expression) : Statement() {
         override fun prettyPrint(): String = "${func.functionName} ${expr.prettyPrint()}"
     }

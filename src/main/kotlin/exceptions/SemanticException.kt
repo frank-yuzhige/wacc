@@ -27,6 +27,8 @@ sealed class SemanticException(var msg: String): Exception(msg) {
         return this
     }
 
+    class PureSemanticException(cause: String): SemanticException(cause)
+
     class SemanticExceptionBundle(errors: Iterable<SemanticException>,
                                   separator: String = "\n",
                                   prefix: String = "",

@@ -13,6 +13,8 @@ import utils.SymbolTable
 
 sealed class Expression(var inParens: Boolean = false) : WaccAST {
 
+    override fun tellIdentity(): String = "an expression"
+
     enum class PairElemFunction(val value : String) {
         FST("fst"), SND("snd")
 
@@ -40,6 +42,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST {
 
     data class Identifier(val ident : String) : Expression() {
         override fun prettyPrint(): String = ident
+        override fun tellIdentity(): String = "an identifier"
     }
 
     data class BinExpr(val left : Expression, val op : BinaryOperator, val right : Expression) : Expression() {

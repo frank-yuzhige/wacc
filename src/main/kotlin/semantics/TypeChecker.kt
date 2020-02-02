@@ -10,10 +10,10 @@ import exceptions.SemanticException
 import exceptions.SemanticException.*
 
 
-class TypeChecker private constructor(val test: (Type) -> List<SemanticException>) {
+class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
     companion object {
-        infix fun ((Type) -> Boolean).throws(error: (Type) -> SemanticException): TypeChecker {
+        infix fun ((Type) -> Boolean).throws(error: (Type) -> String): TypeChecker {
             return TypeChecker { actual ->
                 if (this(actual)) {
                     emptyList()
@@ -25,7 +25,7 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
 
         fun pass() = TypeChecker { emptyList() }
 
-        fun fail(se: SemanticException) = TypeChecker { listOf(se) }
+        fun fail(error: String) = TypeChecker { listOf(error) }
 
         fun isJust(expected: Type) = { actual: Type ->
             when {
@@ -33,11 +33,13 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
                 else -> expected == actual
             }
         } throws { actual ->
-            TypeMismatchException(expected, actual)
+            "Couldn't match expected type '$expected' with actual type: '$actual'"
         }
 
         fun isOneOf(vararg candidates: Type) = (candidates::contains) throws { actual ->
-            NoMatchingCandidatesException(actual, candidates.asIterable())
+            "couldn't match any of the expecting types:" +
+                    " ${candidates.joinToString(", ") { it.toString() }}" +
+                    "with actual type: $actual"
         }
 
         fun match(expected: Type): TypeChecker = when (expected) {
@@ -49,7 +51,7 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
                         match(expected.firstElemType).test(actual.firstElemType) +
                                 match(expected.secondElemType).test(actual.secondElemType)
                     }
-                    else -> listOf(TypeMismatchException(expected, actual))
+                    else -> listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
                 }
             }
             is ArrayType -> TypeChecker { actual ->
@@ -59,11 +61,11 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
                         if (expected.type == Type.charType()) {
                             emptyList()
                         } else {
-                            listOf(TypeMismatchException(expected, actual))
+                            listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
                         }
                     }
                     actual is ArrayType -> match(expected.type).test(actual.type)
-                    else -> listOf(TypeMismatchException(expected, actual))
+                    else -> listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
                 }
             }
             else -> isJust(expected)
@@ -79,7 +81,7 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
                     FST -> tc.test(actual.firstElemType)
                     SND -> tc.test(actual.secondElemType)
                 }
-                else -> listOf(NotAPairException(actual))
+                else -> listOf("Expecting a pair, but $actual is not a pair!")
             }
         }
 
@@ -104,7 +106,7 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
         }
     }
 
-    fun withError(vararg se: SemanticException): TypeChecker = TypeChecker { actual ->
+    fun withError(vararg se: String): TypeChecker = TypeChecker { actual ->
         if (this.test(actual).isEmpty()) {
             emptyList()
         } else {
@@ -113,7 +115,7 @@ class TypeChecker private constructor(val test: (Type) -> List<SemanticException
     }
 
     fun forwardsError(postfix: String): TypeChecker = TypeChecker {  actual ->
-        this.test(actual).map { it.forwardText("  $postfix") }
+        this.test(actual).map { "$it  $postfix" }
     }
 
 }
