@@ -41,7 +41,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
     fun doCheck(ast: ProgramAST) {
         ast.check()
         if (errorLog.isNotEmpty()) {
-            throw PureSemanticException(errorLog.joinToString("\n======\n"))
+            throw PureSemanticException(errorLog.joinToString("\n\n"))
         }
     }
 
@@ -52,8 +52,9 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
     }
 
     private fun logError(cause: String) {
-        val log = cause + treeStack.joinToString("\n") { it.getTraceLog(astIndexMap) }
-        errorLog += log
+        val log = cause + "\n" + treeStack.joinToString("\n") { it.getTraceLog(astIndexMap) }
+        val inMain = if (isInMain) {"\nIn the main program"} else {""}
+        errorLog += log + inMain
         containsError = true
     }
 
@@ -64,6 +65,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                         astIndexMap.getValue(it))
         }
         functions.map { it.checkFunc(match(it.returnType)) }
+        isInMain = true
         mainProgram.checkBlock()
     }
 
@@ -105,7 +107,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             is Statement.Read -> {
                 val lhsType =  target.checkLhs()
                 val readChecker = match(intType())`||` match(charType()) `||` match(stringType())
-                lhsType?.let { readChecker.test(it) }
+                lhsType?.let { logError(readChecker.test(it)) }
             }
             is Statement.BuiltinFuncCall -> when (func) {
                 PRINT, PRINTLN -> expr.check(pass())
@@ -175,58 +177,49 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
         return result
     }
 
-    private fun Expression.check(tc: TypeChecker) {
+    private fun Expression.check(tc: TypeChecker, logAction: (List<String>) -> Unit = { logError(it) }){
         treeStack.push(this)
         when(this) {
-            is NullLit -> logError(tc.test(nullType()))
-            is IntLit -> logError(tc.test(intType()))
-            is BoolLit -> logError(tc.test(boolType()))
-            is CharLit -> logError(tc.test(charType()))
-            is StringLit -> logError(tc.test(stringType()))
+            is NullLit -> logAction(tc.test(nullType()))
+            is IntLit -> logAction(tc.test(intType()))
+            is BoolLit -> logAction(tc.test(boolType()))
+            is CharLit -> logAction(tc.test(charType()))
+            is StringLit -> logAction(tc.test(stringType()))
             is Identifier -> {
                 val actual = symbolTable.lookupVar(ident)?.type
                 if (actual != null) {
-                    logError(tc.test(actual))
+                    logAction(tc.test(actual))
                 } else {
-                    logError("Attempt to access an undefined variable '$ident'!")
+                    logAction(listOf("Attempt to access an undefined variable '$ident'!"))
                 }
             }
             is BinExpr -> {
                 when (op) {
                     EQ, NEQ -> {
                         val pred = tc.test(boolType())
-                        if (pred.isEmpty()) {
-                            logError(pred)
-                        } else {
-                            left.check(match(right.getType(symbolTable)))
-                        }
+                        logAction(pred)
+                        left.check(match(right.getType(symbolTable)))
                     }
                     else -> {
+                        val errors = arrayListOf<List<String>>()
                         for (entry in BinaryOperator.typeMap.getValue(op)) {
                             val retChecker = tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
-                            val err = retChecker.test(entry.retType)
-                            logError(err)
-                            if (err.isEmpty()) {
-                                left.check(entry.lhsChecker)
-                                right.check(entry.rhsChecker)
+                            val temp = mutableListOf<String>()
+                            temp += retChecker.test(entry.retType).toMutableList()
+                            left.check(entry.lhsChecker) { temp += it.map { err -> "$err\n${left.getTraceLog(astIndexMap)}" } }
+                            if (temp.isEmpty()) {
+                                right.check(entry.rhsChecker) { temp += it.map { err -> "$err\n${right.getTraceLog(astIndexMap)}" } }
                             }
+                            errors += temp
+                            if (temp.isEmpty()) {
+                                break
+                            }
+                        }
+                        if (!errors.any(List<String>::isEmpty)) {
+                            logAction(errors.flatten())
                         }
                     }
                 }
-//                when (op) {
-//                    EQ, NEQ -> tc.test(boolType()).ifEmptyJust(listOf(
-//                            left.check(match(right.getType(symbolTable)))
-//                    ).ifNotEmptyDo { listOf(SemanticExceptionBundle(it.flatten())) })
-//                    else -> {
-//                        val allCases = BinaryOperator.typeMap.getValue(op).map { entry ->
-//                            val returnChecker = tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
-//                            returnChecker.test(entry.retType)
-//                                    .ifEmptyJust(left.check(entry.lhsChecker)
-//                                            .ifEmptyJust(right.check(entry.rhsChecker)))
-//                        }
-//                        allCases.ifNotEmptyDo { listOf(SemanticExceptionBundle(it.flatten())) }
-//                    }
-//                }
             }
             is ArrayElem -> {
                 val entry = symbolTable.lookupVar(arrayName)
@@ -235,28 +228,22 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     if (newtype != null) {
                         tc.test(newtype)
                     } else {
-                        logError("${entry.type} does not have more than ${indices.count()} rank")
+                        logAction(listOf("${entry.type} does not have more than ${indices.count()} rank"))
                     }
                 } else {
                     listOf("Attempt to access an undefined variable '$arrayName'!")
                 }
-
-//                symbolTable.lookupVar(arrayName)
-//                        ?.let { entry -> entry.type.unwrapArrayType(indices.count())
-//                                ?.let { newtype -> tc.check(newtype) }
-//                                ?:listOf(InsufficientArrayRankException(entry.type, indices.count())) }
-//                        ?: listOf(UndefinedVarException(arrayName))
             }
             is PairElem -> {
                 if (expr == NullLit) {
-                    logError("Cannot access the $func element of a null-literal!")
+                    logAction(listOf("Cannot access the $func element of a null-literal!"))
                 } else {
                     expr.check(matchPairByElem(func, tc))
                 }
             }
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
-                    logError(tc.test(anyoutArrayType()))
+                    logAction(tc.test(anyoutArrayType()))
                 } else {
                     elements.map { it.check(unwrapArray(tc)) }
                 }
@@ -274,17 +261,18 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             is FunctionCall -> {
                 val funcEntry = symbolTable.lookupFunc(ident)
                 if (funcEntry == null) {
-                    logError("\"Attempt to access an undefined function '$ident'!\"")
+                    logAction(listOf("\"Attempt to access an undefined function '$ident'!\""))
                 } else {
                     val funcType = funcEntry.type
                     val retType = funcType.retType
                     val expectedCount = args.size
                     val actualCount = funcType.paramTypes.size
                     if (expectedCount != actualCount) {
-                        logError("A call to function $ident : $funcType needs $expectedCount parameters, " +
-                                "but only $actualCount parameters has been provided")
+                        logAction(listOf("A call to function $ident : $funcType needs $expectedCount parameters, " +
+                                "but only $actualCount parameters has been provided"))
                     } else {
-                        tc.test(retType) + args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}
+                        logAction(tc.test(retType))
+                        args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}
                     }
                 }
             }

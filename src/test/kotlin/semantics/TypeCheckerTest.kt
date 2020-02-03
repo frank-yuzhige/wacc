@@ -14,8 +14,8 @@ import kotlin.test.assertTrue
 
 class TypeCheckerTest {
 
-    fun pass(errors: List<Exception>) = assertTrue(errors.isEmpty())
-    fun fail(errors: List<Exception>) = assertTrue(errors.isNotEmpty())
+    fun pass(errors: List<String>) = assertTrue(errors.isEmpty())
+    fun fail(errors: List<String>) = assertTrue(errors.isNotEmpty())
 
     @Test
     fun checkBasicTypeTest() {

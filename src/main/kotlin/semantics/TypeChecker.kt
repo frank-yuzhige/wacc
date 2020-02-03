@@ -115,7 +115,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
     }
 
     fun forwardsError(postfix: String): TypeChecker = TypeChecker {  actual ->
-        this.test(actual).map { "$it  $postfix" }
+        this.test(actual).map { "$it \n$postfix" }
     }
 
 }
