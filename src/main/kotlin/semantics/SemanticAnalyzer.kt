@@ -27,13 +27,13 @@ import utils.AstIndexMap
 import utils.SymbolTable
 import java.util.*
 
-class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
+class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
 
-    val symbolTable = SymbolTable()
-    val treeStack: Deque<WaccAST> = ArrayDeque()
-    val errorLog: MutableList<String> = arrayListOf()
-    var isInMain = false
-    var containsError = false
+    private val symbolTable = SymbolTable()
+    private val treeStack: Deque<WaccAST> = ArrayDeque()
+    private val errorLog: MutableList<String> = arrayListOf()
+    private var isInMain = false
+    private var containsError = false
 
     fun doCheck(ast: ProgramAST) {
         ast.check()
@@ -91,8 +91,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 val prevAttr
                         = symbolTable.defineVar(variable.ident, type, astIndexMap.getValue(this))
                 if (prevAttr != null) {
-                    logError("Variable \"$variable\" with type $type " +
-                            "has already been defined at ${astIndexMap[this]}!")
+                    logError(listOf(variableAlreadyDefined(variable, type, astIndexMap[this]!!)))
                 } else {
                     rhs.check(match(type))
                 }
@@ -140,7 +139,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                         logError(errors)
                     }
                 } else {
-                    logError("Attempt to access an undefined variable '$ident'!")
+                    logError(accessToUndefinedVar(ident))
                 }
             }
             is PairElem -> {
@@ -160,7 +159,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                             logError(errors)
                         }
                     }?: logError(insufficientArrayRankError(entry.type, indices.count()))
-                }?: logError("Attempt to access an undefined variable '$arrayName'!")
+                }?: logError(accessToUndefinedVar(arrayName))
             }
             else -> logError("Not a proper assign-lhs statement!") // Should never reach here...
         }
@@ -181,7 +180,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 if (actual != null) {
                     logAction(tc.test(actual))
                 } else {
-                    logAction(listOf("Attempt to access an undefined variable '$ident'!"))
+                    logAction(listOf(accessToUndefinedVar(ident)))
                 }
             }
             is BinExpr -> {
@@ -232,7 +231,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             }
             is PairElem -> {
                 if (expr == NullLit) {
-                    logAction(listOf("Cannot access the ${func.value} element of a null-literal!"))
+                    logAction(listOf(accessToNullLiteral(func.value)))
                 } else {
                     expr.check(matchPairByElem(func, tc))
                 }
@@ -257,15 +256,14 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             is FunctionCall -> {
                 val funcEntry = symbolTable.lookupFunc(ident)
                 if (funcEntry == null) {
-                    logAction(listOf("\"Attempt to access an undefined function '$ident'!\""))
+                    logAction(listOf(accessToUndefinedFunc(ident)))
                 } else {
                     val funcType = funcEntry.type
                     val retType = funcType.retType
                     val expectedCount = args.size
                     val actualCount = funcType.paramTypes.size
                     if (expectedCount != actualCount) {
-                        logAction(listOf("A call to function $ident : $funcType needs $expectedCount parameters, " +
-                                "but $actualCount parameters are given"))
+                        logAction(listOf(parameterNumMismatch(ident, funcType, expectedCount, actualCount)))
                     } else {
                         logAction(tc.test(retType))
                         args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}
