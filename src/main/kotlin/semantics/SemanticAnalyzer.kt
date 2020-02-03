@@ -21,6 +21,7 @@ import exceptions.SemanticException
 import exceptions.SemanticException.*
 import semantics.LhsTypeCheckResult.Failure
 import semantics.LhsTypeCheckResult.Success
+import semantics.SemanticErrorFactory.Companion.insufficientArrayRankError
 import semantics.TypeChecker.Companion.match
 import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
@@ -154,24 +155,18 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 }
             }
             is ArrayElem -> {
-                val entry = symbolTable.lookupVar(arrayName)
-                if (entry != null) {
-                    val actual = entry.type.unwrapArrayType(indices.count())
-                    if (actual != null) {
+                symbolTable.lookupVar(arrayName)?.let { entry ->
+                    entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isEmpty()) {
                             result = actual
                         } else {
                             logError(errors)
                         }
-                    } else {
-                        logError("${entry.type} does not have more than ${indices.count()} rank")
-                    }
-                } else {
-                    logError("Attempt to access an undefined variable '$arrayName'!")
-                }
+                    }?: logError(insufficientArrayRankError(entry.type, indices.count()))
+                }?: logError("Attempt to access an undefined variable '$arrayName'!")
             }
-            else -> logError("Some error")
+            else -> logError("Not a proper assign-lhs statement!") // Should never reach here...
         }
         treeStack.pop()
         return result
@@ -203,12 +198,17 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     else -> {
                         val errors = arrayListOf<List<String>>()
                         for (entry in BinaryOperator.typeMap.getValue(op)) {
-                            val retChecker = tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
+                            val retChecker =
+                                    tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
                             val temp = mutableListOf<String>()
                             temp += retChecker.test(entry.retType).toMutableList()
-                            left.check(entry.lhsChecker) { temp += it.map { err -> "$err\n${left.getTraceLog(astIndexMap)}" } }
+                            left.check(entry.lhsChecker) { temp += it.map { err ->
+                                "$err\n${left.getTraceLog(astIndexMap)}\n" +
+                                        "    on the left-hand-side of \"${op.op}\"" } }
                             if (temp.isEmpty()) {
-                                right.check(entry.rhsChecker) { temp += it.map { err -> "$err\n${right.getTraceLog(astIndexMap)}" } }
+                                right.check(entry.rhsChecker) { temp += it.map { err ->
+                                    "$err\n${right.getTraceLog(astIndexMap)}" +
+                                            "\n    on the right-hand-side of \"${op.op}\"" } }
                             }
                             errors += temp
                             if (temp.isEmpty()) {
@@ -228,7 +228,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     if (newtype != null) {
                         tc.test(newtype)
                     } else {
-                        logAction(listOf("${entry.type} does not have more than ${indices.count()} rank"))
+                        logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
                     }
                 } else {
                     listOf("Attempt to access an undefined variable '$arrayName'!")
