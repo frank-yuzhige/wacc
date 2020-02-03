@@ -1,0 +1,22 @@
+begin
+
+int giveMeNumber(int x, char c, pair(pair, int) p) is
+    c = c + 1;
+    int k = (x + (1 + (2 + (3 + (5 + (7 + (11 + (13 + (17 + true)))))))));
+    pair(char, char) p1 = fst p;
+    char c = snd p1;
+    while x < (2 + c) do
+        if k - 1 > x * 4 || true then
+            c = c + 1;
+            snd p = k
+        else
+            fst p = newpair('k', 1)
+        fi
+    done;
+    return c
+end
+
+int num = call giveMeNumber(1, 'k', null);
+exit(num)
+
+end
