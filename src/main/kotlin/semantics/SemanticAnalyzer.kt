@@ -201,7 +201,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                             val retChecker =
                                     tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
                             val temp = mutableListOf<String>()
-                            temp += retChecker.test(entry.retType).toMutableList()
+                            temp += retChecker.test(entry.retType)
                             left.check(entry.lhsChecker) { temp += it.map { err ->
                                 "$err\n${left.getTraceLog(astIndexMap)}\n" +
                                         "    on the left-hand-side of \"${op.op}\"" } }
@@ -236,7 +236,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             }
             is PairElem -> {
                 if (expr == NullLit) {
-                    logAction(listOf("Cannot access the $func element of a null-literal!"))
+                    logAction(listOf("Cannot access the ${func.value} element of a null-literal!"))
                 } else {
                     expr.check(matchPairByElem(func, tc))
                 }
@@ -269,7 +269,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     val actualCount = funcType.paramTypes.size
                     if (expectedCount != actualCount) {
                         logAction(listOf("A call to function $ident : $funcType needs $expectedCount parameters, " +
-                                "but only $actualCount parameters has been provided"))
+                                "but $actualCount parameters are given"))
                     } else {
                         logAction(tc.test(retType))
                         args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}
