@@ -17,11 +17,7 @@ import ast.Type.Companion.intType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
-import exceptions.SemanticException
 import exceptions.SemanticException.*
-import semantics.LhsTypeCheckResult.Failure
-import semantics.LhsTypeCheckResult.Success
-import semantics.SemanticErrorFactory.Companion.insufficientArrayRankError
 import semantics.TypeChecker.Companion.match
 import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
@@ -231,7 +227,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                         logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
                     }
                 } else {
-                    listOf("Attempt to access an undefined variable '$arrayName'!")
+                    listOf(accessToUndefinedVar(arrayName))
                 }
             }
             is PairElem -> {
