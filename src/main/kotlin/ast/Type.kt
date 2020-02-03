@@ -71,6 +71,5 @@ sealed class Type {
         }
         else -> null
     }
-
 }
 

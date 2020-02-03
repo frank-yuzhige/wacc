@@ -38,7 +38,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
     fun doCheck(ast: ProgramAST) {
         ast.check()
         if (errorLog.isNotEmpty()) {
-            throw PureSemanticException(errorLog.joinToString("\n\n"))
+            throw PureSemanticException(errorLog.joinToString("\n\n\n"))
         }
     }
 
@@ -102,7 +102,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
             }
             is Statement.Read -> {
                 val lhsType =  target.checkLhs()
-                val readChecker = match(intType())`||` match(charType()) `||` match(stringType())
+                val readChecker = match(intType()) `||` match(charType()) `||` match(stringType())
                 lhsType?.let { logError(readChecker.test(it)) }
             }
             is Statement.BuiltinFuncCall -> when (func) {

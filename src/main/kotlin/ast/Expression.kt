@@ -65,7 +65,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST {
     }
 
     data class ArrayElem(val arrayName : String, val indices : List<Expression>) : Expression() {
-        override fun prettyPrint(): String = "$arrayName${indices.joinToString{ "[${it.prettyPrint()}]" }}"
+        override fun prettyPrint(): String = "$arrayName${indices.joinToString("") { "[${it.prettyPrint()}]" }}"
     }
 
     data class PairElem(val func : PairElemFunction, val expr: Expression) : Expression() {

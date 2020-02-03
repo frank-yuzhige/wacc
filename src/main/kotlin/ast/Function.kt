@@ -17,7 +17,7 @@ data class Function (
     override fun tellIdentity(): String = "a function"
 
     fun showHeader(): String {
-        return "$returnType $name (${args.joinToString(",") { "${it.second} ${it.first}"}})"
+        return "$returnType $name(${args.joinToString(", ") { "${it.second} ${it.first}"}})"
     }
 
     override fun getTraceLog(astIndexMap: AstIndexMap): String {
