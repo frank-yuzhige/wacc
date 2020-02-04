@@ -38,7 +38,7 @@ class LexerParserFailureTest {
         try {
             Parser(prog.byteInputStream()).parseProgram()
             fail("An error should have been thrown here!")
-        } catch (ipe: IntegerSyntacticException) {
+        } catch (ipe: SyntacticExceptionBundle) {
             assertTrue(ipe.msg.contains("not a valid integer"))
             assertTrue(ipe.msg.contains("pure expression"))
             assertTrue(ipe.msg.contains("statement"))
