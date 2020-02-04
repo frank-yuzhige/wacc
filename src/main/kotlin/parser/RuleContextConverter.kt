@@ -16,9 +16,11 @@ import utils.AstIndexMap
 import utils.EscapeCharConverter
 import utils.Index
 import utils.Parameter
-import java.lang.UnsupportedOperationException
+import java.util.*
 
 class RuleContextConverter(val astIndexMap: AstIndexMap) {
+    private val stack: Deque<ParserRuleContext> = ArrayDeque()
+    private var errorList: MutableList<SyntacticException> = mutableListOf()
 
     fun convertProgram(program: ProgContext): ProgramAST = program.toAST()
     fun convertFunction(function: FuncContext): Function = function.toAST()
@@ -27,21 +29,25 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
 
     /** ParserRuleContext Extension methods **/
 
-
-    fun ProgContext.toAST() : ProgramAST =
-            ProgramAST(func().map { it.toAST() }, stats()?.toMainProgramAST()
-                    ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))) record index()
+    fun ProgContext.toAST() : ProgramAST {
+        stack.push(this)
+        val programAST = ProgramAST(func().map { it.toAST() }, stats()?.toMainProgramAST()
+            ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))) record index()
+        stack.pop()
+        return programAST
+    }
 
     private fun StatsContext.toMainProgramAST(): List<Statement> {
-        try {
-            val returnIndices = containsReturn(this)
-            if (returnIndices.isNotEmpty()) {
-                throw ReturnInMainProgramException(returnIndices)
-            }
-            return this.toAST()
-        } catch (pe: SyntacticException) {
-            throw pe.forwardWith("In the main program")
+        val returnIndices = containsReturn(this)
+        if (returnIndices.isNotEmpty()) {
+            throw ReturnInMainProgramException(returnIndices)
         }
+        val result = this.toAST()
+        /** IF ERROR LIST IS NOT EMPTY, THROW ERROR INSTEAD OF RETURN **/
+        if (errorList.isNotEmpty()) {
+            throw SyntacticExceptionBundle(errorList)
+        }
+        return result
     }
 
     private fun StatsContext.toFuncBodyAST(): Statements {
@@ -54,20 +60,18 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         }
 
         if (!this.stat().last().isTerminator()) {
-            throw LastStatIsNotTerminatorException()
+            logError(LastStatIsNotTerminatorException())
         }
         return this.toAST()
     }
 
-
-    fun FuncContext.toAST(): Function = try {
-        Function(type().toAST(), ident().text,
+    fun FuncContext.toAST(): Function {
+        stack.push(this)
+        val result = Function(type().toAST(), ident().text,
                 paramList()?.toAST()?: emptyList(),
                 stats().toFuncBodyAST()) record index()
-    } catch (pe : SyntacticException) {
-        val params = paramList()?.param()?.joinToString(", ") { it.originalText() } ?: ""
-        val funcDef = "${type().text} ${ident().text} ($params)"
-        throw pe.forwardWith("In a function defined at ${index()}: $funcDef")
+        stack.pop()
+        return result
     }
 
     private fun ParserRuleContext.originalText(): String {
@@ -103,7 +107,10 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         var tau = ArrayType(when {
             baseType() != null -> baseType().toAST()
             pairType() != null -> pairType().toAST()
-            else -> throw UnsupportedArrayBaseTypeException(this.text)
+            else -> {
+                logError(UnsupportedArrayBaseTypeException(this.text))
+                BaseType(BaseTypeKind.ANY)
+            }
         })
         for (i in 1 until dimension) {
             tau = ArrayType(tau)
@@ -130,8 +137,9 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         return stat().map { it.toAST() }
     }
 
-    fun StatContext.toAST(): Statement = try {
-        when(this) {
+    fun StatContext.toAST(): Statement {
+        stack.push(this)
+        val result = when(this) {
             is SkipContext -> Skip
             is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
@@ -143,10 +151,9 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
         } record index()
-    } catch (pe: SyntacticException) {
-        throw pe.forwardWith("In a statement at ${index()}: \"${originalText()}\"")
+        stack.pop()
+        return result
     }
-
 
     private fun AssignLhsContext.toAST(): Expression = when {
         ident() != null     -> ident().toAST()
@@ -155,19 +162,19 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         else                -> throw IllegalArgumentException("Unknown left value")
     } record index()
 
-    private fun AssignRhsContext.toAST(): Expression =
-            when(this) {
-                is RhsExprContext       -> expr().toAST()
-                is RhsArrayLiterContext -> arrayLiter().toAST()
-                is RhsPairElemContext   -> pairElem().toAST()
-                is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
-                is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
-                else                    -> throw IllegalArgumentException("Unknown right value")
-            } record index()
+    private fun AssignRhsContext.toAST(): Expression = when(this) {
+        is RhsExprContext       -> expr().toAST()
+        is RhsArrayLiterContext -> arrayLiter().toAST()
+        is RhsPairElemContext   -> pairElem().toAST()
+        is RhsNewPairContext    -> NewPair(expr(0).toAST(), expr(1).toAST())
+        is RhsFuncCallContext   -> FunctionCall(ident().text, argList()?.toAST()?: listOf())
+        else                    -> throw IllegalArgumentException("Unknown right value")
+    } record index()
 
 
-    fun ExprContext.toAST(): Expression = try {
-        when (this) {
+    fun ExprContext.toAST(): Expression {
+        stack.push(this)
+        val result = when (this) {
             is ExprNullContext    -> NullLit
             is ExprIntContext     -> integer().toAST()
             is ExprBoolContext    -> BoolLit(boolLit().TRUE() != null)
@@ -180,10 +187,13 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
             is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
             is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
-            else -> throw UnknownExprTypeException()
+            else -> {
+                logError(UnknownExprTypeException())
+                NullLit
+            }
         } record index()
-    } catch (pe: SyntacticException) {
-        throw pe.forwardWith("In a pure expression at ${index()}: \"${originalText()}\"")
+        stack.pop()
+        return result
     }
 
     private fun ArgListContext.toAST(): List<Expression> = expr().map { it.toAST() }
@@ -191,8 +201,7 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
     private fun ArrayLiterContext.toAST(): Expression = ArrayLiteral(argList()?.toAST()?: arrayListOf())
 
     private fun PairElemContext.toAST() : Expression =
-            PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase())
-                    , expr().toAST())
+            PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase()), expr().toAST())
 
     private fun ArrayElemContext.toAST() : Expression =
             ArrayElem(ident().text, expr().map { it.toAST() })
@@ -202,7 +211,8 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
     private fun IntegerContext.toAST(): Expression = try {
         IntLit(this.text.toInt())
     } catch (e: NumberFormatException) {
-        throw IntegerSyntacticException(this.text)
+        logError(IntegerSyntacticException(this.text))
+        NullLit
     }
 
     private fun ExprBinopContext.getBinOp(): BinaryOperator {
@@ -239,6 +249,28 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
     fun<T: Expression> T.markParens(): T {
         this.inParens = true
         return this
+    }
+
+    private fun logError(error: SyntacticException) {
+        for (context in stack) {
+            error.forwardWith(context.getErrorString())
+        }
+        errorList.add(error)
+    }
+
+    private fun ParserRuleContext.getErrorString(): String {
+        return when (this) {
+            is ProgContext -> "In the main program"
+            is FuncContext -> {
+                val params = paramList()?.param()?.joinToString(", ")
+                    { it.originalText() } ?: ""
+                val funcDef = "${type().text} ${ident().text} ($params)"
+                "In a function defined at ${index()}: $funcDef"
+            }
+            is StatContext -> "In a statement at ${index()}: \"${originalText()}"
+            is ExprContext -> "In a pure expression at ${index()}: \"${originalText()}\""
+            else -> throw IllegalArgumentException()
+        }
     }
 }
 
