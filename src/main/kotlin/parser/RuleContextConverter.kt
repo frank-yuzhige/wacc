@@ -240,11 +240,11 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         return quotedString.subSequence(1, len - 1)
     }
 
-    infix fun<T : WaccAST> T.record(index: Index): T = this.also { astIndexMap[it] = index }
+    private infix fun<T : WaccAST> T.record(index: Index): T = this.also { astIndexMap[it] = index }
 
     private fun ParserRuleContext.index(): Index = this.start.line to this.start.charPositionInLine
 
-    fun<T: Expression> T.markParens(): T = this.also { it.inParens = true }
+    private fun<T: Expression> T.markParens(): T = this.also { it.inParens = true }
 
     private fun logError(error: SyntacticException) {
         for (context in stack) {
