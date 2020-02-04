@@ -64,7 +64,9 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                             listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
                         }
                     }
-                    actual is ArrayType -> match(expected.type).test(actual.type)
+                    actual is ArrayType -> match(expected.type)
+                            .withError("\"Couldn't match expected type '$expected' with actual type: '$actual'\"")
+                            .test(actual.type)
                     else -> listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
                 }
             }

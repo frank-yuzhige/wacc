@@ -1,7 +1,6 @@
 package ast
 
 import ast.Expression.Identifier
-import kotlin.math.exp
 
 sealed class Statement : WaccAST {
 
@@ -67,5 +66,3 @@ sealed class Statement : WaccAST {
     }
 }
 
-typealias Statements = List<Statement>
-fun Statements.prettyPrint(): String = this.joinToString(" ;\n") { it.prettyPrint() }

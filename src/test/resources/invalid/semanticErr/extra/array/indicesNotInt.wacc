@@ -1,0 +1,7 @@
+begin
+
+int[] arr = [1,2,3];
+int a = arr['c'];
+exit a
+
+end

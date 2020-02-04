@@ -17,10 +17,7 @@ import ast.Type.Companion.intType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
-import exceptions.SemanticException
 import exceptions.SemanticException.*
-import semantics.LhsTypeCheckResult.Failure
-import semantics.LhsTypeCheckResult.Success
 import semantics.TypeChecker.Companion.match
 import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
@@ -30,18 +27,18 @@ import utils.AstIndexMap
 import utils.SymbolTable
 import java.util.*
 
-class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
+class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
 
-    val symbolTable = SymbolTable()
-    val treeStack: Deque<WaccAST> = ArrayDeque()
-    val errorLog: MutableList<String> = arrayListOf()
-    var isInMain = false
-    var containsError = false
+    private val symbolTable = SymbolTable()
+    private val treeStack: Deque<WaccAST> = ArrayDeque()
+    private val errorLog: MutableList<String> = arrayListOf()
+    private var isInMain = false
+    private var containsError = false
 
     fun doCheck(ast: ProgramAST) {
         ast.check()
         if (errorLog.isNotEmpty()) {
-            throw PureSemanticException(errorLog.joinToString("\n\n"))
+            throw PureSemanticException(errorLog.joinToString("\n\n\n"))
         }
     }
 
@@ -94,8 +91,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 val prevAttr
                         = symbolTable.defineVar(variable.ident, type, astIndexMap.getValue(this))
                 if (prevAttr != null) {
-                    logError("Variable \"$variable\" with type $type " +
-                            "has already been defined at ${astIndexMap[this]}!")
+                    logError(listOf(variableAlreadyDefined(variable, type, astIndexMap[this]!!)))
                 } else {
                     rhs.check(match(type))
                 }
@@ -106,7 +102,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             }
             is Statement.Read -> {
                 val lhsType =  target.checkLhs()
-                val readChecker = match(intType())`||` match(charType()) `||` match(stringType())
+                val readChecker = match(intType()) `||` match(charType()) `||` match(stringType())
                 lhsType?.let { logError(readChecker.test(it)) }
             }
             is Statement.BuiltinFuncCall -> when (func) {
@@ -143,7 +139,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                         logError(errors)
                     }
                 } else {
-                    logError("Attempt to access an undefined variable '$ident'!")
+                    logError(accessToUndefinedVar(ident))
                 }
             }
             is PairElem -> {
@@ -154,24 +150,18 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 }
             }
             is ArrayElem -> {
-                val entry = symbolTable.lookupVar(arrayName)
-                if (entry != null) {
-                    val actual = entry.type.unwrapArrayType(indices.count())
-                    if (actual != null) {
+                symbolTable.lookupVar(arrayName)?.let { entry ->
+                    entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isEmpty()) {
                             result = actual
                         } else {
                             logError(errors)
                         }
-                    } else {
-                        logError("${entry.type} does not have more than ${indices.count()} rank")
-                    }
-                } else {
-                    logError("Attempt to access an undefined variable '$arrayName'!")
-                }
+                    }?: logError(insufficientArrayRankError(entry.type, indices.count()))
+                }?: logError(accessToUndefinedVar(arrayName))
             }
-            else -> logError("Some error")
+            else -> logError("Not a proper assign-lhs statement!") // Should never reach here...
         }
         treeStack.pop()
         return result
@@ -190,7 +180,7 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 if (actual != null) {
                     logAction(tc.test(actual))
                 } else {
-                    logAction(listOf("Attempt to access an undefined variable '$ident'!"))
+                    logAction(listOf(accessToUndefinedVar(ident)))
                 }
             }
             is BinExpr -> {
@@ -203,12 +193,17 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                     else -> {
                         val errors = arrayListOf<List<String>>()
                         for (entry in BinaryOperator.typeMap.getValue(op)) {
-                            val retChecker = tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
+                            val retChecker =
+                                    tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
                             val temp = mutableListOf<String>()
-                            temp += retChecker.test(entry.retType).toMutableList()
-                            left.check(entry.lhsChecker) { temp += it.map { err -> "$err\n${left.getTraceLog(astIndexMap)}" } }
+                            temp += retChecker.test(entry.retType)
+                            left.check(entry.lhsChecker) { temp += it.map { err ->
+                                "$err\n${left.getTraceLog(astIndexMap)}\n" +
+                                        "    on the left-hand-side of \"${op.op}\"" } }
                             if (temp.isEmpty()) {
-                                right.check(entry.rhsChecker) { temp += it.map { err -> "$err\n${right.getTraceLog(astIndexMap)}" } }
+                                right.check(entry.rhsChecker) { temp += it.map { err ->
+                                    "$err\n${right.getTraceLog(astIndexMap)}" +
+                                            "\n    on the right-hand-side of \"${op.op}\"" } }
                             }
                             errors += temp
                             if (temp.isEmpty()) {
@@ -226,17 +221,18 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
                 if (entry != null) {
                     val newtype = entry.type.unwrapArrayType(indices.count())
                     if (newtype != null) {
-                        tc.test(newtype)
+                        indices.map { it.check(match(intType())) }
+                        logAction(tc.test(newtype))
                     } else {
-                        logAction(listOf("${entry.type} does not have more than ${indices.count()} rank"))
+                        logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
                     }
                 } else {
-                    listOf("Attempt to access an undefined variable '$arrayName'!")
+                    listOf(accessToUndefinedVar(arrayName))
                 }
             }
             is PairElem -> {
                 if (expr == NullLit) {
-                    logAction(listOf("Cannot access the $func element of a null-literal!"))
+                    logAction(listOf(accessToNullLiteral(func.value)))
                 } else {
                     expr.check(matchPairByElem(func, tc))
                 }
@@ -261,15 +257,14 @@ class SemanticAnalyzer(val astIndexMap: AstIndexMap) {
             is FunctionCall -> {
                 val funcEntry = symbolTable.lookupFunc(ident)
                 if (funcEntry == null) {
-                    logAction(listOf("\"Attempt to access an undefined function '$ident'!\""))
+                    logAction(listOf(accessToUndefinedFunc(ident)))
                 } else {
                     val funcType = funcEntry.type
                     val retType = funcType.retType
                     val expectedCount = args.size
                     val actualCount = funcType.paramTypes.size
                     if (expectedCount != actualCount) {
-                        logAction(listOf("A call to function $ident : $funcType needs $expectedCount parameters, " +
-                                "but only $actualCount parameters has been provided"))
+                        logAction(listOf(parameterNumMismatch(ident, funcType, expectedCount, actualCount)))
                     } else {
                         logAction(tc.test(retType))
                         args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}

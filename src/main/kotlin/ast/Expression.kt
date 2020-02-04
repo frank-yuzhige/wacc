@@ -26,18 +26,22 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST {
 
     data class IntLit(val x : Int) : Expression() {
         override fun prettyPrint(): String = x.toString()
+        override fun tellIdentity(): String = "an int literal"
     }
 
     data class BoolLit(val b : Boolean) : Expression() {
         override fun prettyPrint(): String = b.toString()
+        override fun tellIdentity(): String = "a boolean literal"
     }
 
     data class CharLit(val c : Char) : Expression() {
         override fun prettyPrint(): String = "'${fromEscape(c)}'"
+        override fun tellIdentity(): String = "an char literal"
     }
 
     data class StringLit(val string : String) : Expression() {
         override fun prettyPrint(): String = "\"${fromEscape(string)}\""
+        override fun tellIdentity(): String = "an string literal"
     }
 
     data class Identifier(val ident : String) : Expression() {
@@ -61,7 +65,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST {
     }
 
     data class ArrayElem(val arrayName : String, val indices : List<Expression>) : Expression() {
-        override fun prettyPrint(): String = "$arrayName${indices.joinToString{ "[${it.prettyPrint()}]" }}"
+        override fun prettyPrint(): String = "$arrayName${indices.joinToString("") { "[${it.prettyPrint()}]" }}"
     }
 
     data class PairElem(val func : PairElemFunction, val expr: Expression) : Expression() {
@@ -70,14 +74,17 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST {
 
     data class ArrayLiteral(val elements : List<Expression>) : Expression() {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
+        override fun tellIdentity(): String = "an array literal"
     }
 
     data class NewPair(val first : Expression, val second : Expression) : Expression() {
         override fun prettyPrint(): String = "newpair(${first.prettyPrint()}, ${second.prettyPrint()})"
+        override fun tellIdentity(): String = "a newpair declaration"
     }
 
     data class FunctionCall(val ident: String, val args : List<Expression>) : Expression() {
         override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
+        override fun tellIdentity(): String = "a function call"
     }
 
     fun getType(symbolTable: SymbolTable) : Type  = when (this) {

@@ -1,0 +1,7 @@
+begin
+
+int[] a = [1];
+int[][] arr = [a];
+println arr[0][1][0]
+
+end
