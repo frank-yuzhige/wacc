@@ -1,0 +1,10 @@
+begin
+
+int[] arr = [1,2];
+int[] brr = [1,3];
+println arr > brr;
+println arr < brr;
+println arr <= brr;
+println arr >= brr
+
+end

@@ -23,6 +23,13 @@ char some() is
     return c
 end
 
+int somemore(int[] a) is
+    int[] arr = [2, 4, 5, 6, 'c'];
+    int y = arr[true];
+    int x = arr[1][arr[0]];
+    return y
+end
+
 int num = call giveMeNumber(1, 'k', null);
 exit(num)
 

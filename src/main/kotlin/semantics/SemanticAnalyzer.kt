@@ -221,7 +221,8 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                 if (entry != null) {
                     val newtype = entry.type.unwrapArrayType(indices.count())
                     if (newtype != null) {
-                        tc.test(newtype)
+                        indices.map { it.check(match(intType())) }
+                        logAction(tc.test(newtype))
                     } else {
                         logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
                     }

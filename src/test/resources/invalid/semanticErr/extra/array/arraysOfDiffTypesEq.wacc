@@ -1,0 +1,7 @@
+begin
+
+int[] arr = [1,2,3];
+char[] crr = ['c', 'r', 'r'];
+println arr == crr
+
+end
