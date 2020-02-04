@@ -2,12 +2,14 @@ package ast
 
 import utils.AstIndexMap
 import utils.Parameter
+import utils.Statements
+import utils.prettyPrint
 
-data class Function (
-        val returnType : Type,
-        val name : String,
-        val args : List<Parameter>,
-        val body : Statements
+data class Function(
+        val returnType: Type,
+        val name: String,
+        val args: List<Parameter>,
+        val body: Statements
 ) : WaccAST {
     override fun prettyPrint(): String =
             "${showHeader()} is\n" +
@@ -17,7 +19,7 @@ data class Function (
     override fun tellIdentity(): String = "a function"
 
     fun showHeader(): String {
-        return "$returnType $name(${args.joinToString(", ") { "${it.second} ${it.first}"}})"
+        return "$returnType $name(${args.joinToString(", ") { "${it.second} ${it.first}" }})"
     }
 
     override fun getTraceLog(astIndexMap: AstIndexMap): String {

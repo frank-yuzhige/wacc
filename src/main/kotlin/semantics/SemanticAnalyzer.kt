@@ -17,6 +17,7 @@ import ast.Type.Companion.intType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
+import exceptions.SemanticException
 import exceptions.SemanticException.*
 import semantics.TypeChecker.Companion.match
 import semantics.TypeChecker.Companion.matchPairByElem
@@ -24,6 +25,7 @@ import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
 import utils.AstIndexMap
+import utils.Statements
 import utils.SymbolTable
 import java.util.*
 
@@ -91,7 +93,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                 val prevAttr
                         = symbolTable.defineVar(variable.ident, type, astIndexMap.getValue(this))
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, astIndexMap[this]!!)))
+                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.ident)!!.index)))
                 } else {
                     rhs.check(match(type))
                 }
@@ -125,7 +127,8 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
         treeStack.pop()
     }
 
-    private fun Expression.checkLhs(tc: TypeChecker = pass()): Type? {
+    private fun Expression.checkLhs(tc: TypeChecker = pass(),
+                                    logAction: (List<String>) -> Unit = { logError(it) }): Type? {
         var result: Type? = null
         treeStack.push(this)
         when(this) {
@@ -136,17 +139,25 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                     if (errors.isEmpty()) {
                         result = actual
                     } else {
-                        logError(errors)
+                        logAction(errors)
                     }
                 } else {
-                    logError(accessToUndefinedVar(ident))
+                    logAction(listOf(accessToUndefinedVar(ident)))
                 }
             }
             is PairElem -> {
-                containsError = false
-                expr.check(matchPairByElem(func, tc))
-                if (containsError) {
-                    result = expr.getType(symbolTable).unwrapPairType(func)
+                if (expr == NullLit) {
+                    logAction(listOf(accessToNullLiteral(func.value)))
+                } else {
+                    containsError = false
+                    expr.check(matchPairByElem(func, tc))
+                    if (!containsError) {
+                        try {
+                            result = expr.getType(symbolTable).unwrapPairType(func)
+                        } catch (sme: SemanticException) {
+                            logAction(listOf(sme.msg))
+                        }
+                    }
                 }
             }
             is ArrayElem -> {
@@ -154,20 +165,29 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                     entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isEmpty()) {
-                            result = actual
+                            containsError = false
+                            indices.map { it.check(match(intType())) }
+                            if (!containsError) {
+                                val tcErrors = tc.test(actual)
+                                if (tcErrors.isEmpty()) {
+                                    result = actual
+                                }
+                                logAction(tcErrors)
+                            }
                         } else {
-                            logError(errors)
+                            logAction(errors)
                         }
-                    }?: logError(insufficientArrayRankError(entry.type, indices.count()))
-                }?: logError(accessToUndefinedVar(arrayName))
+                    }?: logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
+                }?: logAction(listOf(accessToUndefinedVar(arrayName)))
             }
-            else -> logError("Not a proper assign-lhs statement!") // Should never reach here...
+            else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
         }
         treeStack.pop()
         return result
     }
 
-    private fun Expression.check(tc: TypeChecker, logAction: (List<String>) -> Unit = { logError(it) }){
+    private fun Expression.check(tc: TypeChecker,
+                                 logAction: (List<String>) -> Unit = { logError(it) }) {
         treeStack.push(this)
         when(this) {
             is NullLit -> logAction(tc.test(nullType()))
@@ -175,20 +195,16 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
             is BoolLit -> logAction(tc.test(boolType()))
             is CharLit -> logAction(tc.test(charType()))
             is StringLit -> logAction(tc.test(stringType()))
-            is Identifier -> {
-                val actual = symbolTable.lookupVar(ident)?.type
-                if (actual != null) {
-                    logAction(tc.test(actual))
-                } else {
-                    logAction(listOf(accessToUndefinedVar(ident)))
-                }
-            }
+            is Identifier, is PairElem, is ArrayElem -> checkLhs(tc, logAction)
             is BinExpr -> {
                 when (op) {
                     EQ, NEQ -> {
-                        val pred = tc.test(boolType())
-                        logAction(pred)
-                        left.check(match(right.getType(symbolTable)))
+                        logAction(tc.test(boolType()))
+                        try {
+                            left.check(match(right.getType(symbolTable)))
+                        } catch (sme: SemanticException) {
+                            logAction(listOf(sme.msg))
+                        }
                     }
                     else -> {
                         val errors = arrayListOf<List<String>>()
@@ -214,27 +230,6 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                             logAction(errors.flatten())
                         }
                     }
-                }
-            }
-            is ArrayElem -> {
-                val entry = symbolTable.lookupVar(arrayName)
-                if (entry != null) {
-                    val newtype = entry.type.unwrapArrayType(indices.count())
-                    if (newtype != null) {
-                        indices.map { it.check(match(intType())) }
-                        logAction(tc.test(newtype))
-                    } else {
-                        logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
-                    }
-                } else {
-                    listOf(accessToUndefinedVar(arrayName))
-                }
-            }
-            is PairElem -> {
-                if (expr == NullLit) {
-                    logAction(listOf(accessToNullLiteral(func.value)))
-                } else {
-                    expr.check(matchPairByElem(func, tc))
                 }
             }
             is ArrayLiteral -> {

@@ -1,0 +1,5 @@
+begin
+
+fst null = 5
+
+end

@@ -1,0 +1,11 @@
+begin
+
+pair(int, int) p = newpair(3, 4);
+fst p = true;
+pair(int, pair) p1 = newpair(4, null);
+pair(int, pair) p2 = newpair(3, p1);
+pair(int, pair) p3 = newpair(2, p2);
+pair(int, pair)[] ps = [p1, p2, p3];
+snd ps[1] = 1
+
+end

@@ -12,11 +12,7 @@ import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
-import utils.AstIndexMap
-import utils.EscapeCharConverter
-import utils.Index
-import utils.Parameter
-import java.lang.UnsupportedOperationException
+import utils.*
 
 class RuleContextConverter(val astIndexMap: AstIndexMap) {
 
@@ -229,17 +225,11 @@ class RuleContextConverter(val astIndexMap: AstIndexMap) {
         return quotedString.subSequence(1, len - 1)
     }
 
-    infix fun<T : WaccAST> T.record(index: Index): T {
-        astIndexMap[this] = index
-        return this
-    }
+    infix fun<T : WaccAST> T.record(index: Index): T = this.also { astIndexMap[it] = index }
 
     private fun ParserRuleContext.index(): Index = this.start.line to this.start.charPositionInLine
 
-    fun<T: Expression> T.markParens(): T {
-        this.inParens = true
-        return this
-    }
+    fun<T: Expression> T.markParens(): T = this.also { it.inParens = true }
 }
 
 

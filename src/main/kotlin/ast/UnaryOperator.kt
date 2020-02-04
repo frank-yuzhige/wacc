@@ -1,7 +1,6 @@
 package ast
 
 import ast.Type.Companion.anyArrayType
-import ast.Type.Companion.anyoutArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType

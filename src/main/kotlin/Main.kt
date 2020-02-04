@@ -3,9 +3,7 @@ import ast.Expression.*
 import ast.Statement.Declaration
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
-import parser.Parser
-import exceptions.SyntacticException
-import kotlin.system.exitProcess
+import utils.Statements
 
 fun main(args: Array<String>) {
     val stat1 = Declaration(BaseType(INT), Identifier("x"), IntLit(1))

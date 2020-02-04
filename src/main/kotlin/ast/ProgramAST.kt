@@ -1,5 +1,8 @@
 package ast
 
+import utils.Statements
+import utils.prettyPrint
+
 data class ProgramAST (val functions: List<Function>, val mainProgram : Statements) : WaccAST {
     override fun prettyPrint(): String {
         return "begin\n" +

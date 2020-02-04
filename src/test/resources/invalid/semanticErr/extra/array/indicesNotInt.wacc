@@ -2,6 +2,7 @@ begin
 
 int[] arr = [1,2,3];
 int a = arr['c'];
+arr[true] = 1;
 exit a
 
 end

@@ -1,6 +1,8 @@
 package ast
 
 import ast.Expression.Identifier
+import utils.Statements
+import utils.prettyPrint
 
 sealed class Statement : WaccAST {
 

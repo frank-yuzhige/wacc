@@ -6,14 +6,12 @@ import ast.Expression.PairElemFunction.SND
 import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
-import exceptions.SemanticException
-import exceptions.SemanticException.*
 
 
 class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
     companion object {
-        infix fun ((Type) -> Boolean).throws(error: (Type) -> String): TypeChecker {
+        private infix fun ((Type) -> Boolean).throws(error: (Type) -> String): TypeChecker {
             return TypeChecker { actual ->
                 if (this(actual)) {
                     emptyList()
@@ -27,9 +25,9 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
         fun fail(error: String) = TypeChecker { listOf(error) }
 
-        fun isJust(expected: Type) = { actual: Type ->
+        private fun isJust(expected: Type) = { actual: Type ->
             when {
-                actual is BaseType && actual.kind == ANY -> true
+                actual == BaseType(ANY) || expected == BaseType(ANY) -> true
                 else -> expected == actual
             }
         } throws { actual ->
@@ -45,9 +43,9 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         fun match(expected: Type): TypeChecker = when (expected) {
             BaseType(ANY) -> pass()
             is PairType -> TypeChecker { actual ->
-                when {
-                    actual is BaseType && actual.kind == ANY -> emptyList()
-                    actual is PairType -> {
+                when (actual) {
+                    BaseType(ANY) -> emptyList()
+                    is PairType -> {
                         match(expected.firstElemType).test(actual.firstElemType) +
                                 match(expected.secondElemType).test(actual.secondElemType)
                     }
