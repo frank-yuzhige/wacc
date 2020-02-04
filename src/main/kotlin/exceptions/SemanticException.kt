@@ -8,10 +8,7 @@ import ast.WaccAST
 import utils.Index
 import java.lang.Exception
 
-sealed class SemanticException(val msg: String): Exception(msg) {
-
-    class PureSemanticException(cause: String): SemanticException(cause)
-
+open class SemanticException(val msg: String): Exception(msg) {
 
     class UndefinedVarException(variable: String):
             SemanticException("Attempt to access an undefined variable '$variable'!")
@@ -20,9 +17,9 @@ sealed class SemanticException(val msg: String): Exception(msg) {
             SemanticException("Attempt to access an undefined function '$variable'!")
 
     class MultipleFuncDefException(function: String, type: Type, index: Index):
-            SemanticException("Function \"$function\" with type $type has already been defined at $index!")
+            SemanticException("Function \"$function\" with type '$type' has already been defined at $index!")
 
-    data class TypeMismatchException(val expected: Type, val actual: Type):
+    class TypeMismatchException(expected: Type, actual: Type):
             SemanticException("Couldn't match expected type '$expected' with actual type: '$actual'")
 
     class OperatorNotSupportTypeException(expected: Type, operator: String):

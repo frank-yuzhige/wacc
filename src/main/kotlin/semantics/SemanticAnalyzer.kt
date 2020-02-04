@@ -40,7 +40,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
     fun doCheck(ast: ProgramAST) {
         ast.check()
         if (errorLog.isNotEmpty()) {
-            throw PureSemanticException(errorLog.joinToString("\n\n\n"))
+            throw SemanticException(errorLog.joinToString("\n\n\n"))
         }
     }
 
@@ -58,10 +58,16 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
     }
 
     private fun ProgramAST.check() {
-        functions.map { symbolTable.defineFunc(
-                        it.name,
-                        Type.FuncType(it.returnType, it.args.map { a -> a.second }),
-                        astIndexMap.getValue(it))
+        functions.map {
+            treeStack.push(it)
+            try {
+                symbolTable.defineFunc(it.name,
+                    Type.FuncType(it.returnType, it.args.map { a -> a.second }),
+                    astIndexMap.getValue(it))
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
         }
         functions.map { it.checkFunc(match(it.returnType)) }
         isInMain = true
@@ -256,8 +262,8 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                 } else {
                     val funcType = funcEntry.type
                     val retType = funcType.retType
-                    val expectedCount = args.size
-                    val actualCount = funcType.paramTypes.size
+                    val expectedCount = funcType.paramTypes.size
+                    val actualCount = args.size
                     if (expectedCount != actualCount) {
                         logAction(listOf(parameterNumMismatch(ident, funcType, expectedCount, actualCount)))
                     } else {
