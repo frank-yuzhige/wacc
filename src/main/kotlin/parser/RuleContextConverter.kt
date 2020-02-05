@@ -131,7 +131,7 @@ class RuleContextConverter() {
 
     private fun ParamListContext.toAST() : List<Parameter> = param().map { it.toAST() }
 
-    private fun ParamContext.toAST(): Pair<String, Type> = Pair(ident().text, type().toAST())
+    private fun ParamContext.toAST(): Parameter = type().toAST() to ident().toAST()
 
     private fun StatsContext.toAST() : Statements {
         return stat().map { it.toAST() }

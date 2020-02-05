@@ -82,7 +82,7 @@ class SemanticAnalyzer() {
             treeStack.push(it)
             try {
                 symbolTable.defineFunc(it.name,
-                    Type.FuncType(it.returnType, it.args.map { a -> a.second }),
+                    Type.FuncType(it.returnType, it.args.map { a -> a.first }),
                     it.startIndex)
             } catch (sme: SemanticException) {
                 logError(sme.msg)
@@ -98,7 +98,7 @@ class SemanticAnalyzer() {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.first, param.second, startIndex)
+            symbolTable.defineVar(param.second.ident, param.first, startIndex) { param.second.scopeId = it }
         }
         this.body.map { it.check(retCheck) }
         symbolTable.popScope()?.let { logWarning(it) }
@@ -117,9 +117,9 @@ class SemanticAnalyzer() {
             Statement.Skip -> Statement.Skip
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.defineVar(variable.ident, type, startIndex)
+                        = symbolTable.defineVar(variable.ident, type, startIndex) { variable.scopeId = it }
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.ident)!!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.ident) {} !!.index)))
                 } else {
                     rhs.check(match(type))
                 }
@@ -162,7 +162,7 @@ class SemanticAnalyzer() {
         }
         when(this) {
             is Identifier -> {
-                val actual = symbolTable.lookupVar(ident)?.type
+                val actual = symbolTable.lookupVar(ident) { scopeId = it } ?.type
                 if (actual != null) {
                     val errors = tc.test(actual)
                     if (errors.isEmpty()) {
@@ -190,7 +190,7 @@ class SemanticAnalyzer() {
                 }
             }
             is ArrayElem -> {
-                symbolTable.lookupVar(arrayName)?.let { entry ->
+                symbolTable.lookupVar(arrayName) { scopeId = it }?.let { entry ->
                     entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isNotEmpty()) {

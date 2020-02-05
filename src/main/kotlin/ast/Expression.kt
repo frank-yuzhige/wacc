@@ -44,6 +44,9 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     }
 
     data class Identifier(val ident : String) : Expression() {
+        var scopeId = -1
+        override fun equals(other: Any?): Boolean = other is Identifier && other.ident == ident
+        override fun hashCode(): Int = ident.hashCode()
         override fun prettyPrint(): String = ident
         override fun tellIdentity(): String = "an identifier"
     }
@@ -64,6 +67,13 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     }
 
     data class ArrayElem(val arrayName : String, val indices : List<Expression>) : Expression() {
+        var scopeId = -1
+        override fun equals(other: Any?): Boolean =
+                other is ArrayElem &&
+                        other.arrayName == arrayName &&
+                        other.indices == indices
+
+        override fun hashCode(): Int = arrayName.hashCode() + indices.hashCode()
         override fun prettyPrint(): String = "$arrayName${indices.joinToString("") { "[${it.prettyPrint()}]" }}"
     }
 
@@ -92,11 +102,13 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         is BoolLit -> BaseType(BOOL)
         is CharLit -> BaseType(CHAR)
         is StringLit -> BaseType(STRING)
-        is Identifier -> symbolTable.lookupVar(ident)?.type?: throw UndefinedVarException(ident)
+        is Identifier -> symbolTable.lookupVar(ident) { this.scopeId = it }?.type
+                ?: throw UndefinedVarException(ident)
         is BinExpr -> op.retType
         is UnaryExpr -> op.retType
         is ArrayElem -> {
-            var type = symbolTable.lookupVar(arrayName)?.type?: throw UndefinedVarException(arrayName)
+            var type = symbolTable.lookupVar(arrayName) { this.scopeId = it }?.type
+                    ?: throw UndefinedVarException(arrayName)
             for (expr in indices) {
                 val actual = expr.getType(symbolTable)
                 if (actual != intType()) {

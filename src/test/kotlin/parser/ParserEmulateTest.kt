@@ -2,6 +2,7 @@ package parser
 
 import ast.BinaryOperator
 import ast.Expression
+import exceptions.SyntacticException
 import utils.CompilerEmulator
 import utils.EmulatorMode
 import utils.EmulatorMode.PARSE_ONLY
@@ -46,7 +47,11 @@ class ParserEmulateTest {
                 val result2 = CompilerEmulator(tempFile, PARSE_ONLY).run()
                 tempFile.delete()
                 if (result2.exception != null) {
-                    fail("program at ${it.path} fail to parse due to exception: ${result2.exception.javaClass.canonicalName}")
+                    if (result2.exception is SyntacticException) {
+                        System.err.println(result2.exception.msg)
+                    }
+                    fail("program at ${it.path} fail to parse due to exception: " +
+                            "${result2.exception.javaClass.canonicalName}\n")
                 }
                 assertEquals(Expression.BinExpr(Expression.Identifier("x"), BinaryOperator.ADD, Expression.IntLit(1)),
                         Expression.BinExpr(Expression.Identifier("x"), BinaryOperator.ADD, Expression.IntLit(1)))
