@@ -7,8 +7,8 @@ import ast.Expression.*
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Function
+import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
-import ast.Statement.Declaration
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyoutArrayType
 import ast.Type.Companion.boolType
@@ -114,41 +114,41 @@ class SemanticAnalyzer() {
     private fun Statement.check(retCheck: TypeChecker) {
         treeStack.push(this)
         when(this@check) {
-            Statement.Skip -> Statement.Skip
+            Skip -> Skip
             is Declaration -> {
                 val prevAttr
                         = symbolTable.defineVar(variable.name, type, startIndex) { variable.scopeId = it }
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name) {} !!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name)!!.index)))
                 } else {
                     rhs.check(match(type))
                 }
             }
-            is Statement.Assignment -> {
+            is Assignment -> {
                 val lhsType = lhs.checkLhs()
                 lhsType?.let { rhs.check(match(it)) }
             }
-            is Statement.Read -> {
+            is Read -> {
                 val lhsType =  target.checkLhs()
                 val readChecker = match(intType()) `||` match(charType()) `||` match(stringType())
                 lhsType?.let { logError(readChecker.test(it)) }
             }
-            is Statement.BuiltinFuncCall -> when (func) {
+            is BuiltinFuncCall -> when (func) {
                 PRINT, PRINTLN -> expr.check(pass())
                 FREE -> expr.check(match(anyArrayType()) `||` match(anyPairType()))
                 EXIT -> expr.check(match(intType()))
                 RETURN -> expr.check(retCheck)
             }
-            is Statement.CondBranch -> {
+            is CondBranch -> {
                 expr.check(match(boolType()))
                 trueBranch.checkBlock(retCheck)
                 falseBranch.checkBlock(retCheck)
             }
-            is Statement.WhileLoop ->  {
+            is WhileLoop ->  {
                 expr.check(match(boolType()))
                 body.checkBlock(retCheck)
             }
-            is Statement.Block -> body.checkBlock(retCheck)
+            is Block -> body.checkBlock(retCheck)
         }
         treeStack.pop()
     }
@@ -162,10 +162,13 @@ class SemanticAnalyzer() {
         }
         when(this) {
             is Identifier -> {
-                val actual = symbolTable.lookupVar(name) { scopeId = it } ?.type
-                if (actual != null) {
+                val attr = symbolTable.lookupVar(name)
+                if (attr != null) {
+                    val actual = attr.type
+                    val scopeId = attr.scopeId
                     val errors = tc.test(actual)
                     if (errors.isEmpty()) {
+                        this.scopeId = scopeId
                         result = actual
                     } else {
                         logAction(errors)
@@ -190,7 +193,8 @@ class SemanticAnalyzer() {
                 }
             }
             is ArrayElem -> {
-                symbolTable.lookupVar(arrIdent.name) { arrIdent.scopeId = it }?.let { entry ->
+                symbolTable.lookupVar(arrIdent.name)?.let { entry ->
+                    this.arrIdent.scopeId = entry.scopeId
                     entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isNotEmpty()) {

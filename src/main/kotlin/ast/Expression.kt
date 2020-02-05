@@ -96,12 +96,12 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         is BoolLit -> BaseType(BOOL)
         is CharLit -> BaseType(CHAR)
         is StringLit -> BaseType(STRING)
-        is Identifier -> symbolTable.lookupVar(name) { this.scopeId = it }?.type
+        is Identifier -> symbolTable.lookupVar(name)?.type
                 ?: throw UndefinedVarException(name)
         is BinExpr -> op.retType
         is UnaryExpr -> op.retType
         is ArrayElem -> {
-            var type = symbolTable.lookupVar(arrIdent.name) { arrIdent.scopeId = it }?.type
+            var type = symbolTable.lookupVar(arrIdent.name)?.type
                     ?: throw UndefinedVarException(arrIdent.name)
             for (expr in indices) {
                 val actual = expr.getType(symbolTable)

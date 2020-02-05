@@ -10,7 +10,7 @@ class SymbolTable {
     private val scopeIdStack: Deque<Int> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
     private val idMap: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
-    private var scopeIdGen = -1
+    private var scopeIdGen = 0
 
     fun defineVar(ident: String, type: Type, index: Index, astModifier: (Int) -> Unit): VarAttributes? {
         val currScope = this.scopeList.first()
@@ -19,7 +19,7 @@ class SymbolTable {
             return entry
         }
         astModifier(getCurrScopeId())
-        currScope[ident] = VarAttributes(type, index)
+        currScope[ident] = VarAttributes(type, index, getCurrScopeId())
         return null
     }
 
@@ -47,11 +47,10 @@ class SymbolTable {
     }
 
 
-    fun lookupVar(ident: String, astModifier: (Int) -> Unit) : VarAttributes? = scopeList
+    fun lookupVar(ident: String) : VarAttributes? = scopeList
             .mapNotNull { it[ident] }
             .firstOrNull()
             ?.also { it.incrementOccurrences() }
-            ?.also { astModifier(getCurrScopeId()) }
 
     fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
 
@@ -65,6 +64,6 @@ class SymbolTable {
 
     private fun VarAttributes.incrementOccurrences(): VarAttributes = this.also { occurrences++ }
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
-    data class VarAttributes(val type: Type, val index: Index, var occurrences: Int = 1)
+    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1)
 
 }
