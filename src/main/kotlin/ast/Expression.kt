@@ -11,7 +11,7 @@ import exceptions.SemanticException.*
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.SymbolTable
 
-sealed class Expression(var inParens: Boolean = false) : WaccAST {
+sealed class Expression(var inParens: Boolean = false) : WaccAST() {
 
     override fun tellIdentity(): String = "an expression"
 

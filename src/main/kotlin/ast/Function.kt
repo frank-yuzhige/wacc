@@ -1,6 +1,5 @@
 package ast
 
-import utils.AstIndexMap
 import utils.Parameter
 import utils.Statements
 import utils.prettyPrint
@@ -10,7 +9,7 @@ data class Function(
         val name: String,
         val args: List<Parameter>,
         val body: Statements
-) : WaccAST {
+) : WaccAST() {
     override fun prettyPrint(): String =
             "${showHeader()} is\n" +
             "${body.prettyPrint().prependIndent()}\n" +
@@ -22,7 +21,7 @@ data class Function(
         return "$returnType $name(${args.joinToString(", ") { "${it.second} ${it.first}" }})"
     }
 
-    override fun getTraceLog(astIndexMap: AstIndexMap): String {
-        return "In a function defined at ${astIndexMap[this]}: ${showHeader()}"
+    override fun getTraceLog(): String {
+        return "In a function defined at ${startIndex}: ${showHeader()}"
     }
 }

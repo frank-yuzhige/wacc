@@ -18,18 +18,16 @@ import ast.Type.Companion.anyPairType
 import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
-import exceptions.SemanticException.*
 import semantics.TypeChecker.Companion.match
 import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
-import utils.AstIndexMap
 import utils.Statements
 import utils.SymbolTable
 import java.util.*
 
-class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
+class SemanticAnalyzer {
 
     private val symbolTable = SymbolTable()
     private val treeStack: Deque<WaccAST> = ArrayDeque()
@@ -51,7 +49,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
     }
 
     private fun logError(cause: String) {
-        val log = cause + "\n" + treeStack.joinToString("\n") { it.getTraceLog(astIndexMap) }
+        val log = cause + "\n" + treeStack.joinToString("\n") { it.getTraceLog() }
         val inMain = if (isInMain) {"\nIn the main program"} else {""}
         errorLog += log + inMain
         containsError = true
@@ -63,7 +61,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
             try {
                 symbolTable.defineFunc(it.name,
                     Type.FuncType(it.returnType, it.args.map { a -> a.second }),
-                    astIndexMap.getValue(it))
+                    it.startIndex)
             } catch (sme: SemanticException) {
                 logError(sme.msg)
             }
@@ -78,7 +76,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.first, param.second, astIndexMap.getValue(this))
+            symbolTable.defineVar(param.first, param.second, startIndex)
         }
         this.body.map { it.check(retCheck) }
         symbolTable.popScope()
@@ -97,7 +95,7 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
             Statement.Skip -> Statement.Skip
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.defineVar(variable.ident, type, astIndexMap.getValue(this))
+                        = symbolTable.defineVar(variable.ident, type, startIndex)
                 if (prevAttr != null) {
                     logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.ident)!!.index)))
                 } else {
@@ -220,11 +218,11 @@ class SemanticAnalyzer(private val astIndexMap: AstIndexMap) {
                             val temp = mutableListOf<String>()
                             temp += retChecker.test(entry.retType)
                             left.check(entry.lhsChecker) { temp += it.map { err ->
-                                "$err\n${left.getTraceLog(astIndexMap)}\n" +
+                                "$err\n${left.getTraceLog()}\n" +
                                         "    on the left-hand-side of \"${op.op}\"" } }
                             if (temp.isEmpty()) {
                                 right.check(entry.rhsChecker) { temp += it.map { err ->
-                                    "$err\n${right.getTraceLog(astIndexMap)}" +
+                                    "$err\n${right.getTraceLog()}" +
                                             "\n    on the right-hand-side of \"${op.op}\"" } }
                             }
                             errors += temp

@@ -4,7 +4,7 @@ import ast.Expression.Identifier
 import utils.Statements
 import utils.prettyPrint
 
-sealed class Statement : WaccAST {
+sealed class Statement : WaccAST() {
 
     override fun tellIdentity(): String = "an statement"
 

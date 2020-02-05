@@ -16,16 +16,15 @@ class CompilerEmulator(private val inputFile: File,
                        private val mode: EmulatorMode,
                        private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
 
-    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?, val indexMap: AstIndexMap)
+    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?)
     fun run(): EmulatorResult {
-        val astIndexMap: AstIndexMap = IdentityHashMap()
-        val parser = Parser(inputFile.inputStream(), errorStream = errorStream, astIndexMap = astIndexMap)
+        val parser = Parser(inputFile.inputStream(), errorStream = errorStream)
         var exitCode = 0
         var exception: Exception? = null
         val ast = try {
             val temp = parser.parseProgram()
             if (mode != PARSE_ONLY) {
-                SemanticAnalyzer(astIndexMap).doCheck(temp)
+                SemanticAnalyzer().doCheck(temp)
             }
             println("ALL IS GOOD: ${inputFile.path}")
             temp
@@ -50,7 +49,7 @@ class CompilerEmulator(private val inputFile: File,
             exitCode = 1 //  error output
             null
         }
-        return EmulatorResult(exitCode, ast, exception, astIndexMap)
+        return EmulatorResult(exitCode, ast, exception)
     }
 
 }

@@ -1,10 +1,6 @@
 package exceptions
 
-import utils.AstIndexMap
-import ast.Expression.PairElemFunction
 import ast.Type
-import ast.Type.FuncType
-import ast.WaccAST
 import utils.Index
 import java.lang.Exception
 

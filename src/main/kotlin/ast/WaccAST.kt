@@ -1,18 +1,21 @@
 package ast
 
-import utils.AstIndexMap
+import utils.Index
 
-interface WaccAST {
-    fun prettyPrint(): String
-    fun tellIdentity(): String
-    fun getTraceLog(astIndexMap: AstIndexMap): String {
+abstract class WaccAST {
+    var startIndex: Index = -1 to -1
+    var endIndex: Index = -1 to -1
+
+    abstract fun prettyPrint(): String
+    abstract fun tellIdentity(): String
+    open fun getTraceLog(): String {
         val lines = prettyPrint().split("\n")
         val abbrev = when {
             lines.size > 3 -> '\n' + lines[0] + '\n' +  lines[1] + "\n    ...\n" + lines.last()
             lines.size >= 2 -> "\n${prettyPrint()}"
             else -> prettyPrint()
         }
-        return "In ${tellIdentity()} at ${astIndexMap[this]}: $abbrev"
+        return "In ${tellIdentity()} at ${startIndex}: $abbrev"
     }
 }
 

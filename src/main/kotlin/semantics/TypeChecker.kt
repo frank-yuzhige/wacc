@@ -31,7 +31,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                 else -> expected == actual
             }
         } throws { actual ->
-            "Couldn't match expected type '$expected' with actual type: '$actual'"
+            typeMismatchError(expected, actual)
         }
 
         fun isOneOf(vararg candidates: Type) = (candidates::contains) throws { actual ->
@@ -49,7 +49,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                         match(expected.firstElemType).test(actual.firstElemType) +
                                 match(expected.secondElemType).test(actual.secondElemType)
                     }
-                    else -> listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
+                    else -> listOf(typeMismatchError(expected, actual))
                 }
             }
             is ArrayType -> TypeChecker { actual ->
@@ -59,13 +59,13 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                         if (expected.type == Type.charType()) {
                             emptyList()
                         } else {
-                            listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
+                            listOf(typeMismatchError(expected, actual))
                         }
                     }
                     actual is ArrayType -> match(expected.type)
-                            .withError("\"Couldn't match expected type '$expected' with actual type: '$actual'\"")
+                            .withError(typeMismatchError(expected, actual))
                             .test(actual.type)
-                    else -> listOf("Couldn't match expected type '$expected' with actual type: '$actual'")
+                    else -> listOf(typeMismatchError(expected, actual))
                 }
             }
             else -> isJust(expected)

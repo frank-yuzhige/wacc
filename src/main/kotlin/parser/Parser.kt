@@ -9,15 +9,12 @@ import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.TokenStream
 import exceptions.ParseErrorListener
 import exceptions.SyntacticException.SyntacticExceptionBundle
-import utils.AstIndexMap
 import java.io.InputStream
 import java.io.PrintStream
-import java.util.*
 
 class Parser(private val inputStream: InputStream,
              private val outputStream: PrintStream = System.out,
-             private val errorStream: PrintStream = System.err,
-             val astIndexMap: AstIndexMap = IdentityHashMap()) {
+             private val errorStream: PrintStream = System.err) {
 
     private val parseErrorListener = ParseErrorListener()
 
@@ -37,25 +34,25 @@ class Parser(private val inputStream: InputStream,
     fun parseProgram(): ProgramAST {
         val program = runParser().prog()
         throwsPotentialErrors()
-        return RuleContextConverter(astIndexMap).convertProgram(program)
+        return RuleContextConverter().convertProgram(program)
     }
 
     fun parseFunction(): Function {
         val function = runParser().func()
         throwsPotentialErrors()
-        return RuleContextConverter(astIndexMap).convertFunction(function)
+        return RuleContextConverter().convertFunction(function)
     }
 
     fun parseStatement(): Statement {
         val statement = runParser().stat()
         throwsPotentialErrors()
-        return RuleContextConverter(astIndexMap).convertStatement(statement)
+        return RuleContextConverter().convertStatement(statement)
     }
 
     fun parseExpression(): Expression {
         val expression = runParser().expr()
         throwsPotentialErrors()
-        return RuleContextConverter(astIndexMap).convertExpression(expression)
+        return RuleContextConverter().convertExpression(expression)
     }
 
     fun throwsPotentialErrors() {
