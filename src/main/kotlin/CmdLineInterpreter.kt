@@ -22,15 +22,15 @@ fun main(args: Array<String>) {
     }
 
     val ast = try {
-        val temp = Parser(inputStream).parseProgram()
-        SemanticAnalyzer().doCheck(temp)
-        temp
+        Parser(inputStream).parseProgram()
+                .also { SemanticAnalyzer().doCheck(it) }
     } catch (pe: SyntacticException) {
-        System.err.println("$ERROR${pe.msg}$RESET")
+        System.err.println("${ERROR}PARSE ERROR:")
+        System.err.println("${pe.msg}$RESET")
         exitProcess(100)
     } catch (se: SemanticException) {
-        System.err.println("SEMANTIC ERROR:")
-        System.err.println("$ERROR${se.msg}$RESET")
+        System.err.println("${ERROR}SEMANTIC ERROR:")
+        System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
 

@@ -152,9 +152,12 @@ class SemanticAnalyzer {
     }
 
     private fun Expression.checkLhs(tc: TypeChecker = pass(),
+                                    isPush: Boolean = true,
                                     logAction: (List<String>) -> Unit = { logError(it) }): Type? {
         var result: Type? = null
-        treeStack.push(this)
+        if (isPush) {
+            treeStack.push(this)
+        }
         when(this) {
             is Identifier -> {
                 val actual = symbolTable.lookupVar(ident)?.type
@@ -188,7 +191,9 @@ class SemanticAnalyzer {
                 symbolTable.lookupVar(arrayName)?.let { entry ->
                     entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
-                        if (errors.isEmpty()) {
+                        if (errors.isNotEmpty()) {
+                            logAction(errors)
+                        } else {
                             containsError = false
                             indices.map { it.check(match(intType())) }
                             if (!containsError) {
@@ -198,15 +203,15 @@ class SemanticAnalyzer {
                                 }
                                 logAction(tcErrors)
                             }
-                        } else {
-                            logAction(errors)
                         }
-                    }?: logAction(listOf(insufficientArrayRankError(entry.type, indices.count())))
+                    }?: logAction(listOf(insufficientArrayRankError(arrayName, entry.type, indices.count())))
                 }?: logAction(listOf(accessToUndefinedVar(arrayName)))
             }
             else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
         }
-        treeStack.pop()
+        if (isPush) {
+            treeStack.pop()
+        }
         return result
     }
 
@@ -219,7 +224,7 @@ class SemanticAnalyzer {
             is BoolLit -> logAction(tc.test(boolType()))
             is CharLit -> logAction(tc.test(charType()))
             is StringLit -> logAction(tc.test(stringType()))
-            is Identifier, is PairElem, is ArrayElem -> checkLhs(tc, logAction)
+            is Identifier, is PairElem, is ArrayElem -> checkLhs(tc, false, logAction)
             is BinExpr -> {
                 when (op) {
                     EQ, NEQ -> {
@@ -251,7 +256,7 @@ class SemanticAnalyzer {
                             }
                         }
                         if (!errors.any(List<String>::isEmpty)) {
-                            logAction(errors.flatten())
+                            logAction(errors.minBy { it.size }!!)
                         }
                     }
                 }

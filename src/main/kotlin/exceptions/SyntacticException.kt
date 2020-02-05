@@ -3,7 +3,7 @@ package exceptions
 sealed class SyntacticException(var msg: String) : Exception() {
 
     class SyntacticExceptionBundle(bundle: Iterable<SyntacticException>)
-        : SyntacticException("[PARSE ERROR!]\n" + bundle.joinToString("\n===================\n") { it.msg }) {
+        : SyntacticException(bundle.joinToString("\n===================\n") { it.msg }) {
         val count: Int = bundle.count()
     }
 

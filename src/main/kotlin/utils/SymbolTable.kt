@@ -29,17 +29,18 @@ class SymbolTable {
     fun pushScope() = scopeList.addFirst(hashMapOf())
 
     fun popScope(): List<String>? =
-        scopeList.pollFirst()?.filter { (_, attrs) -> attrs.occurrences == 1 }?.map { (ident, attrs) ->
+        scopeList.pollFirst()
+                ?.filter { (_, attrs) -> attrs.occurrences == 1 }
+                ?.map { (ident, attrs) ->
             "Unused variable $ident at ${attrs.index}: variable defined but its value is never used"
         }
 
-    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident]?.incrementOccurrences() }.firstOrNull()
+    fun lookupVar(ident: String) : VarAttributes? = scopeList
+            .mapNotNull { it[ident]?.incrementOccurrences() }
+            .firstOrNull()
     fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
 
-    private fun VarAttributes.incrementOccurrences(): VarAttributes {
-        this.occurrences++
-        return this
-    }
+    private fun VarAttributes.incrementOccurrences(): VarAttributes = this.also { occurrences++ }
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
     data class VarAttributes(val type: Type, val index: Index, var occurrences: Int = 1)
 
