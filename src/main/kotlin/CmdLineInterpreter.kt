@@ -2,6 +2,8 @@ import parser.Parser
 import exceptions.SyntacticException
 import exceptions.SemanticException
 import semantics.SemanticAnalyzer
+import utils.ERROR
+import utils.RESET
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import kotlin.system.exitProcess
@@ -24,11 +26,11 @@ fun main(args: Array<String>) {
         SemanticAnalyzer().doCheck(temp)
         temp
     } catch (pe: SyntacticException) {
-        System.err.println(pe.msg)
+        System.err.println("$ERROR${pe.msg}$RESET")
         exitProcess(100)
     } catch (se: SemanticException) {
         System.err.println("SEMANTIC ERROR:")
-        System.err.println(se.message)
+        System.err.println("$ERROR${se.msg}$RESET")
         exitProcess(200)
     }
 

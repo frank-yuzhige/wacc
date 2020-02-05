@@ -1,0 +1,9 @@
+begin
+  int x = 12;
+  int unused = 0;
+  if x > 10 then
+    int unused1 = 1
+  else
+    int unused2 = 2
+  fi
+end

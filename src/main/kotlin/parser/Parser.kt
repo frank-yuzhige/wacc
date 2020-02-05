@@ -55,7 +55,7 @@ class Parser(private val inputStream: InputStream,
         return RuleContextConverter().convertExpression(expression)
     }
 
-    fun throwsPotentialErrors() {
+    private fun throwsPotentialErrors() {
         if (parseErrorListener.errorBundle.isNotEmpty()) {
             val errorCount = parseErrorListener.errorBundle.size
             val errorText = "error" + if (errorCount == 1) { "" } else { "s" }

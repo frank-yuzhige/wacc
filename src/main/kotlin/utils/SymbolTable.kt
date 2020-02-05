@@ -8,10 +8,6 @@ class SymbolTable {
     private val scopeList: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
 
-//    init {
-//        scopeList.add(hashMapOf())
-//    }
-
     fun defineVar(ident: String, type: Type, index: Index): VarAttributes? {
         val currScope = this.scopeList.first()
         val entry = currScope[ident]
@@ -32,12 +28,19 @@ class SymbolTable {
 
     fun pushScope() = scopeList.addFirst(hashMapOf())
 
-    fun popScope(): MutableMap<String, VarAttributes>? = scopeList.pollFirst()
+    fun popScope(): List<String>? =
+        scopeList.pollFirst()?.filter { (_, attrs) -> attrs.occurrences == 1 }?.map { (ident, attrs) ->
+            "Unused variable $ident at ${attrs.index}: variable defined but its value is never used"
+        }
 
-    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident] }.firstOrNull()
+    fun lookupVar(ident: String) : VarAttributes? = scopeList.mapNotNull { it[ident]?.incrementOccurrences() }.firstOrNull()
     fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
 
+    private fun VarAttributes.incrementOccurrences(): VarAttributes {
+        this.occurrences++
+        return this
+    }
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
-    data class VarAttributes(val type: Type, val index: Index)
+    data class VarAttributes(val type: Type, val index: Index, var occurrences: Int = 1)
 
 }

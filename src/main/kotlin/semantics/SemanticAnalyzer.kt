@@ -23,22 +23,32 @@ import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
+import utils.RESET
 import utils.Statements
 import utils.SymbolTable
+import utils.WARNING
 import java.util.*
 
 class SemanticAnalyzer {
-
     private val symbolTable = SymbolTable()
     private val treeStack: Deque<WaccAST> = ArrayDeque()
     private val errorLog: MutableList<String> = arrayListOf()
+    private val warningLog: MutableList<String> = arrayListOf()
     private var isInMain = false
     private var containsError = false
 
     fun doCheck(ast: ProgramAST) {
         ast.check()
+        if (warningLog.isNotEmpty()) {
+            val count = warningLog.size
+            val plural = if (count == 1) {""} else {"s"}
+            println("$WARNING$count warning$plural:$RESET")
+            warningLog.forEach { println("$WARNING[Warning]: $it\n$RESET") }
+        }
         if (errorLog.isNotEmpty()) {
-            throw SemanticException(errorLog.joinToString("\n\n\n"))
+            val count = errorLog.size
+            val plural = if (count == 1) {""} else {"s"}
+            throw SemanticException("$count semantic error$plural:\n${errorLog.joinToString("\n\n\n")}")
         }
     }
 
@@ -49,10 +59,20 @@ class SemanticAnalyzer {
     }
 
     private fun logError(cause: String) {
-        val log = cause + "\n" + treeStack.joinToString("\n") { it.getTraceLog() }
-        val inMain = if (isInMain) {"\nIn the main program"} else {""}
-        errorLog += log + inMain
+        logMessage(cause, errorLog)
         containsError = true
+    }
+
+    private fun logWarning(causes: List<String>) {
+        if (causes.isNotEmpty()) {
+            logMessage(causes.joinToString("\n"), warningLog)
+        }
+    }
+
+    private fun logMessage(cause: String, log: MutableList<String>) {
+        val message = cause + treeStack.joinToString("") { "\n${it.getTraceLog()}" }
+        val inMain = if (isInMain) {"\nIn the main program"} else {""}
+        log += message + inMain
     }
 
     private fun ProgramAST.check() {
@@ -79,14 +99,14 @@ class SemanticAnalyzer {
             symbolTable.defineVar(param.first, param.second, startIndex)
         }
         this.body.map { it.check(retCheck) }
-        symbolTable.popScope()
+        symbolTable.popScope()?.let { logWarning(it) }
         treeStack.pop()
     }
 
     private fun Statements.checkBlock(retCheck: TypeChecker = pass()) {
         symbolTable.pushScope()
         this.map { it.check(retCheck) }
-        symbolTable.popScope()
+        symbolTable.popScope()?.let { logWarning(it) }
     }
 
     private fun Statement.check(retCheck: TypeChecker) {

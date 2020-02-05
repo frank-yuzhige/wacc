@@ -240,11 +240,9 @@ class RuleContextConverter() {
     }
 
     private fun <T: WaccAST> T.records(start: Index, end: Index): T = this.also {
-        it.startIndex = start;
-        this.endIndex = end
+        startIndex = start
+        endIndex = end
     }
-
-//    private infix fun<T : WaccAST> T.record(index: Index): T = this.also { astIndexMap[it] = index }
 
     private fun ParserRuleContext.start(): Index = this.start.line to this.start.charPositionInLine
     private fun ParserRuleContext.end(): Index = this.stop.line to this.stop.charPositionInLine
