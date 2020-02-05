@@ -24,7 +24,7 @@ class CompilerEmulator(private val inputFile: File,
         val ast = try {
             val temp = parser.parseProgram()
             if (mode != PARSE_ONLY) {
-                SemanticAnalyzer().doCheck(temp)
+                SemanticAnalyzer().suppressWarning().doCheck(temp)
             }
             println("ALL IS GOOD: ${inputFile.path}")
             temp

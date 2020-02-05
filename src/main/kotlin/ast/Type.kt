@@ -18,7 +18,6 @@ sealed class Type {
     companion object {
         fun anyoutArrayType(): ArrayType = ArrayType(BaseType(ANY))
         fun anyArrayType(): ArrayType = ArrayType(BaseType(ANY))
-        fun nullType(): PairType = PairType(BaseType(ANY), BaseType(ANY))
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
         fun intType(): BaseType = BaseType(INT)

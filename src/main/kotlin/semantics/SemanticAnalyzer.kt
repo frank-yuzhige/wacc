@@ -15,7 +15,6 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.anyPairType
-import ast.Type.Companion.nullType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import semantics.TypeChecker.Companion.match
@@ -29,17 +28,18 @@ import utils.SymbolTable
 import utils.WARNING
 import java.util.*
 
-class SemanticAnalyzer {
+class SemanticAnalyzer() {
     private val symbolTable = SymbolTable()
     private val treeStack: Deque<WaccAST> = ArrayDeque()
     private val errorLog: MutableList<String> = arrayListOf()
     private val warningLog: MutableList<String> = arrayListOf()
     private var isInMain = false
     private var containsError = false
+    private var allowsWarning = true
 
     fun doCheck(ast: ProgramAST) {
         ast.check()
-        if (warningLog.isNotEmpty()) {
+        if (allowsWarning && warningLog.isNotEmpty()) {
             val count = warningLog.size
             val plural = if (count == 1) {""} else {"s"}
             println("$WARNING$count warning$plural:$RESET")
@@ -51,6 +51,8 @@ class SemanticAnalyzer {
             throw SemanticException("$count semantic error$plural:\n${errorLog.joinToString("\n\n\n")}")
         }
     }
+
+    fun suppressWarning(): SemanticAnalyzer = this.also { allowsWarning = false }
 
     private fun logError(causes: List<String>) {
         if (causes.isNotEmpty()) {
@@ -219,7 +221,7 @@ class SemanticAnalyzer {
                                  logAction: (List<String>) -> Unit = { logError(it) }) {
         treeStack.push(this)
         when(this) {
-            is NullLit -> logAction(tc.test(nullType()))
+            is NullLit -> logAction(tc.test(anyPairType()))
             is IntLit -> logAction(tc.test(intType()))
             is BoolLit -> logAction(tc.test(boolType()))
             is CharLit -> logAction(tc.test(charType()))
