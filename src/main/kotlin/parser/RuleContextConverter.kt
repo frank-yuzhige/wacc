@@ -186,7 +186,7 @@ class RuleContextConverter() {
             is ExprParensContext  -> expr().toAST().markParens()
             is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
             is ExprBinopContext   -> BinExpr(left.toAST(), getBinOp(), right.toAST())
-            is ExprArrElemContext -> ArrayElem(arrayElem().ident().text, arrayElem().expr().map { it.toAST() })
+            is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit
@@ -204,7 +204,7 @@ class RuleContextConverter() {
             PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase()), expr().toAST())
 
     private fun ArrayElemContext.toAST() : Expression =
-            ArrayElem(ident().text, expr().map { it.toAST() })
+            ArrayElem(ident().toAST(), expr().map { it.toAST() })
 
     private fun IdentContext.toAST(): Identifier = Identifier(IDENT().text).records(start(), end())
 

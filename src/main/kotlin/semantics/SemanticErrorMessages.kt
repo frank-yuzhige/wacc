@@ -1,6 +1,5 @@
 package semantics
 
-import ast.Expression
 import ast.Expression.Identifier
 import ast.Type
 import ast.Type.*
@@ -20,4 +19,4 @@ fun accessToNullLiteral(pairFunc: String): String = "Cannot access the $pairFunc
 fun parameterNumMismatch(ident: String, funcType: Type, expectedCount: Int, actualCount: Int): String =
         "A call to function $ident :: $funcType needs $expectedCount parameters, but $actualCount parameters are given"
 fun variableAlreadyDefined(variable: Identifier, type: Type, index: Index): String =
-        "Variable \"${variable.ident}\" with type '$type' has already been defined at $index"
+        "Variable \"${variable.name}\" with type '$type' has already been defined at $index"

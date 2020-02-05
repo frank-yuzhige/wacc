@@ -98,7 +98,7 @@ class SemanticAnalyzer() {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.second.ident, param.first, startIndex) { param.second.scopeId = it }
+            symbolTable.defineVar(param.second.name, param.first, startIndex) { param.second.scopeId = it }
         }
         this.body.map { it.check(retCheck) }
         symbolTable.popScope()?.let { logWarning(it) }
@@ -117,9 +117,9 @@ class SemanticAnalyzer() {
             Statement.Skip -> Statement.Skip
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.defineVar(variable.ident, type, startIndex) { variable.scopeId = it }
+                        = symbolTable.defineVar(variable.name, type, startIndex) { variable.scopeId = it }
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.ident) {} !!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name) {} !!.index)))
                 } else {
                     rhs.check(match(type))
                 }
@@ -162,7 +162,7 @@ class SemanticAnalyzer() {
         }
         when(this) {
             is Identifier -> {
-                val actual = symbolTable.lookupVar(ident) { scopeId = it } ?.type
+                val actual = symbolTable.lookupVar(name) { scopeId = it } ?.type
                 if (actual != null) {
                     val errors = tc.test(actual)
                     if (errors.isEmpty()) {
@@ -171,7 +171,7 @@ class SemanticAnalyzer() {
                         logAction(errors)
                     }
                 } else {
-                    logAction(listOf(accessToUndefinedVar(ident)))
+                    logAction(listOf(accessToUndefinedVar(name)))
                 }
             }
             is PairElem -> {
@@ -190,7 +190,7 @@ class SemanticAnalyzer() {
                 }
             }
             is ArrayElem -> {
-                symbolTable.lookupVar(arrayName) { scopeId = it }?.let { entry ->
+                symbolTable.lookupVar(arrIdent.name) { arrIdent.scopeId = it }?.let { entry ->
                     entry.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isNotEmpty()) {
@@ -206,8 +206,8 @@ class SemanticAnalyzer() {
                                 logAction(tcErrors)
                             }
                         }
-                    }?: logAction(listOf(insufficientArrayRankError(arrayName, entry.type, indices.count())))
-                }?: logAction(listOf(accessToUndefinedVar(arrayName)))
+                    }?: logAction(listOf(insufficientArrayRankError(arrIdent.name, entry.type, indices.count())))
+                }?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
             }
             else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
         }
