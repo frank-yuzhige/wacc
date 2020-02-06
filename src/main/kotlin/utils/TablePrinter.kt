@@ -1,26 +1,26 @@
 package utils
 
 import de.vandermeer.asciitable.AsciiTable
-import de.vandermeer.asciitable.AsciiTableTheme
 import de.vandermeer.asciitable.CWC_LongestLine
-import de.vandermeer.asciitable.CWC_LongestWord
-import de.vandermeer.asciithemes.TA_Border
-import de.vandermeer.asciithemes.TA_GridThemes
-import de.vandermeer.skb.interfaces.document.TableRowStyle
-import de.vandermeer.skb.interfaces.document.TableRowStyle.*
-import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment
 import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment.*
-import de.vandermeer.skb.interfaces.translators.TargetTranslator
-import semantics.variableAlreadyDefined
-import java.lang.StringBuilder
-import kotlin.math.max
 
 class TablePrinter (vararg title: String) {
     private val titles: List<String> = title.toList()
     private val entries: MutableList<List<String>> = arrayListOf()
+    private val intColumns: MutableSet<Int> = hashSetOf()
+    private val sortByList: MutableList<Int> = arrayListOf(0)
 
-    fun addColumn(vararg data: Any) {
+    fun addColumn(vararg data: Any): TablePrinter = this.also {
         entries += data.map { it.toString() }
+    }
+
+    fun markIntColumn(vararg column: Int): TablePrinter = this.also {
+        intColumns += column.toList()
+    }
+
+    fun sortBy(vararg column: Int): TablePrinter = this.also {
+        sortByList.clear()
+        sortByList += column.toList()
     }
 
     fun print(): String {
@@ -29,10 +29,22 @@ class TablePrinter (vararg title: String) {
         table.addRule()
         table.addRow(titles).setTextAlignment(CENTER).setPaddingLeftRight(1)
         table.addRule()
-        entries.sortedBy { it[0] }
+        entries.sortedWith(compareStrategy())
                 .forEach { table.addRow(it).setTextAlignment(CENTER).setPaddingLeftRight(1); table.addRule() }
 
         table.renderer.cwc = CWC_LongestLine()
         return table.render()
+    }
+
+    private fun compareStrategy(): Comparator<List<String>> {
+        val existingCols = sortByList.filter { it < titles.size && it >= 0 }
+        val comparators = existingCols.map { col ->
+            if (intColumns.contains(col)) {
+                compareBy { list: List<String> -> list[col].toInt() }
+            } else {
+                compareBy { list: List<String> -> list[col] }
+            }
+        }
+        return comparators.reduce { a, b -> a then b}
     }
 }

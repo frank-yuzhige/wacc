@@ -64,14 +64,18 @@ class SymbolTable {
 
     fun getVarTable(): String {
         val tp = TablePrinter("variable", "scope id", "type", "position", "occurrences")
+                .markIntColumn(1, 4)
+                .sortBy(0, 1)
         collect.map { (pair, attr) ->
             tp.addColumn(pair.first, pair.second, attr.type, attr.index, attr.occurrences)
         }
+
         return tp.print()
     }
 
     fun getFuncTable(): String {
         val tp = TablePrinter("function name", "type", "position")
+                .sortBy(0, 2)
         functions.map { (name, attr) ->
             tp.addColumn(name, attr.type, attr.index)
         }
