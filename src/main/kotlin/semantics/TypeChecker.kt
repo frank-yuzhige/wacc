@@ -1,11 +1,12 @@
 package semantics
 
-import ast.Expression.*
+import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type
 import ast.Type.*
-import ast.Type.BaseTypeKind.*
+import ast.Type.BaseTypeKind.ANY
+import ast.Type.BaseTypeKind.STRING
 
 
 class TypeChecker private constructor(val test: (Type) -> List<String>) {
@@ -30,9 +31,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                 actual == BaseType(ANY) || expected == BaseType(ANY) -> true
                 else -> expected == actual
             }
-        } throws { actual ->
-            typeMismatchError(expected, actual)
-        }
+        } throws { actual -> typeMismatchError(expected, actual) }
 
         fun isOneOf(vararg candidates: Type) = (candidates::contains) throws { actual ->
             "couldn't match any of the expecting types:" +
@@ -72,7 +71,8 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         }
 
         fun match(vararg expected: Type): TypeChecker {
-            return expected.map { match(it) }.reduceRight{ a, b -> a `||` b}
+            return expected.map { match(it) }.reduceRight { a, b -> a or b }
+                    .changeError { actual -> listOf(typeMismatchManyError(expected.toList(), actual)) }
         }
 
         fun matchPairByElem(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
@@ -87,8 +87,8 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
         fun unwrapPair(func: PairElemFunction, tc: TypeChecker): TypeChecker = TypeChecker { actual ->
             when (func) {
-               FST -> tc.test(PairType(actual, BaseType(ANY)))
-               SND -> tc.test(PairType(BaseType(ANY), actual))
+                FST -> tc.test(PairType(actual, BaseType(ANY)))
+                SND -> tc.test(PairType(BaseType(ANY), actual))
             }
         }
 
@@ -97,12 +97,20 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         }
     }
 
-    infix fun `||`(other: TypeChecker): TypeChecker = TypeChecker { actual ->
+    infix fun or(other: TypeChecker): TypeChecker = TypeChecker { actual ->
         val fst = this.test(actual)
         if (fst.isNotEmpty()) {
             other.test(actual)
         } else {
             fst
+        }
+    }
+
+    fun changeError(error: (Type) -> List<String>): TypeChecker = TypeChecker { actual ->
+        if (this.test(actual).isEmpty()) {
+            emptyList()
+        } else {
+            error(actual)
         }
     }
 
@@ -114,7 +122,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         }
     }
 
-    fun forwardsError(postfix: String): TypeChecker = TypeChecker {  actual ->
+    fun forwardsError(postfix: String): TypeChecker = TypeChecker { actual ->
         this.test(actual).map { "$it \n$postfix" }
     }
 

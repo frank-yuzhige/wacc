@@ -2,25 +2,21 @@ package exceptions
 
 import ast.Type
 import utils.Index
-import java.lang.Exception
 
-open class SemanticException(val msg: String): Exception(msg) {
+open class SemanticException(val msg: String) : Exception(msg) {
 
-    class UndefinedVarException(variable: String):
+    class UndefinedVarException(variable: String) :
             SemanticException("Attempt to access an undefined variable '$variable'!")
 
-    class UndefinedFuncException(variable: String):
+    class UndefinedFuncException(variable: String) :
             SemanticException("Attempt to access an undefined function '$variable'!")
 
-    class MultipleFuncDefException(function: String, type: Type, index: Index):
-            SemanticException("Function \"$function\" with type '$type' has already been defined at $index!")
+    class MultipleFuncDefException(function: String, type: Type, index: Index) :
+            SemanticException("Function \"$function :: $type\" has already been defined at $index!")
 
-    class TypeMismatchException(expected: Type, actual: Type):
+    class TypeMismatchException(expected: Type, actual: Type) :
             SemanticException("Couldn't match expected type '$expected' with actual type: '$actual'")
 
-    class OperatorNotSupportTypeException(expected: Type, operator: String):
-            SemanticException("'$operator' does not support expected type '$expected'!")
-
-    class ReturnInMainProgramException(indices: List<Index>):
+    class ReturnInMainProgramException(indices: List<Index>) :
             SemanticException("Found return statement(s) in main program! at ${indices.joinToString(", ")}")
 }

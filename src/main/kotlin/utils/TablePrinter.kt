@@ -2,9 +2,9 @@ package utils
 
 import de.vandermeer.asciitable.AsciiTable
 import de.vandermeer.asciitable.CWC_LongestLine
-import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment.*
+import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment.CENTER
 
-class TablePrinter (vararg title: String) {
+class TablePrinter(vararg title: String) {
     private val titles: List<String> = title.toList()
     private val entries: MutableList<List<String>> = arrayListOf()
     private val intColumns: MutableSet<Int> = hashSetOf()
@@ -45,6 +45,6 @@ class TablePrinter (vararg title: String) {
                 compareBy { list: List<String> -> list[col] }
             }
         }
-        return comparators.reduce { a, b -> a then b}
+        return comparators.reduce { a, b -> a then b }
     }
 }

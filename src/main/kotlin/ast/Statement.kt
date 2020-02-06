@@ -20,12 +20,12 @@ sealed class Statement : WaccAST() {
         override fun prettyPrint(): String = "skip"
     }
 
-    data class Declaration(val type : Type, val variable: Identifier, val rhs : Expression) : Statement() {
+    data class Declaration(val type: Type, val variable: Identifier, val rhs: Expression) : Statement() {
         override fun prettyPrint(): String = "$type ${variable.name} = ${rhs.prettyPrint()}"
         override fun tellIdentity(): String = "a declaration statement"
     }
 
-    data class Assignment(val lhs: Expression, val rhs : Expression) : Statement() {
+    data class Assignment(val lhs: Expression, val rhs: Expression) : Statement() {
         override fun prettyPrint(): String = "${lhs.prettyPrint()} = ${rhs.prettyPrint()}"
         override fun tellIdentity(): String = "an assignment"
     }
@@ -34,13 +34,13 @@ sealed class Statement : WaccAST() {
         override fun prettyPrint(): String = "read ${target.prettyPrint()}"
     }
 
-    data class BuiltinFuncCall(val func : BuiltinFunc, val expr: Expression) : Statement() {
+    data class BuiltinFuncCall(val func: BuiltinFunc, val expr: Expression) : Statement() {
         override fun prettyPrint(): String = "${func.functionName} ${expr.prettyPrint()}"
     }
 
     data class CondBranch(val expr: Expression, val trueBranch: Statements, val falseBranch: Statements) : Statement() {
         override fun tellIdentity(): String = "an if-then-else statement"
-        override fun prettyPrint(): String  {
+        override fun prettyPrint(): String {
             return "if ${expr.prettyPrint()} then\n" +
                     "${trueBranch.prettyPrint().prependIndent()}\n" +
                     "else\n" +

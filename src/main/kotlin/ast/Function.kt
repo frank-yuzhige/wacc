@@ -12,8 +12,8 @@ data class Function(
 ) : WaccAST() {
     override fun prettyPrint(): String =
             "${showHeader()} is\n" +
-            "${body.prettyPrint().prependIndent()}\n" +
-            "end\n"
+                    "${body.prettyPrint().prependIndent()}\n" +
+                    "end\n"
 
     override fun tellIdentity(): String = "a function"
 

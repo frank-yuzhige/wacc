@@ -2,7 +2,7 @@ package utils
 
 import ast.Expression.Identifier
 import ast.Type
-import exceptions.SemanticException.*
+import exceptions.SemanticException.MultipleFuncDefException
 import java.util.*
 
 class SymbolTable {
@@ -43,17 +43,18 @@ class SymbolTable {
                 ?.also { prev -> collectPrevScope(prevId, prev) }
                 ?.filter { (_, attrs) -> attrs.occurrences == 1 }
                 ?.map { (ident, attrs) ->
-                    "Unused variable $ident at ${attrs.index}: variable defined but its value is never used" }
+                    "Unused variable $ident at ${attrs.index}: variable defined but its value is never used"
+                }
 
     }
 
 
-    fun lookupVar(ident: String) : VarAttributes? = scopeStack
+    fun lookupVar(ident: String): VarAttributes? = scopeStack
             .mapNotNull { it[ident] }
             .firstOrNull()
             ?.addOccurence()
 
-    fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
+    fun lookupFunc(ident: String): FuncAttributes? = functions[ident]
 
     fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
 
@@ -86,7 +87,7 @@ class SymbolTable {
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
 
     private fun collectPrevScope(prevId: Int, prev: MutableMap<String, VarAttributes>) {
-        prev.forEach{ (ident, attr) ->
+        prev.forEach { (ident, attr) ->
             collect[ident to prevId] = attr
         }
     }

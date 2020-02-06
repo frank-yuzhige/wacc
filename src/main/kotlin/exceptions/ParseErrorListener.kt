@@ -1,10 +1,9 @@
 package exceptions
 
-import exceptions.SyntacticException.*
+import exceptions.SyntacticException.AntlrParserGivenException
 import org.antlr.v4.runtime.BaseErrorListener
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.Recognizer
-import java.io.PrintStream
 
 class ParseErrorListener : BaseErrorListener() {
     val errorBundle: MutableCollection<AntlrParserGivenException> = mutableListOf()

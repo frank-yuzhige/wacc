@@ -1,0 +1,17 @@
+begin
+
+int x = 0;
+char c = 'a';
+bool b = true;
+string k = "asd";
+pair(int, int) p = null;
+int[] a = [1, 2];
+
+free x;
+free c;
+free b;
+free k;
+free p;
+free a
+
+end

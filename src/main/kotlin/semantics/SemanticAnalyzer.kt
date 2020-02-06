@@ -10,11 +10,11 @@ import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.Companion.anyArrayType
+import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyoutArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
-import ast.Type.Companion.anyPairType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import semantics.TypeChecker.Companion.match
@@ -38,13 +38,13 @@ class SemanticAnalyzer() {
         ast.check()
         if (allowsWarning && warningLog.isNotEmpty()) {
             val count = warningLog.size
-            val plural = if (count == 1) {""} else {"s"}
+            val plural = if (count == 1) "" else "s"
             println("$WARNING$count warning$plural:$RESET")
             warningLog.forEach { println("$WARNING[Warning]: $it\n$RESET") }
         }
         if (errorLog.isNotEmpty()) {
             val count = errorLog.size
-            val plural = if (count == 1) {""} else {"s"}
+            val plural = if (count == 1) "" else "s"
             throw SemanticException("$count semantic error$plural:\n${errorLog.joinToString("\n\n\n")}")
         }
     }
@@ -70,7 +70,7 @@ class SemanticAnalyzer() {
 
     private fun logMessage(cause: String, log: MutableList<String>) {
         val message = cause + treeStack.joinToString("") { "\n${it.getTraceLog()}" }
-        val inMain = if (isInMain) {"\nIn the main program"} else {""}
+        val inMain = if (isInMain) "\nIn the main program" else ""
         log += message + inMain
     }
 
@@ -79,8 +79,8 @@ class SemanticAnalyzer() {
             treeStack.push(it)
             try {
                 symbolTable.defineFunc(it.name,
-                    Type.FuncType(it.returnType, it.args.map { a -> a.first }),
-                    it.startIndex)
+                        Type.FuncType(it.returnType, it.args.map { a -> a.first }),
+                        it.startIndex)
             } catch (sme: SemanticException) {
                 logError(sme.msg)
             }
@@ -110,11 +110,10 @@ class SemanticAnalyzer() {
 
     private fun Statement.check(retCheck: TypeChecker) {
         treeStack.push(this)
-        when(this@check) {
+        when (this@check) {
             Skip -> Skip
             is Declaration -> {
-                val prevAttr
-                        = symbolTable.defineVar(type, variable)
+                val prevAttr = symbolTable.defineVar(type, variable)
                 if (prevAttr != null) {
                     logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name)!!.index)))
                 } else {
@@ -126,13 +125,13 @@ class SemanticAnalyzer() {
                 lhsType?.let { rhs.check(match(it)) }
             }
             is Read -> {
-                val lhsType =  target.checkLhs()
-                val readChecker = match(intType()) `||` match(charType()) `||` match(stringType())
+                val lhsType = target.checkLhs()
+                val readChecker = match(intType(), charType(), stringType())
                 lhsType?.let { logError(readChecker.test(it)) }
             }
             is BuiltinFuncCall -> when (func) {
                 PRINT, PRINTLN -> expr.check(pass())
-                FREE -> expr.check(match(anyArrayType()) `||` match(anyPairType()))
+                FREE -> expr.check(match(anyArrayType(), anyPairType()))
                 EXIT -> expr.check(match(intType()))
                 RETURN -> expr.check(retCheck)
             }
@@ -141,7 +140,7 @@ class SemanticAnalyzer() {
                 trueBranch.checkBlock(retCheck)
                 falseBranch.checkBlock(retCheck)
             }
-            is WhileLoop ->  {
+            is WhileLoop -> {
                 expr.check(match(boolType()))
                 body.checkBlock(retCheck)
             }
@@ -157,7 +156,7 @@ class SemanticAnalyzer() {
         if (isPush) {
             treeStack.push(this)
         }
-        when(this) {
+        when (this) {
             is Identifier -> {
                 val attr = symbolTable.lookupVar(name)
                 if (attr != null) {
@@ -207,8 +206,8 @@ class SemanticAnalyzer() {
                                 logAction(tcErrors)
                             }
                         }
-                    }?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
-                }?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
+                    } ?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
+                } ?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
             }
             else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
         }
@@ -221,7 +220,7 @@ class SemanticAnalyzer() {
     private fun Expression.check(tc: TypeChecker,
                                  logAction: (List<String>) -> Unit = { logError(it) }) {
         treeStack.push(this)
-        when(this) {
+        when (this) {
             is NullLit -> logAction(tc.test(anyPairType()))
             is IntLit -> logAction(tc.test(intType()))
             is BoolLit -> logAction(tc.test(boolType()))
@@ -241,17 +240,22 @@ class SemanticAnalyzer() {
                     else -> {
                         val errors = arrayListOf<List<String>>()
                         for (entry in BinaryOperator.typeMap.getValue(op)) {
-                            val retChecker =
-                                    tc.forwardsError("Unexpected return type for binary operator: \"${op.op}\" ")
+                            val retChecker = tc.forwardsError("Unexpected return type for binary operator '${op.op}' ")
                             val temp = mutableListOf<String>()
                             temp += retChecker.test(entry.retType)
-                            left.check(entry.lhsChecker) { temp += it.map { err ->
-                                "$err\n${left.getTraceLog()}\n" +
-                                        "    on the left-hand-side of \"${op.op}\"" } }
+                            left.check(entry.lhsChecker) {
+                                temp += it.map { err ->
+                                    "$err\n${left.getTraceLog()}\n" +
+                                            "    on the left-hand-side of '${op.op}'"
+                                }
+                            }
                             if (temp.isEmpty()) {
-                                right.check(entry.rhsChecker) { temp += it.map { err ->
-                                    "$err\n${right.getTraceLog()}" +
-                                            "\n    on the right-hand-side of \"${op.op}\"" } }
+                                right.check(entry.rhsChecker) {
+                                    temp += it.map { err ->
+                                        "$err\n${right.getTraceLog()}" +
+                                                "\n    on the right-hand-side of '${op.op}'"
+                                    }
+                                }
                             }
                             errors += temp
                             if (temp.isEmpty()) {
@@ -294,7 +298,7 @@ class SemanticAnalyzer() {
                         logAction(listOf(parameterNumMismatch(ident, funcType, expectedCount, actualCount)))
                     } else {
                         logAction(tc.test(retType))
-                        args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t))}
+                        args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t)) }
                     }
                 }
             }

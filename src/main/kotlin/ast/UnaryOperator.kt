@@ -23,8 +23,9 @@ enum class UnaryOperator(val op: String, val retType: Type) {
                 NEG to (match(intType()) to intType()),
                 NOT to (match(boolType()) to boolType())
         )
-        fun read(op : String) : UnaryOperator =
-                keyValueMap[op]?: throw UnknownUnaryOpException(op)
+
+        fun read(op: String): UnaryOperator =
+                keyValueMap[op] ?: throw UnknownUnaryOpException(op)
     }
 
     override fun toString(): String = op

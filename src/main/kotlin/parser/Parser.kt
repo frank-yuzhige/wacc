@@ -2,13 +2,15 @@ package parser
 
 import antlr.WaccLexer
 import antlr.WaccParser
-import ast.*
+import ast.Expression
 import ast.Function
+import ast.ProgramAST
+import ast.Statement
+import exceptions.ParseErrorListener
+import exceptions.SyntacticException.SyntacticExceptionBundle
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.TokenStream
-import exceptions.ParseErrorListener
-import exceptions.SyntacticException.SyntacticExceptionBundle
 import java.io.InputStream
 import java.io.PrintStream
 
@@ -58,7 +60,11 @@ class Parser(private val inputStream: InputStream,
     private fun throwsPotentialErrors() {
         if (parseErrorListener.errorBundle.isNotEmpty()) {
             val errorCount = parseErrorListener.errorBundle.size
-            val errorText = "error" + if (errorCount == 1) { "" } else { "s" }
+            val errorText = "error" + if (errorCount == 1) {
+                ""
+            } else {
+                "s"
+            }
             errorStream.println("$errorCount syntax $errorText found when constructing antlr parse tree!")
             throw SyntacticExceptionBundle(parseErrorListener.errorBundle)
         }

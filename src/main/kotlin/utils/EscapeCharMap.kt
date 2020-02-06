@@ -1,7 +1,5 @@
 package utils
 
-import java.lang.StringBuilder
-
 class EscapeCharMap {
 
     companion object {

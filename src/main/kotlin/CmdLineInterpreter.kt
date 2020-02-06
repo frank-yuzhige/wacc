@@ -1,6 +1,6 @@
-import parser.Parser
-import exceptions.SyntacticException
 import exceptions.SemanticException
+import exceptions.SyntacticException
+import parser.Parser
 import semantics.SemanticAnalyzer
 import utils.ERROR
 import utils.RESET
