@@ -43,6 +43,17 @@ class SymbolTableTest {
     }
 
     @Test
+    fun diffVarInSameScopeHaveSameScopeIdTest() {
+        val mainProg = listOf(
+                Declaration(intType(), x1, IntLit(1)),
+                Declaration(intType(), y, IntLit(1))
+        )
+        val prog = ProgramAST(emptyList(), mainProg)
+        SemanticAnalyzer().doCheck(prog)
+        assertEquals(x1.scopeId, y.scopeId)
+    }
+
+    @Test
     fun sameVarInDiffScopeTest() {
         val mainProg = listOf(
                 Declaration(intType(), x1, IntLit(1)),
