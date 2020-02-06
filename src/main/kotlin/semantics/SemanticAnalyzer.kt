@@ -22,14 +22,11 @@ import semantics.TypeChecker.Companion.matchPairByElem
 import semantics.TypeChecker.Companion.pass
 import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
-import utils.RESET
-import utils.Statements
-import utils.SymbolTable
-import utils.WARNING
+import utils.*
 import java.util.*
 
 class SemanticAnalyzer() {
-    private val symbolTable = SymbolTable()
+    val symbolTable = SymbolTable()
     private val treeStack: Deque<WaccAST> = ArrayDeque()
     private val errorLog: MutableList<String> = arrayListOf()
     private val warningLog: MutableList<String> = arrayListOf()
@@ -98,7 +95,7 @@ class SemanticAnalyzer() {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.second.name, param.first, startIndex) { param.second.scopeId = it }
+            symbolTable.defineVar(param.getType(), param.getIdent())
         }
         this.body.map { it.check(retCheck) }
         symbolTable.popScope()?.let { logWarning(it) }
@@ -117,7 +114,7 @@ class SemanticAnalyzer() {
             Skip -> Skip
             is Declaration -> {
                 val prevAttr
-                        = symbolTable.defineVar(variable.name, type, startIndex) { variable.scopeId = it }
+                        = symbolTable.defineVar(type, variable)
                 if (prevAttr != null) {
                     logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name)!!.index)))
                 } else {
@@ -193,9 +190,9 @@ class SemanticAnalyzer() {
                 }
             }
             is ArrayElem -> {
-                symbolTable.lookupVar(arrIdent.name)?.let { entry ->
-                    this.arrIdent.scopeId = entry.scopeId
-                    entry.type.unwrapArrayType(indices.count())?.let { actual ->
+                symbolTable.lookupVar(arrIdent.name)?.let { attr ->
+                    this.arrIdent.scopeId = attr.scopeId
+                    attr.type.unwrapArrayType(indices.count())?.let { actual ->
                         val errors = tc.test(actual)
                         if (errors.isNotEmpty()) {
                             logAction(errors)
@@ -210,7 +207,7 @@ class SemanticAnalyzer() {
                                 logAction(tcErrors)
                             }
                         }
-                    }?: logAction(listOf(insufficientArrayRankError(arrIdent.name, entry.type, indices.count())))
+                    }?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
                 }?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
             }
             else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...

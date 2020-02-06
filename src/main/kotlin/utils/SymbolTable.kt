@@ -1,25 +1,26 @@
 package utils
 
+import ast.Expression.Identifier
 import ast.Type
-import ast.WaccAST
 import exceptions.SemanticException.*
 import java.util.*
 
 class SymbolTable {
-    private val scopeList: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
+    private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
     private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
-    private val idMap: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
+    private val collect: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
     private var scopeIdGen = 0
 
-    fun defineVar(ident: String, type: Type, index: Index, astModifier: (Int) -> Unit): VarAttributes? {
-        val currScope = this.scopeList.first()
-        val entry = currScope[ident]
+    fun defineVar(type: Type, identNode: Identifier): VarAttributes? {
+        val name = identNode.name
+        val currScope = this.scopeStack.first()
+        val entry = currScope[name]
         if (entry != null) {
             return entry
         }
-        astModifier(getCurrScopeId())
-        currScope[ident] = VarAttributes(type, index, getCurrScopeId())
+        identNode.scopeId = getCurrScopeId()
+        currScope[name] = VarAttributes(type, identNode.startIndex, getCurrScopeId())
         return null
     }
 
@@ -32,13 +33,13 @@ class SymbolTable {
     }
 
     fun pushScope() {
-        scopeList.addFirst(hashMapOf())
+        scopeStack.addFirst(hashMapOf())
         scopeIdStack.addFirst(scopeIdGen++)
     }
 
     fun popScope(): List<String>? {
         val prevId = scopeIdStack.pollFirst()
-        return scopeList.pollFirst()
+        return scopeStack.pollFirst()
                 ?.also { prev -> collectPrevScope(prevId, prev) }
                 ?.filter { (_, attrs) -> attrs.occurrences == 1 }
                 ?.map { (ident, attrs) ->
@@ -47,23 +48,48 @@ class SymbolTable {
     }
 
 
-    fun lookupVar(ident: String) : VarAttributes? = scopeList
+    fun lookupVar(ident: String) : VarAttributes? = scopeStack
             .mapNotNull { it[ident] }
             .firstOrNull()
-            ?.also { it.incrementOccurrences() }
+            ?.addOccurence()
 
     fun lookupFunc(ident: String) : FuncAttributes? = functions[ident]
+
+    fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
+
+    fun dump() {
+        println(getVarTable())
+        println(getFuncTable())
+    }
+
+    fun getVarTable(): String {
+        val tp = TablePrinter("variable", "scope id", "type", "position", "occurrences")
+        collect.map { (pair, attr) ->
+            tp.addColumn(pair.first, pair.second, attr.type, attr.index, attr.occurrences)
+        }
+        return tp.print()
+    }
+
+    fun getFuncTable(): String {
+        val tp = TablePrinter("function name", "type", "position")
+        functions.map { (name, attr) ->
+            tp.addColumn(name, attr.type, attr.index)
+        }
+        return tp.print()
+    }
+
 
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
 
     private fun collectPrevScope(prevId: Int, prev: MutableMap<String, VarAttributes>) {
         prev.forEach{ (ident, attr) ->
-            idMap[ident to prevId] = attr
+            collect[ident to prevId] = attr
         }
     }
 
-    private fun VarAttributes.incrementOccurrences(): VarAttributes = this.also { occurrences++ }
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
-    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1)
+    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
+        fun addOccurence(): VarAttributes = this.also { occurrences++ }
+    }
 
 }

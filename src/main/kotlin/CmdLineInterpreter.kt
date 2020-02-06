@@ -21,9 +21,10 @@ fun main(args: Array<String>) {
         System.`in`
     }
 
+    val sa = SemanticAnalyzer()
     val ast = try {
         Parser(inputStream).parseProgram()
-                .also { SemanticAnalyzer().doCheck(it) }
+                .also { sa.doCheck(it) }
     } catch (pe: SyntacticException) {
         System.err.println("${ERROR}PARSE ERROR:")
         System.err.println("${pe.msg}$RESET")
@@ -37,4 +38,6 @@ fun main(args: Array<String>) {
     println("===========")
     println(ast.prettyPrint())
     println("===========")
+    println()
+    sa.symbolTable.dump()
 }

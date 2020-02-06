@@ -4,11 +4,17 @@ class LabelNameTable {
     private val nameMap = hashMapOf<String, Int>()
 
     fun getName(prefix: String): String {
-        if (nameMap.containsKey(prefix)) {
-            nameMap[prefix] = nameMap.getValue(prefix) + 1
-        } else {
-            nameMap += prefix to 0
+        val id = getId(prefix)
+        return "${prefix}_$id"
+    }
+
+    fun getId(prefix: String): Int {
+        val prevId = nameMap[prefix]
+        if (prevId != null) {
+            nameMap[prefix] = prevId + 1
+            return prevId + 1
         }
-        return "${prefix}_${nameMap[prefix]}"
+        nameMap[prefix] = 0
+        return 0
     }
 }

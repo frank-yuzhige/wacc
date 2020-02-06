@@ -23,7 +23,7 @@ class SymbolTableTest {
     @Test
     fun symbolTableRecordsIndexTest() {
         x1.scopeId = -1
-        SemanticAnalyzer().doCheck(ProgramAST(emptyList(), listOf(def)))
+        SemanticAnalyzer().suppressWarning().doCheck(ProgramAST(emptyList(), listOf(def)))
         assertNotEquals(x1.scopeId, -1)
     }
 
@@ -37,7 +37,7 @@ class SymbolTableTest {
                 ))
         )
         val prog = ProgramAST(emptyList(), mainProg)
-        SemanticAnalyzer().doCheck(prog)
+        SemanticAnalyzer().suppressWarning().doCheck(prog)
         assertEquals(x1.scopeId, x2.scopeId)
         assertEquals(x1.scopeId, x3.scopeId)
     }
@@ -49,7 +49,7 @@ class SymbolTableTest {
                 Declaration(intType(), y, IntLit(1))
         )
         val prog = ProgramAST(emptyList(), mainProg)
-        SemanticAnalyzer().doCheck(prog)
+        SemanticAnalyzer().suppressWarning().doCheck(prog)
         assertEquals(x1.scopeId, y.scopeId)
     }
 
@@ -64,7 +64,7 @@ class SymbolTableTest {
                 ))
         )
         val prog = ProgramAST(emptyList(), mainProg)
-        SemanticAnalyzer().doCheck(prog)
+        SemanticAnalyzer().suppressWarning().doCheck(prog)
         assertNotEquals(x2.scopeId, x3.scopeId)
     }
 
