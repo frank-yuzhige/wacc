@@ -18,9 +18,12 @@ repositories {
 }
 
 dependencies {
-    compile "org.antlr:antlr4-runtime:4.7.1"
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    implementation "de.vandermeer:asciitable:0.3.2"
+    compile "org.antlr:antlr4-runtime:4.7.1"
+    compile ("de.vandermeer:asciitable:0.3.2") {
+        exclude group:"org.antlr", module:"antlr4-runtime"
+        exclude group:"org.antlr", module:"antlr4"
+    }
     testCompile "junit:junit:4.12"
     testCompile "org.jetbrains.kotlin:kotlin-test"
     testCompile "org.jetbrains.kotlin:kotlin-test-junit"
