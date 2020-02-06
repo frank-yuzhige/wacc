@@ -18,12 +18,12 @@ repositories {
 }
 
 dependencies {
+    compile "org.antlr:antlr4-runtime:4.7.1"
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    compile 'de.vandermeer:asciitable:0.3.2'
+    implementation "de.vandermeer:asciitable:0.3.2"
     testCompile "junit:junit:4.12"
     testCompile "org.jetbrains.kotlin:kotlin-test"
     testCompile "org.jetbrains.kotlin:kotlin-test-junit"
-    testCompile group: 'junit', name: 'junit', version: '4.12'
     antlr "org.antlr:antlr-4.7-complete"
 }
 
@@ -43,12 +43,6 @@ jar {
         configurations.compile.collect {
             it.isDirectory() ? it : zipTree(it)
         }
-    }
-}
-
-test {
-    filter {
-//        exclude("**/*ParserTest*")
     }
 }
 
