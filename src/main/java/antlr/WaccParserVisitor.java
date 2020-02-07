@@ -29,6 +29,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitIdent(WaccParser.IdentContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#boolLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBoolLit(WaccParser.BoolLitContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#type}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -58,12 +64,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPairType(WaccParser.PairTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link WaccParser#boolLit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitBoolLit(WaccParser.BoolLitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#unaryOp}.
 	 * @param ctx the parse tree
