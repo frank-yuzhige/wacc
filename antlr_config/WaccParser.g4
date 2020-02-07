@@ -35,9 +35,9 @@ binop6: OR;
 expr: left=expr binop1 right=expr #exprBinop
     | left=expr binop2 right=expr #exprBinop
     | left=expr binop3 right=expr #exprBinop
+    | left=expr binop4 right=expr #exprBinop
     | left=expr binop5 right=expr #exprBinop
     | left=expr binop6 right=expr #exprBinop
-    | left=expr binop4 right=expr #exprBinop
     | LPAR expr RPAR   #exprParens
     | integer          #exprInt
     | boolLit          #exprBool

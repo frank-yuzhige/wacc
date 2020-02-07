@@ -956,14 +956,14 @@ public class WaccParser extends Parser {
 		public Binop3Context binop3() {
 			return getRuleContext(Binop3Context.class,0);
 		}
+		public Binop4Context binop4() {
+			return getRuleContext(Binop4Context.class,0);
+		}
 		public Binop5Context binop5() {
 			return getRuleContext(Binop5Context.class,0);
 		}
 		public Binop6Context binop6() {
 			return getRuleContext(Binop6Context.class,0);
-		}
-		public Binop4Context binop4() {
-			return getRuleContext(Binop4Context.class,0);
 		}
 		public ExprBinopContext(ExprContext ctx) { copyFrom(ctx); }
 		@Override
@@ -1217,7 +1217,7 @@ public class WaccParser extends Parser {
 						setState(147);
 						if (!(precpred(_ctx, 12))) throw new FailedPredicateException(this, "precpred(_ctx, 12)");
 						setState(148);
-						binop5();
+						binop4();
 						setState(149);
 						((ExprBinopContext)_localctx).right = expr(13);
 						}
@@ -1230,7 +1230,7 @@ public class WaccParser extends Parser {
 						setState(151);
 						if (!(precpred(_ctx, 11))) throw new FailedPredicateException(this, "precpred(_ctx, 11)");
 						setState(152);
-						binop6();
+						binop5();
 						setState(153);
 						((ExprBinopContext)_localctx).right = expr(12);
 						}
@@ -1243,7 +1243,7 @@ public class WaccParser extends Parser {
 						setState(155);
 						if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
 						setState(156);
-						binop4();
+						binop6();
 						setState(157);
 						((ExprBinopContext)_localctx).right = expr(11);
 						}
@@ -2477,12 +2477,12 @@ public class WaccParser extends Parser {
 		"\u008a\u008b\5\30\r\2\u008b\u008c\5$\23\22\u008c\u00a2\3\2\2\2\u008d\u008e"+
 		"\f\20\2\2\u008e\u008f\5\32\16\2\u008f\u0090\5$\23\21\u0090\u00a2\3\2\2"+
 		"\2\u0091\u0092\f\17\2\2\u0092\u0093\5\34\17\2\u0093\u0094\5$\23\20\u0094"+
-		"\u00a2\3\2\2\2\u0095\u0096\f\16\2\2\u0096\u0097\5 \21\2\u0097\u0098\5"+
-		"$\23\17\u0098\u00a2\3\2\2\2\u0099\u009a\f\r\2\2\u009a\u009b\5\"\22\2\u009b"+
-		"\u009c\5$\23\16\u009c\u00a2\3\2\2\2\u009d\u009e\f\f\2\2\u009e\u009f\5"+
-		"\36\20\2\u009f\u00a0\5$\23\r\u00a0\u00a2\3\2\2\2\u00a1\u0089\3\2\2\2\u00a1"+
-		"\u008d\3\2\2\2\u00a1\u0091\3\2\2\2\u00a1\u0095\3\2\2\2\u00a1\u0099\3\2"+
-		"\2\2\u00a1\u009d\3\2\2\2\u00a2\u00a5\3\2\2\2\u00a3\u00a1\3\2\2\2\u00a3"+
+		"\u00a2\3\2\2\2\u0095\u0096\f\16\2\2\u0096\u0097\5\36\20\2\u0097\u0098"+
+		"\5$\23\17\u0098\u00a2\3\2\2\2\u0099\u009a\f\r\2\2\u009a\u009b\5 \21\2"+
+		"\u009b\u009c\5$\23\16\u009c\u00a2\3\2\2\2\u009d\u009e\f\f\2\2\u009e\u009f"+
+		"\5\"\22\2\u009f\u00a0\5$\23\r\u00a0\u00a2\3\2\2\2\u00a1\u0089\3\2\2\2"+
+		"\u00a1\u008d\3\2\2\2\u00a1\u0091\3\2\2\2\u00a1\u0095\3\2\2\2\u00a1\u0099"+
+		"\3\2\2\2\u00a1\u009d\3\2\2\2\u00a2\u00a5\3\2\2\2\u00a3\u00a1\3\2\2\2\u00a3"+
 		"\u00a4\3\2\2\2\u00a4%\3\2\2\2\u00a5\u00a3\3\2\2\2\u00a6\u00a7\5\n\6\2"+
 		"\u00a7\u00a8\5\6\4\2\u00a8\'\3\2\2\2\u00a9\u00ae\5&\24\2\u00aa\u00ab\7"+
 		"9\2\2\u00ab\u00ad\5&\24\2\u00ac\u00aa\3\2\2\2\u00ad\u00b0\3\2\2\2\u00ae"+
