@@ -17,11 +17,7 @@ data class Function(
 
     override fun tellIdentity(): String = "a function"
 
-    fun showHeader(): String {
-        return "$returnType $name(${args.joinToString(", ") { it.prettyPrint() }})"
-    }
+    fun showHeader(): String = "$returnType $name(${args.joinToString(", ") { it.prettyPrint() }})"
 
-    override fun getTraceLog(): String {
-        return "In a function defined at ${startIndex}: ${showHeader()}"
-    }
+    override fun getTraceLog(): String = "In a function defined at ${startIndex}: ${showHeader()}"
 }

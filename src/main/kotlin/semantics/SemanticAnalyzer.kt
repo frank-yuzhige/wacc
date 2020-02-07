@@ -11,7 +11,6 @@ import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
-import ast.Type.Companion.anyoutArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
@@ -24,6 +23,7 @@ import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
 import utils.*
 import java.util.*
+import kotlin.math.ceil
 
 class SemanticAnalyzer() {
     val symbolTable = SymbolTable()
@@ -31,7 +31,6 @@ class SemanticAnalyzer() {
     private val errorLog: MutableList<String> = arrayListOf()
     private val warningLog: MutableList<String> = arrayListOf()
     private var isInMain = false
-    private var containsError = false
     private var allowsWarning = true
 
     fun doCheck(ast: ProgramAST) {
@@ -68,7 +67,6 @@ class SemanticAnalyzer() {
 
     private fun logError(cause: String) {
         logMessage(cause, errorLog)
-        containsError = true
     }
 
     private fun logWarning(causes: List<String>) {
@@ -119,7 +117,7 @@ class SemanticAnalyzer() {
 
     private fun Statement.check(retCheck: TypeChecker) {
         treeStack.push(this)
-        when (this@check) {
+        when (this) {
             Skip -> Skip
             is Declaration -> {
                 val prevAttr = symbolTable.defineVar(type, variable)
@@ -185,9 +183,9 @@ class SemanticAnalyzer() {
                 if (expr == NullLit) {
                     logAction(listOf(accessToNullLiteral(func.value)))
                 } else {
-                    containsError = false
-                    expr.check(matchPairByElem(func, tc))
-                    if (!containsError) {
+                    var hasError = false
+                    expr.check(matchPairByElem(func, tc)) { logAction(it); hasError = true }
+                    if (!hasError) {
                         try {
                             result = expr.getType(symbolTable).unwrapPairType(func)
                         } catch (sme: SemanticException) {
@@ -197,22 +195,22 @@ class SemanticAnalyzer() {
                 }
             }
             is ArrayElem -> {
+                /* Check if the array var is in scope */
                 symbolTable.lookupVar(arrIdent.name)?.let { attr ->
                     this.arrIdent.scopeId = attr.scopeId
                     attr.type.unwrapArrayType(indices.count())?.let { actual ->
-                        val errors = tc.test(actual)
-                        if (errors.isNotEmpty()) {
-                            logAction(errors)
-                        } else {
-                            containsError = false
-                            indices.map { it.check(match(intType())) }
-                            if (!containsError) {
-                                val tcErrors = tc.test(actual)
-                                if (tcErrors.isEmpty()) {
-                                    result = actual
-                                }
-                                logAction(tcErrors)
+                        /* Check each index is int */
+                        var hasError = false
+                        indices.map { expr ->
+                            expr.check(match(intType())) { err -> logAction(err); hasError = true }
+                        }
+                        if (!hasError) {
+                            /* Test expected array type with actual unwrapped type */
+                            val tcErrors = tc.test(actual)
+                            if (tcErrors.isEmpty()) {
+                                result = actual
                             }
+                            logAction(tcErrors)
                         }
                     } ?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
                 } ?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
@@ -248,21 +246,23 @@ class SemanticAnalyzer() {
                     else -> {
                         val errors = arrayListOf<List<String>>()
                         for (entry in BinaryOperator.typeMap.getValue(op)) {
-                            val retChecker = tc.forwardsError("Unexpected return type for binary operator '${op.op}' ")
+                            val retChecker = tc.forwardsError(
+                                    "    unexpected return type for binary operator '${op.op}' ")
                             val temp = mutableListOf<String>()
+                            /* Check return type */
                             temp += retChecker.test(entry.retType)
+                            /* Check lhs */
                             left.check(entry.lhsChecker) {
                                 temp += it.map { err ->
                                     "$err\n${left.getTraceLog()}\n" +
                                             "    on the left-hand-side of '${op.op}'"
                                 }
                             }
-                            if (temp.isEmpty()) {
-                                right.check(entry.rhsChecker) {
-                                    temp += it.map { err ->
-                                        "$err\n${right.getTraceLog()}" +
-                                                "\n    on the right-hand-side of '${op.op}'"
-                                    }
+                            /* Check rhs */
+                            right.check(entry.rhsChecker) {
+                                temp += it.map { err ->
+                                    "$err\n${right.getTraceLog()}" +
+                                            "\n    on the right-hand-side of '${op.op}'"
                                 }
                             }
                             errors += temp
@@ -270,6 +270,8 @@ class SemanticAnalyzer() {
                                 break
                             }
                         }
+                        /* If any of the cases passed (an empty error list), do nothing.
+                         * otherwise we log the error list with the fewest errors */
                         if (!errors.any(List<String>::isEmpty)) {
                             logAction(errors.minBy { it.size }!!)
                         }
@@ -278,15 +280,26 @@ class SemanticAnalyzer() {
             }
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
-                    logAction(tc.test(anyoutArrayType()))
+                    logAction(tc.test(anyArrayType()))
                 } else {
-                    for (element in elements) {
-                        val temp: MutableList<String> = mutableListOf()
-                        element.check(unwrapArray(tc)) { temp += it }
-                        if (temp.isNotEmpty()) {
-                            logAction(temp)
-                            break
-                        }
+                    val temp: MutableList<String> = mutableListOf()
+                    /* Take the first element's type as the type of the array */
+                    /* Check the first element's type */
+                    elements.first().check(unwrapArray(tc)) { temp += it }
+                    /* if there is an error, log immediately, so the error logs won't get squashed together */
+                    if (temp.isNotEmpty()) {
+                        logAction(temp)
+                        temp.clear()
+                    }
+                    /* Check if all elements in the array are of the same type */
+                    val fstElemType = elements.first().getType(symbolTable)
+                    for ((index, element) in elements.drop(1).withIndex()) {
+                        val checker = match(fstElemType)
+                                .forwardsError("    at the ${NumberFormatter.get(index + 1)} element in the array")
+                        element.check(checker) { temp += it }
+                    }
+                    if (temp.isNotEmpty()) {
+                        logAction(temp)
                     }
                 }
             }

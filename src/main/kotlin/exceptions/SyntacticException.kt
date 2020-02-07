@@ -26,10 +26,10 @@ sealed class SyntacticException(var msg: String) : Exception() {
     class UnknownBinaryOpException(op: String) :
             SyntacticException("Unknown unary operator \"$op\"")
 
-    class UnknownExprTypeException() :
+    class UnknownExprTypeException :
             SyntacticException("Unknown type of expression!")
 
-    class EmptyMainProgramException() :
+    class EmptyMainProgramException :
             SyntacticException("Program body is empty!")
 
     class LastStatIsNotTerminatorException :

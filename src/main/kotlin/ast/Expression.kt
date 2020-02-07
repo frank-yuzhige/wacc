@@ -97,16 +97,11 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         is BinExpr -> op.retType
         is UnaryExpr -> op.retType
         is ArrayElem -> {
-            var type = symbolTable.lookupVar(arrIdent.name)?.type
+            val type= symbolTable.lookupVar(arrIdent.name)?.type
                     ?: throw UndefinedVarException(arrIdent.name)
-            for (expr in indices) {
-                val actual = expr.getType(symbolTable)
-                if (actual != intType()) {
-                    throw TypeMismatchException(intType(), actual)
-                }
-                type = type.unwrapArrayType() ?: throw TypeMismatchException(type, type)
-            }
-            type
+
+            type.unwrapArrayType(indices.size)
+                    ?: throw NotEnoughArrayRankException(arrIdent.name)
         }
         is PairElem -> {
             val exprType = expr.getType(symbolTable)

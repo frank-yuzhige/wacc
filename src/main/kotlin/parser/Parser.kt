@@ -15,7 +15,6 @@ import java.io.InputStream
 import java.io.PrintStream
 
 class Parser(private val inputStream: InputStream,
-             private val outputStream: PrintStream = System.out,
              private val errorStream: PrintStream = System.err) {
 
     private val parseErrorListener = ParseErrorListener()

@@ -1,6 +1,5 @@
 package utils
 
-import ast.ProgramAST
 import ast.WaccAST
 import exceptions.SemanticException
 import exceptions.SyntacticException
@@ -10,7 +9,6 @@ import utils.EmulatorMode.PARSE_ONLY
 import java.io.File
 import java.io.PrintStream
 import java.lang.Exception
-import java.util.*
 
 class CompilerEmulator(private val inputFile: File,
                        private val mode: EmulatorMode,

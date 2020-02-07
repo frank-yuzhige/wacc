@@ -52,14 +52,4 @@ enum class BinaryOperator(val op: String, val retType: Type) {
                 OR to listOf(binOpOf(boolType()))
         )
     }
-
-    private fun binOpOf(expecting: Type): Pair<Type, List<Pair<Type, Type>>> {
-        return expecting to listOf(expecting to expecting)
-    }
-
-    private fun comparisonOf(vararg expecting: Type): Pair<Type, List<Pair<Type, Type>>> {
-        return boolType() to expecting.map { it to it }
-    }
-
-
 }
