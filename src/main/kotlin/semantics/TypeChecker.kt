@@ -7,6 +7,8 @@ import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.BaseTypeKind.STRING
+import ast.Type.Companion.charType
+import ast.Type.Companion.stringType
 
 
 class TypeChecker private constructor(val test: (Type) -> List<String>) {
@@ -39,6 +41,12 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
         fun match(expected: Type): TypeChecker = when (expected) {
             BaseType(ANY) -> pass()
+            BaseType(STRING) -> TypeChecker { actual ->
+                when (actual) {
+                    ArrayType(charType()), stringType() -> emptyList()
+                    else -> listOf(typeMismatchError(expected, actual))
+                }
+            }
             is PairType -> TypeChecker { actual ->
                 when (actual) {
                     BaseType(ANY) -> emptyList()
@@ -50,16 +58,9 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                 }
             }
             is ArrayType -> TypeChecker { actual ->
-                when {
-                    actual is BaseType && actual.kind == ANY -> emptyList()
-                    actual is BaseType && actual.kind == STRING -> {
-                        if (expected.type == Type.charType()) {
-                            emptyList()
-                        } else {
-                            listOf(typeMismatchError(expected, actual))
-                        }
-                    }
-                    actual is ArrayType -> match(expected.type)
+                when(actual) {
+                    BaseType(ANY) -> emptyList()
+                    is ArrayType -> match(expected.type)
                             .withError(typeMismatchError(expected, actual))
                             .test(actual.type)
                     else -> listOf(typeMismatchError(expected, actual))

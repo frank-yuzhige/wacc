@@ -1,0 +1,14 @@
+begin
+
+string some() is
+  char[] x = ['a', 'c'];
+  return  x
+end
+
+char[] some2() is
+  return "ac"
+end
+
+int x = 0
+
+end
