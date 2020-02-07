@@ -130,7 +130,7 @@ class SemanticAnalyzer() {
             }
             is Assignment -> {
                 val lhsType = lhs.checkLhs()
-                lhsType?.let { rhs.check(match(it)) }
+                lhsType?.let { rhs.check(match(it)) } ?: rhs.check(pass())
             }
             is Read -> {
                 val lhsType = target.checkLhs()
