@@ -217,7 +217,7 @@ class RuleContextConverter() {
     }
 
     private fun ExprBinopContext.getBinOp(): BinaryOperator {
-        val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5())[0]
+        val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5(), binop6())[0]
         return BinaryOperator.read(opContext.text)
     }
 

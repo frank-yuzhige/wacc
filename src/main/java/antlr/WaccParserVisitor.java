@@ -107,6 +107,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitBinop5(WaccParser.Binop5Context ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#binop6}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBinop6(WaccParser.Binop6Context ctx);
+	/**
 	 * Visit a parse tree produced by the {@code exprInt}
 	 * labeled alternative in {@link WaccParser#expr}.
 	 * @param ctx the parse tree
