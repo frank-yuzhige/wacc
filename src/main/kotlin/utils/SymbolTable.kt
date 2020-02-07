@@ -64,7 +64,7 @@ class SymbolTable {
     }
 
     fun getVarTable(): String {
-        val tp = TablePrinter("variable", "scope id", "type", "position", "occurrences")
+        val tp = TablePrinter("variable", "scope id", "type", "defined at", "ref count")
                 .markIntColumn(1, 4)
                 .sortBy(0, 1)
         collect.map { (pair, attr) ->
@@ -75,7 +75,7 @@ class SymbolTable {
     }
 
     fun getFuncTable(): String {
-        val tp = TablePrinter("function name", "type", "position")
+        val tp = TablePrinter("function", "type", "defined at")
                 .sortBy(0, 2)
         functions.map { (name, attr) ->
             tp.addColumn(name, attr.type, attr.index)
@@ -93,7 +93,7 @@ class SymbolTable {
     }
 
     data class FuncAttributes(val type: Type.FuncType, val index: Index)
-    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
+    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 0) {
         fun addOccurence(): VarAttributes = this.also { occurrences++ }
     }
 

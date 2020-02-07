@@ -32,6 +32,8 @@ end
 
 char c = call some(1);
 bool k = call giveMeNumber(1,4,5,6,7,8,9,10);
+int[][][] bigarr = [1,2,3];
+pair(int, char)p = newpair('c', 1);
 int num = call giveMeNumber(1, 'k', null);
 exit(num)
 

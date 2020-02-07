@@ -34,9 +34,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         } throws { actual -> typeMismatchError(expected, actual) }
 
         fun isOneOf(vararg candidates: Type) = (candidates::contains) throws { actual ->
-            "couldn't match any of the expecting types:" +
-                    " ${candidates.joinToString(", ") { it.toString() }}" +
-                    "with actual type: $actual"
+            typeMismatchManyError(candidates.asList(), actual)
         }
 
         fun match(expected: Type): TypeChecker = when (expected) {
@@ -71,7 +69,9 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
         }
 
         fun match(vararg expected: Type): TypeChecker {
-            return expected.map { match(it) }.reduceRight { a, b -> a or b }
+            return expected
+                    .map { match(it) }
+                    .reduceRight { a, b -> a or b }
                     .changeError { actual -> listOf(typeMismatchManyError(expected.toList(), actual)) }
         }
 

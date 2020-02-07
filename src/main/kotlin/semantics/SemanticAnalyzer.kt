@@ -272,7 +272,14 @@ class SemanticAnalyzer() {
                 if (elements.isEmpty()) {
                     logAction(tc.test(anyoutArrayType()))
                 } else {
-                    elements.map { it.check(unwrapArray(tc)) }
+                    for (element in elements) {
+                        val temp: MutableList<String> = mutableListOf()
+                        element.check(unwrapArray(tc)) { temp += it }
+                        if (temp.isNotEmpty()) {
+                            logAction(temp)
+                            break
+                        }
+                    }
                 }
             }
             is NewPair -> {
