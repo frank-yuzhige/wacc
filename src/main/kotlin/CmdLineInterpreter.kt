@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
     val sa = SemanticAnalyzer()
     val ast = try {
         Parser(inputStream).parseProgram()
-                .also { sa.doCheck(it) }
+                .also { sa.suppressWarning().doCheck(it) }
     } catch (pe: SyntacticException) {
         System.err.println("${ERROR}PARSE ERROR:")
         System.err.println("${pe.msg}$RESET")

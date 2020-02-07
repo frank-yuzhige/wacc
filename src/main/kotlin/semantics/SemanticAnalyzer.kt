@@ -37,10 +37,7 @@ class SemanticAnalyzer() {
     fun doCheck(ast: ProgramAST) {
         ast.check()
         if (allowsWarning && warningLog.isNotEmpty()) {
-            val count = warningLog.size
-            val plural = if (count == 1) "" else "s"
-            println("$WARNING$count warning$plural:$RESET")
-            warningLog.forEach { println("$WARNING[Warning]: $it\n$RESET") }
+            printWarningMessages()
         }
         if (errorLog.isNotEmpty()) {
             val count = errorLog.size
@@ -48,6 +45,18 @@ class SemanticAnalyzer() {
             throw SemanticException("$count semantic error$plural:\n${errorLog.joinToString("\n\n\n")}")
         }
     }
+    private fun printWarningMessages() {
+        logWarning(symbolTable.functions
+                .filter { (_, attr) -> attr.occurrences == 1 }
+                .map { (ident, attr) ->
+                    "Unused function $ident at ${attr.index}: function defined but never called"
+                })
+        val count = warningLog.size
+        val plural = if (count == 1) "" else "s"
+        println("$WARNING$count warning$plural:$RESET")
+        warningLog.forEach { println("$WARNING[Warning]: $it\n$RESET") }
+    }
+
 
     fun suppressWarning(): SemanticAnalyzer = this.also { allowsWarning = false }
 
@@ -116,9 +125,8 @@ class SemanticAnalyzer() {
                 val prevAttr = symbolTable.defineVar(type, variable)
                 if (prevAttr != null) {
                     logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name)!!.index)))
-                } else {
-                    rhs.check(match(type))
                 }
+                rhs.check(match(type))
             }
             is Assignment -> {
                 val lhsType = lhs.checkLhs()

@@ -8,7 +8,7 @@ import java.util.*
 class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
-    private val functions: MutableMap<String, FuncAttributes> = hashMapOf()
+    val functions: MutableMap<String, FuncAttributes> = hashMapOf()
     private val collect: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
     private var scopeIdGen = 0
 
@@ -42,8 +42,8 @@ class SymbolTable {
         return scopeStack.pollFirst()
                 ?.also { prev -> collectPrevScope(prevId, prev) }
                 ?.filter { (_, attrs) -> attrs.occurrences == 1 }
-                ?.map { (ident, attrs) ->
-                    "Unused variable $ident at ${attrs.index}: variable defined but its value is never used"
+                ?.map { (ident, attr) ->
+                    "Unused variable $ident at ${attr.index}: variable defined but its value is never used"
                 }
 
     }
@@ -52,9 +52,9 @@ class SymbolTable {
     fun lookupVar(ident: String): VarAttributes? = scopeStack
             .mapNotNull { it[ident] }
             .firstOrNull()
-            ?.addOccurence()
+            ?.addOccurrence()
 
-    fun lookupFunc(ident: String): FuncAttributes? = functions[ident]
+    fun lookupFunc(ident: String): FuncAttributes? = functions[ident]?.addOccurrence()
 
     fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
 
@@ -75,10 +75,10 @@ class SymbolTable {
     }
 
     fun getFuncTable(): String {
-        val tp = TablePrinter("function", "type", "defined at")
+        val tp = TablePrinter("function", "type", "defined at", "ref count")
                 .sortBy(0, 2)
         functions.map { (name, attr) ->
-            tp.addColumn(name, attr.type, attr.index)
+            tp.addColumn(name, attr.type, attr.index, attr.occurrences)
         }
         return tp.print()
     }
@@ -92,9 +92,11 @@ class SymbolTable {
         }
     }
 
-    data class FuncAttributes(val type: Type.FuncType, val index: Index)
-    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 0) {
-        fun addOccurence(): VarAttributes = this.also { occurrences++ }
+    data class FuncAttributes(val type: Type.FuncType, val index: Index, var occurrences: Int = 1) {
+        fun addOccurrence(): FuncAttributes = this.also { occurrences++ }
+    }
+    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
+        fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
 
 }

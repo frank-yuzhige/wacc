@@ -52,7 +52,7 @@ expr: left=expr binop1 right=expr #exprBinop
 param    : type ident;
 paramList: param (COMMA param)*;
 
-func: type ident LPAR paramList? RPAR IS stats? END;
+func: type ident LPAR paramList? RPAR IS stats END;
 
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
