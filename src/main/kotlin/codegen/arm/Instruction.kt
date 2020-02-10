@@ -7,21 +7,29 @@ sealed class Instruction {
 
     /** Arithmetic Operations **/
     // Rd := Rn + Op
-    data class ADD(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
-    data class SUB(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
+    data class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
+    data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
     // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
-    data class MUL(val cond: Condition, val dest: Register, val rm: Register, val rs: Register): Instruction()
+    data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register): Instruction()
     // Reference Compiler uses a library function "__aeabi_idiv"
-    data class DIV(val dest: Register, val rn: Register): Instruction()
+    data class Div(val dest: Register, val rn: Register): Instruction()
 
     /** Comparison Operation **/
-    data class CMP(val rn: Register, val opr: Operand): Instruction()
+    data class Cmp(val rn: Register, val opr: Operand): Instruction()
 
     /** Logical Operations **/
-    data class MOV(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
-    data class AND(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
-    data class XOR(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
-    data class OR(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction()
+    data class Mov(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "MOV$cond $dest, $opr"
+    }
+    data class And(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "AND$cond $dest, $opr"
+    }
+    data class Xor(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "XOR$cond $dest, $opr"
+    }
+    data class Or(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "OR$cond $dest, $opr"
+    }
 
     sealed class Terminator: Instruction() {
         /** Branch Operation **/
@@ -33,16 +41,22 @@ sealed class Instruction {
     }
 
     /** Load Operation **/
-    data class LDR(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
+    data class Ldr(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
 
     /** Store Operation **/
-    data class STR(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
+    data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
 
     /** Stack Operation **/
-    data class PUSH(val regList:  MutableCollection<Register>): Instruction()
+    data class Push(val regList:  MutableCollection<Register>): Instruction()
 
     enum class Condition {
-        AL, EQ, NE, GT, GE, LT, LE
+        AL,
+        EQ,
+        NE,
+        GT,
+        GE,
+        LT,
+        LE
     }
 
 //    abstract fun generateCode(): String

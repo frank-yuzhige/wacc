@@ -1,0 +1,9 @@
+begin
+
+int f(int a, int b, int c, int d) is
+    return a + d
+end
+
+exit 1
+
+end

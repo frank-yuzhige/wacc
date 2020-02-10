@@ -1,10 +1,12 @@
 package codegen.arm
 
-class StringConst(val label: String, val length: Int, val content: String) {
+import codegen.arm.Operand.Label
+
+class StringConst(val label: Label, val content: String) {
     override fun toString(): String {
         return """
-            $label
-                .word $length
+            ${label.name}
+                .word ${content.length}
                 .ascii "$content"
         """.trimIndent()
     }

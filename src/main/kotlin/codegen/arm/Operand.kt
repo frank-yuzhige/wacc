@@ -1,7 +1,17 @@
 package codegen.arm
 
 sealed class Operand {
-    data class Register(val regName: String): Operand()
+    sealed class Register: Operand() {
+        data class Reg(val id: Int): Register() {
+            fun next(offset: Int = 1): Reg = Reg(id + offset)
+            fun prev(offset: Int = 1): Reg = Reg(id - offset)
+            override fun toString(): String = "r$id"
+        }
+
+        object StackPtr: Register() {
+            override fun toString(): String = "sp"
+        }
+    }
     data class ImmNum(val num: Int): Operand() {
         companion object {
             fun immTrue() = ImmNum(1)
@@ -9,6 +19,18 @@ sealed class Operand {
             fun immNull() = ImmNum(0)
         }
     }
-    data class Label(val label: String): Operand()
-    data class AbsString(val value: String): Operand()
+    data class Label(val name: String): Operand() {
+        override fun toString(): String = "$name:"
+    }
+//    data class AbsString(val value: String): Operand() {
+//        override fun toString(): String {
+//            return
+//        }
+//    }
+
+    data class Offset(val src: Register, val offset: Int): Operand() {
+        override fun toString(): String {
+            return "[$src, #$offset]"
+        }
+    }
 }
