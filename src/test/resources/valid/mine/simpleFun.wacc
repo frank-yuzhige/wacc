@@ -1,14 +1,10 @@
 begin
 
-int f(int a, int b, int c, int d, int e, int f, int g) is
-    return g
-end
-
-int x = 1;
-if (true) then
-    int xx = 2
-else
-    int yy = 3
-fi
+int x = 0;
+begin
+    int k = 100
+end;
+int y = 1;
+int z = 2
 
 end

@@ -39,6 +39,12 @@ sealed class Operand {
 //    }
 
     data class Offset(val src: Register, val offset: Int, val wb: Boolean = false): Operand() {
-        override fun toString(): String = "[$src, #$offset]${if (wb) "!" else "" }"
+        override fun toString(): String {
+            return if (offset == 0) {
+                "[$src]${if (wb) "!" else "" }"
+            } else {
+                "[$src, #$offset]${if (wb) "!" else "" }"
+            }
+        }
     }
 }

@@ -9,7 +9,8 @@ class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
     val functions: MutableMap<String, FuncAttributes> = hashMapOf()
-    private val collect: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
+    val collect: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
+    val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
     private var scopeIdGen = 0
 
     fun defineVar(type: Type, identNode: Identifier): VarAttributes? {
@@ -19,7 +20,8 @@ class SymbolTable {
         if (entry != null) {
             return entry
         }
-        identNode.scopeId = getCurrScopeId()
+        val sid = getCurrScopeId()
+        identNode.scopeId = sid
         currScope[name] = VarAttributes(type, identNode.startIndex, getCurrScopeId())
         return null
     }
@@ -90,6 +92,7 @@ class SymbolTable {
         prev.forEach { (ident, attr) ->
             collect[ident to prevId] = attr
         }
+        scopeDefs[prevId] = prev.keys
     }
 
     data class FuncAttributes(val type: Type.FuncType, val index: Index, var occurrences: Int = 1) {

@@ -20,17 +20,218 @@ import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
 import utils.LabelNameTable
+import utils.SymbolTable
 import java.util.*
 
-class ASTParserARM(val ast: ProgramAST) {
+class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val labelNameTable = LabelNameTable()
     val stringConsts: MutableList<StringConst> = mutableListOf()
     val blocks: Deque<InstructionBlock> = ArrayDeque()
     val instructions: MutableList<Instruction> = mutableListOf()
-    val identRegMap = mutableMapOf<Pair<String, Int>, Register>()
+    val varOffsetMap = mutableMapOf<Pair<String, Int>, Int>()
+    val firstDefReachedScopes = mutableSetOf<Int>()
+    var spOffset = 0
+    var currScopeOffset = 0
 
     var currBlockLabel = Label("")
     var currReg: Reg = Reg(0)
+
+    fun printARM(): String = ".text" + stringConsts.joinToString("\n").prependIndent() + "\n" +
+            ".global main\n" +
+            blocks.joinToString("\n")
+
+    fun translate(): ASTParserARM = this.also { ast.toARM() }
+
+    private fun ProgramAST.toARM() {
+        Function(Type.intType(),
+                "main",
+                mutableListOf(),
+                mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
+        ).toARM { Label("main") }
+        functions.map { it.toARM() }
+    }
+
+    private fun ast.Function.toARM(labelBuilder: (String) -> Label = { getLabel(it) }) {
+        spOffset = 0
+        args.map { alloca(it.second) }
+        setBlock(labelBuilder(name))
+        push(SpecialReg(LR))
+        body.map { it.toARM() }
+        addDirective(LTORG)
+    }
+
+    private fun Statement.toARM() {
+        when(this) {
+            is Skip -> Skip
+            is Declaration -> {
+                if (variable.scopeId !in firstDefReachedScopes) {
+                    val defs = symbolTable.scopeDefs[variable.scopeId]!!
+                    currScopeOffset = 4 * defs.size
+                    defs.withIndex().forEach { (i, v) ->
+                        varOffsetMap[v to variable.scopeId] = spOffset + (i + 1) * 4
+                    }
+                    moveSP(-currScopeOffset)
+                    firstDefReachedScopes += variable.scopeId
+                }
+                val reg = rhs.toARM().toReg()
+                alloca(variable, reg)
+            }
+
+            is Assignment -> {
+                val reg = rhs.toARM().toReg()
+                when(lhs) {
+                    is Identifier -> store(reg, findVar(lhs))
+                    is ArrayElem -> TODO()
+                    is PairElem -> TODO()
+                }
+            }
+
+            is Read -> {
+
+            }
+
+            is BuiltinFuncCall -> {
+                val reg = expr.toARM()
+                when(func) {
+                    RETURN -> {
+                        mov(Reg(0), reg)
+                        moveSP(spOffset)
+                        pop(SpecialReg(PC))
+                    }
+                    BuiltinFunc.FREE -> TODO()
+                    BuiltinFunc.EXIT -> {
+                        mov(Reg(0), reg)
+                        bl(AL, Label("exit"))
+                    }
+                    BuiltinFunc.PRINT -> TODO()
+                    BuiltinFunc.PRINTLN -> TODO()
+                }
+            }
+
+            is CondBranch -> {
+                val ifthen = getLabel("if-then")
+                val ifelse = getLabel("if-else")
+                val ifend  = getLabel("if-end")
+                expr.toARM()
+                val cond = currReg
+                cmp(cond, immFalse())
+                branch(Condition.EQ, ifelse)
+
+                setBlock(ifthen)
+                trueBranch.map { it.toARM() }
+                branch(ifend)
+
+                setBlock(ifelse)
+                falseBranch.map { it.toARM() }
+                branch(ifend)
+
+                setBlock(ifend)
+            }
+
+            is WhileLoop -> {
+                val lCheck = getLabel("loop-check")
+                val lBody = getLabel("loop-body")
+                val lEnd  = getLabel("loop-end")
+                branch(lCheck)
+
+                setBlock(lCheck)
+                val cond = expr.toARM()
+                cmp(cond.toReg(), immFalse())
+                branch(lEnd)
+
+                setBlock(lBody)
+                body.map { it.toARM() }
+                branch(lBody)
+
+                setBlock(lEnd)
+            }
+
+            is Block -> body.map { it.toARM() }
+        }
+    }
+
+    private fun moveSP(offset: Int) {
+        if (offset < 0) {
+            binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
+            spOffset -= offset
+        } else if (offset > 0) {
+            binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
+            spOffset += offset
+        }
+    }
+
+    /* This method allocates some space on stack for a variable,
+    *  returns the offset from the initial sp */
+    private fun alloca(varNode: Identifier, reg: Register? = null) {
+        val offset = spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!
+        val dest = Offset(SpecialReg(SP), offset)
+        reg?.let { store(reg, dest) }
+    }
+
+    private fun findVar(varNode: Identifier): Offset {
+        return Offset(SpecialReg(SP), varOffsetMap[varNode.name to varNode.scopeId]!! - spOffset)
+    }
+
+    private fun Expression.toARM(): Operand {
+        return when(this) {
+            NullLit   -> immNull()
+            is IntLit -> {
+                if (x in 0..255) {
+                    ImmNum(x)
+                } else {
+                    val reg = getReg()
+                    load(reg, ImmNum(x))
+                }
+            }
+            is BoolLit -> if (b) immTrue() else immFalse()
+            is CharLit -> ImmNum(c.toInt())
+            is StringLit -> defString(string)
+            is Identifier -> load(getReg(), findVar(this))
+            is BinExpr -> {
+                val op1 = left.toARM().toReg()
+                val op2 = right.toARM()
+                binop(op, op1, op1, op2)
+            }
+            is UnaryExpr -> TODO()
+            is ArrayElem -> TODO()
+            is PairElem -> TODO()
+            is ArrayLiteral -> TODO()
+            is NewPair -> TODO()
+            is FunctionCall -> {
+                for (arg in args) {
+                    val reg = arg.toARM().toReg()
+                    store(reg, Offset(SpecialReg(SP), 4, true))
+                }
+                bl(AL, Label(ident))
+                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size))
+                Reg(0)
+            }
+        }
+    }
+
+    private fun defString(content: String): Label {
+        val msgLabel = getLabel("msg")
+        stringConsts += StringConst(msgLabel, content)
+        return msgLabel
+    }
+
+    private fun Expression.weight(): Int {
+        return when(this) {
+            NullLit -> 1
+            is IntLit -> 1
+            is BoolLit -> 1
+            is CharLit -> 1
+            is StringLit -> 1
+            is Identifier -> 1
+            is BinExpr -> TODO()
+            is UnaryExpr -> TODO()
+            is ArrayElem -> TODO()
+            is PairElem -> TODO()
+            is ArrayLiteral -> TODO()
+            is NewPair -> TODO()
+            is FunctionCall -> TODO()
+        }
+    }
 
     private fun getReg(): Register = currReg.also { currReg = currReg.next() }
 
@@ -51,16 +252,22 @@ class ASTParserARM(val ast: ProgramAST) {
         packBlock(B(AL, label))
     }
 
+    private fun branch(cond: Condition, label: Label) {
+        packBlock(B(cond, label))
+    }
+
     private fun bl(cond: Condition = AL, label: Label) {
-        packBlock(BL(cond, label))
+        instructions += BL(cond, label)
     }
 
-    private fun load(dst: Register, src: Operand) {
+    private fun load(dst: Register, src: Operand): Register {
         instructions += Ldr(AL, dst, src)
+        return dst
     }
 
-    private fun store(dst: Register, src: Operand) {
-        instructions += Str(AL, dst, src)
+    private fun store(src: Register, dst: Operand): Operand {
+        instructions += Str(AL, src, dst)
+        return dst
     }
 
     private fun mov(src: Operand): Register{
@@ -70,7 +277,9 @@ class ASTParserARM(val ast: ProgramAST) {
     }
 
     private fun mov(dst: Register, src: Operand): Register {
-        instructions += Mov(AL, dst, src)
+        if (dst != src) {
+            instructions += Mov(AL, dst, src)
+        }
         return dst
     }
 
@@ -118,161 +327,9 @@ class ASTParserARM(val ast: ProgramAST) {
         TODO()
     }
 
-    fun printARM(): String = ".text" + stringConsts.joinToString("\n").prependIndent() + "\n" +
-            ".global main\n" +
-            blocks.joinToString("\n")
-
-    fun translate(): ASTParserARM = this.also { ast.toARM() }
-
-    private fun ProgramAST.toARM() {
-        Function(Type.intType(),
-                "main",
-                mutableListOf(),
-                mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
-        ).toARM { Label("main") }
-        functions.map { it.toARM() }
-    }
-
-    private fun ast.Function.toARM(labelBuilder: (String) -> Label = { getLabel(it) }) {
-        setBlock(labelBuilder(name))
-        push(SpecialReg(LR))
-        body.map { it.toARM() }
-        addDirective(LTORG)
-    }
-
-    private fun Statement.toARM() {
-        when(this) {
-            is Skip -> Skip
-            is Declaration -> {
-                identRegMap[variable.name to variable.scopeId] = rhs.toARM().toReg()
-            }
-
-            is Assignment -> {
-                val reg = rhs.toARM().toReg()
-                when(lhs) {
-                    is Identifier -> identRegMap[lhs.name to lhs.scopeId] = reg
-                    is ArrayElem -> TODO()
-                    is PairElem -> TODO()
-                }
-            }
-
-            is Read -> {
-
-            }
-
-            is BuiltinFuncCall -> {
-                val reg = expr.toARM()
-                when(func) {
-                    RETURN -> {
-                        mov(Reg(0), reg)
-                        pop(SpecialReg(PC))
-                    }
-                    BuiltinFunc.FREE -> TODO()
-                    BuiltinFunc.EXIT -> {
-                        mov(Reg(0), reg)
-                        bl(AL, Label("exit"))
-                    }
-                    BuiltinFunc.PRINT -> TODO()
-                    BuiltinFunc.PRINTLN -> TODO()
-                }
-            }
-
-
-            is CondBranch -> {
-                val ifthen = getLabel("if-then")
-                val ifelse = getLabel("if-else")
-                val ifend  = getLabel("if-end")
-                expr.toARM()
-                val cond = currReg
-                cmp(cond, immFalse())
-                branch(ifelse)
-
-                setBlock(ifthen)
-                trueBranch.map { it.toARM() }
-                branch(ifend)
-
-                setBlock(ifelse)
-                falseBranch.map { it.toARM() }
-                branch(ifend)
-
-                setBlock(ifend)
-            }
-            is WhileLoop -> {
-                val lCheck = getLabel("loop-check")
-                val lBody = getLabel("loop-body")
-                val lEnd  = getLabel("loop-end")
-                branch(lCheck)
-
-                setBlock(lCheck)
-                val cond = expr.toARM()
-                cmp(cond.toReg(), immFalse())
-                branch(lEnd)
-
-                setBlock(lBody)
-                body.map { it.toARM() }
-                branch(lBody)
-
-                setBlock(lEnd)
-            }
-        }
-    }
-
-    private fun Expression.toARM(): Operand {
-        return when(this) {
-            NullLit   -> immNull()
-            is IntLit -> ImmNum(x)
-            is BoolLit -> if (b) immTrue() else immFalse()
-            is CharLit -> ImmNum(c.toInt())
-            is StringLit -> defString(string)
-            is Identifier -> identRegMap.getValue(name to scopeId)
-            is BinExpr -> {
-                val op1 = left.toARM().toReg()
-                val op2 = right.toARM()
-                binop(op, op1, op1, op2)
-            }
-            is UnaryExpr -> TODO()
-            is ArrayElem -> TODO()
-            is PairElem -> TODO()
-            is ArrayLiteral -> TODO()
-            is NewPair -> TODO()
-            is FunctionCall -> {
-                for (arg in args) {
-                    val reg = arg.toARM().toReg()
-                    store(reg, Offset(SpecialReg(SP), 4, true))
-                }
-                bl(AL, Label(ident))
-                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size))
-                Reg(0)
-            }
-        }
-    }
-
-    private fun defString(content: String): Label {
-        val msgLabel = getLabel("msg")
-        stringConsts += StringConst(msgLabel, content)
-        return msgLabel
-    }
-
-    private fun Expression.weight(): Int {
-        return when(this) {
-            NullLit -> 1
-            is IntLit -> 1
-            is BoolLit -> 1
-            is CharLit -> 1
-            is StringLit -> 1
-            is Identifier -> 1
-            is BinExpr -> TODO()
-            is UnaryExpr -> TODO()
-            is ArrayElem -> TODO()
-            is PairElem -> TODO()
-            is ArrayLiteral -> TODO()
-            is NewPair -> TODO()
-            is FunctionCall -> TODO()
-        }
-    }
-
     private fun Operand.toReg(): Register = when(this) {
         is Register -> this
+        is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
         else -> mov(this)
     }
 }

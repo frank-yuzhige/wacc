@@ -8,10 +8,10 @@ sealed class Instruction {
     /** Arithmetic Operations **/
     // Rd := Rn + Op
     data class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "ADD$cond $dest, $rn, $opr"
+        override fun toString(): String = "ADD$cond $dest, $rn, ${opr.inMOV()}"
     }
     data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "SUB$cond $dest, $rn, $opr"
+        override fun toString(): String = "SUB$cond $dest, $rn, ${opr.inMOV()}"
     }
     // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
     data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register): Instruction() {
@@ -62,7 +62,9 @@ sealed class Instruction {
     }
 
     /** Store Operation **/
-    data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction()
+    data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "STR$cond ${dest.inLDR()}, ${opr.inLDR()}"
+    }
 
     /** Stack Operation **/
     data class Push(val regList: MutableList<Register>): Instruction() {

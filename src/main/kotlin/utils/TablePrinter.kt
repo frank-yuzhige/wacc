@@ -39,7 +39,7 @@ class TablePrinter(vararg title: String) {
     private fun compareStrategy(): Comparator<List<String>> {
         val existingCols = sortByList.filter { it < titles.size && it >= 0 }
         val comparators = existingCols.map { col ->
-            if (intColumns.contains(col)) {
+            if (col in intColumns) {
                 compareBy { list: List<String> -> list[col].toInt() }
             } else {
                 compareBy { list: List<String> -> list[col] }
