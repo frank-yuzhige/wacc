@@ -32,8 +32,8 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val instructions: MutableList<Instruction> = mutableListOf()
     val varOffsetMap = mutableMapOf<Pair<String, Int>, Int>()
     val firstDefReachedScopes = mutableSetOf<Int>()
-    var spOffset = 0
-    var currScopeOffset = 0
+    var spOffset = 0           // current stack-pointer offset (in negative form)
+    var currScopeOffset = 0    // pre-allocated scope offset for variables
 
     var currBlockLabel = Label("")
     var currReg: Reg = Reg(0)
@@ -96,8 +96,8 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 val reg = expr.toARM()
                 when(func) {
                     RETURN -> {
-                        mov(Reg(0), reg)
                         moveSP(spOffset)
+                        mov(Reg(0), reg)
                         pop(SpecialReg(PC))
                     }
                     BuiltinFunc.FREE -> TODO()
@@ -125,29 +125,33 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             }
 
             is CondBranch -> {
-                val ifthen = getLabel("if-then")
-                val ifelse = getLabel("if-else")
-                val ifend  = getLabel("if-end")
+                val ifthen = getLabel("if_then")
+                val ifelse = getLabel("if_else")
+                val ifend  = getLabel("if_end")
                 expr.toARM()
                 val cond = currReg
                 cmp(cond, immFalse())
                 branch(Condition.EQ, ifelse)
 
                 setBlock(ifthen)
-                trueBranch.map { it.toARM() }
+                inScopeDo {
+                    trueBranch.map { it.toARM() }
+                }
                 branch(ifend)
 
                 setBlock(ifelse)
-                falseBranch.map { it.toARM() }
+                inScopeDo {
+                    falseBranch.map { it.toARM() }
+                }
                 branch(ifend)
 
                 setBlock(ifend)
             }
 
             is WhileLoop -> {
-                val lCheck = getLabel("loop-check")
-                val lBody = getLabel("loop-body")
-                val lEnd  = getLabel("loop-end")
+                val lCheck = getLabel("loop_check")
+                val lBody = getLabel("loop_body")
+                val lEnd  = getLabel("loop_end")
                 branch(lCheck)
 
                 setBlock(lCheck)
@@ -156,13 +160,15 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 branch(lEnd)
 
                 setBlock(lBody)
-                body.map { it.toARM() }
+                inScopeDo {
+                    body.map { it.toARM() }
+                }
                 branch(lBody)
 
                 setBlock(lEnd)
             }
 
-            is Block -> body.map { it.toARM() }
+            is Block -> inScopeDo { body.map { it.toARM() } }
         }
     }
 
@@ -172,7 +178,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             spOffset -= offset
         } else if (offset > 0) {
             binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
-            spOffset += offset
+            spOffset -= offset
         }
     }
 
@@ -186,6 +192,13 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
 
     private fun findVar(varNode: Identifier): Offset {
         return Offset(SpecialReg(SP), varOffsetMap[varNode.name to varNode.scopeId]!! - spOffset)
+    }
+
+    private fun inScopeDo(action: () -> Unit) {
+        val prevScopeOffset = currScopeOffset
+        action()
+        moveSP(currScopeOffset)
+        currScopeOffset = prevScopeOffset
     }
 
     private fun Expression.toARM(): Operand {

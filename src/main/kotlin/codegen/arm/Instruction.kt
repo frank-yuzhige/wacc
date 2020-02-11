@@ -22,7 +22,7 @@ sealed class Instruction {
 
     /** Comparison Operation **/
     data class Cmp(val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "CMP $rn, $opr"
+        override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}"
     }
 
     /** Logical Operations **/
