@@ -1,30 +1,31 @@
 package utils
 
 import ast.WaccAST
+import codegen.ASTParserARM
 import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
 import semantics.SemanticAnalyzer
-import utils.EmulatorMode.PARSE_ONLY
-import java.io.File
-import java.io.PrintStream
+import utils.EmulatorMode.*
+import java.io.*
 import java.lang.Exception
 
 class CompilerEmulator(private val inputFile: File,
                        private val mode: EmulatorMode,
                        private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
 
-    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?)
+    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?, val output: String?)
     fun run(): EmulatorResult {
         val parser = Parser(inputFile.inputStream(), errorStream = errorStream)
         var exitCode = 0
         var exception: Exception? = null
+        val sa = SemanticAnalyzer()
         val ast = try {
             val temp = parser.parseProgram()
             if (mode != PARSE_ONLY) {
-                SemanticAnalyzer().suppressWarning().doCheck(temp)
+                sa.suppressWarning().doCheck(temp)
             }
-            println("ALL IS GOOD: ${inputFile.path}")
+            println("Compilation completed: ${inputFile.path}")
             temp
         } catch (sye: SyntacticException) {
             System.err.println("PARSE ERROR: ${inputFile.path}")
@@ -47,7 +48,22 @@ class CompilerEmulator(private val inputFile: File,
             exitCode = 1 //  error output
             null
         }
-        return EmulatorResult(exitCode, ast, exception)
+        var programOutput: String? = null
+        if (mode == EXECUTE && ast != null) {
+            val assembly = ASTParserARM(ast, sa.symbolTable).translate().printARM()
+            val temp = File("src/test/kotlin/utils/temp.wacc")
+            if (!temp.exists()) {
+                temp.createNewFile()
+            }
+            temp.bufferedWriter().use { it.write(assembly) }
+            val process = ProcessBuilder("ruby", "-x", temp.path).start()
+            process.inputStream.reader(Charsets.UTF_8).use {
+                println(it.readText())
+                // TODO turn println into string
+            }
+            process.waitFor()
+        }
+        return EmulatorResult(exitCode, ast, exception, programOutput)
     }
 
 }

@@ -35,12 +35,10 @@ fun main(args: Array<String>) {
         System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
-
     println("===========")
     println(ast.prettyPrint())
     println("===========")
     println(ASTParserARM(ast, sa.symbolTable).translate().printARM())
-    println("===========")
-    println()
+    println("===========\n")
     sa.symbolTable.dump()
 }

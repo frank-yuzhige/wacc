@@ -7,6 +7,8 @@ import ast.BinaryOperator.MUL
 import ast.Expression.*
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.RETURN
+import ast.Type.BaseType
+import ast.Type.BaseTypeKind.*
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
@@ -103,7 +105,21 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                         mov(Reg(0), reg)
                         bl(AL, Label("exit"))
                     }
-                    BuiltinFunc.PRINT -> TODO()
+                    BuiltinFunc.PRINT -> {
+                        mov(Reg(0), expr.toARM())
+                        val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
+                        if (exprType == BaseType(CHAR)) {
+                            bl(AL, Label("putchar"))
+                        } else {
+                            val typeLabel = when (exprType) {
+                                BaseType(INT) -> "int"
+                                BaseType(BOOL) -> "bool"
+                                BaseType(STRING) -> "string"
+                                else -> "reference"
+                            }
+                            bl(AL, Label("p_print_$typeLabel"))
+                        }
+                    }
                     BuiltinFunc.PRINTLN -> TODO()
                 }
             }
