@@ -1,6 +1,10 @@
 package codegen.arm
 
 sealed class Operand {
+
+    open fun inMOV(): String = toString()
+    open fun inLDR(): String = toString()
+
     sealed class Register: Operand() {
         data class Reg(val id: Int): Register() {
             fun next(offset: Int = 1): Reg = Reg(id + offset)
@@ -8,8 +12,10 @@ sealed class Operand {
             override fun toString(): String = "r$id"
         }
 
-        object StackPtr: Register() {
-            override fun toString(): String = "sp"
+        data class SpecialReg(val name: SpecialRegName): Register() {
+            override fun toString(): String {
+                return name.toString().toLowerCase()
+            }
         }
     }
     data class ImmNum(val num: Int): Operand() {
@@ -18,9 +24,13 @@ sealed class Operand {
             fun immFalse() = ImmNum(0)
             fun immNull() = ImmNum(0)
         }
+
+        override fun toString(): String = num.toString()
+        override fun inMOV(): String = "#$this"
+        override fun inLDR(): String = "=$this"
     }
     data class Label(val name: String): Operand() {
-        override fun toString(): String = "$name:"
+        override fun toString(): String = name
     }
 //    data class AbsString(val value: String): Operand() {
 //        override fun toString(): String {
@@ -28,9 +38,7 @@ sealed class Operand {
 //        }
 //    }
 
-    data class Offset(val src: Register, val offset: Int): Operand() {
-        override fun toString(): String {
-            return "[$src, #$offset]"
-        }
+    data class Offset(val src: Register, val offset: Int, val wb: Boolean = false): Operand() {
+        override fun toString(): String = "[$src, #$offset]${if (wb) "!" else "" }"
     }
 }

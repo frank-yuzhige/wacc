@@ -6,5 +6,8 @@ import codegen.arm.Operand.Label
 
 class InstructionBlock(val label: Label,
                        val instructions: List<Instruction>,
-                       var terminator: Terminator) {
+                       var terminator: Terminator,
+                       val tails: MutableList<Instruction> = mutableListOf()) {
+    override fun toString(): String = "$label:\n" +
+            (instructions + terminator + tails).joinToString("\n").prependIndent()
 }

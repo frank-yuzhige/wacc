@@ -6,22 +6,23 @@ import ast.BinaryOperator.DIV
 import ast.BinaryOperator.MUL
 import ast.Expression.*
 import ast.Statement.*
-import codegen.arm.ArmProgram
-import codegen.arm.Instruction
+import ast.Statement.BuiltinFunc.RETURN
+import codegen.arm.*
+import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
 import codegen.arm.Instruction.Condition.AL
 import codegen.arm.Instruction.Terminator.*
-import codegen.arm.Operand
 import codegen.arm.Operand.*
 import codegen.arm.Operand.ImmNum.Companion.immFalse
 import codegen.arm.Operand.ImmNum.Companion.immNull
 import codegen.arm.Operand.ImmNum.Companion.immTrue
 import codegen.arm.Operand.Register.Reg
-import codegen.arm.StringConst
+import codegen.arm.Operand.Register.SpecialReg
+import codegen.arm.SpecialRegName.*
 import utils.LabelNameTable
 import java.util.*
 
-class ASTParserARM() {
+class ASTParserARM(val ast: ProgramAST) {
     val labelNameTable = LabelNameTable()
     val stringConsts: MutableList<StringConst> = mutableListOf()
     val blocks: Deque<InstructionBlock> = ArrayDeque()
@@ -35,12 +36,13 @@ class ASTParserARM() {
 
     private fun setBlock(label: Label) {
         currBlockLabel = label
-        instructions.clear()
     }
 
     private fun packBlock(terminator: Terminator) {
-        val block = InstructionBlock(currBlockLabel, instructions, terminator)
+        val block = InstructionBlock(currBlockLabel, instructions.toMutableList(), terminator)
         blocks.addLast(block)
+        instructions.clear()
+        currBlockLabel = getLabel("${currBlockLabel.name}-seq")
     }
 
     private fun getLabel(name: String): Label = Label(labelNameTable.getName(name))
@@ -61,18 +63,38 @@ class ASTParserARM() {
         instructions += Str(AL, dst, src)
     }
 
-    private fun mov(src: Operand): Register {
-        val dst = getReg()
+    private fun mov(src: Operand): Register{
+        val reg = currReg
+        currReg = currReg.next()
+        return mov(reg, src)
+    }
+
+    private fun mov(dst: Register, src: Operand): Register {
         instructions += Mov(AL, dst, src)
         return dst
     }
 
-    private fun binop(opType: BinaryOperator, rn: Register, op2: Operand): Register {
-        val dst = getReg()
+    private fun push(vararg regs: Register) {
+        instructions += Push(regs.toMutableList())
+    }
+
+    private fun pop(vararg regs: Register) {
+        if (regs.contentEquals(arrayOf(SpecialReg(PC)))) {
+            packBlock(PopPC)
+        } else {
+            instructions += Pop(regs.toMutableList())
+        }
+    }
+
+    private fun addDirective(type: DirectiveType) {
+        blocks.last.tails += Directive(type)
+    }
+
+    private fun binop(opType: BinaryOperator, dst: Register, rn: Register, op2: Operand): Register {
         val instr = when (opType) {
             ADD -> Add(AL, dst, rn, op2)
             SUB -> Sub(AL, dst, rn, op2)
-            MUL -> TODO()
+            MUL -> Mul(AL, dst, rn, op2.toReg())
             DIV -> TODO()
             MOD -> TODO()
             GTE -> TODO()
@@ -96,21 +118,26 @@ class ASTParserARM() {
         TODO()
     }
 
-    fun translateASTToARM(ast: ProgramAST): ArmProgram {
-        TODO()
+    fun printARM(): String = ".text" + stringConsts.joinToString("\n").prependIndent() + "\n" +
+            ".global main\n" +
+            blocks.joinToString("\n")
+
+    fun translate(): ASTParserARM = this.also { ast.toARM() }
+
+    private fun ProgramAST.toARM() {
+        Function(Type.intType(),
+                "main",
+                mutableListOf(),
+                mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
+        ).toARM { Label("main") }
+        functions.map { it.toARM() }
     }
 
-    fun ProgramAST.toARM() {
-        Function(Type.intType(),"main", mutableListOf(), mainProgram).toARM()
-        functions.map { f -> f.toARM() }
-
-    }
-
-    fun ast.Function.toARM() {
-        setBlock(getLabel(name))
-//        push(LR)
+    private fun ast.Function.toARM(labelBuilder: (String) -> Label = { getLabel(it) }) {
+        setBlock(labelBuilder(name))
+        push(SpecialReg(LR))
         body.map { it.toARM() }
-        TODO()
+        addDirective(LTORG)
     }
 
     private fun Statement.toARM() {
@@ -134,7 +161,20 @@ class ASTParserARM() {
             }
 
             is BuiltinFuncCall -> {
-
+                val reg = expr.toARM()
+                when(func) {
+                    RETURN -> {
+                        mov(Reg(0), reg)
+                        pop(SpecialReg(PC))
+                    }
+                    BuiltinFunc.FREE -> TODO()
+                    BuiltinFunc.EXIT -> {
+                        mov(Reg(0), reg)
+                        bl(AL, Label("exit"))
+                    }
+                    BuiltinFunc.PRINT -> TODO()
+                    BuiltinFunc.PRINTLN -> TODO()
+                }
             }
 
 
@@ -158,21 +198,21 @@ class ASTParserARM() {
                 setBlock(ifend)
             }
             is WhileLoop -> {
-                val lchk = getLabel("loop-check")
-                val lbdy = getLabel("loop-body")
-                val lend  = getLabel("loop-end")
-                branch(lchk)
+                val lCheck = getLabel("loop-check")
+                val lBody = getLabel("loop-body")
+                val lEnd  = getLabel("loop-end")
+                branch(lCheck)
 
-                setBlock(lchk)
+                setBlock(lCheck)
                 val cond = expr.toARM()
                 cmp(cond.toReg(), immFalse())
-                branch(lend)
+                branch(lEnd)
 
-                setBlock(lbdy)
+                setBlock(lBody)
                 body.map { it.toARM() }
-                branch(lbdy)
+                branch(lBody)
 
-                setBlock(lend)
+                setBlock(lEnd)
             }
         }
     }
@@ -186,16 +226,24 @@ class ASTParserARM() {
             is StringLit -> defString(string)
             is Identifier -> identRegMap.getValue(name to scopeId)
             is BinExpr -> {
-                val op1 = left.toARM()
+                val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
-                binop(op, op1.toReg(), op2)
+                binop(op, op1, op1, op2)
             }
             is UnaryExpr -> TODO()
             is ArrayElem -> TODO()
             is PairElem -> TODO()
             is ArrayLiteral -> TODO()
             is NewPair -> TODO()
-            is FunctionCall -> TODO()
+            is FunctionCall -> {
+                for (arg in args) {
+                    val reg = arg.toARM().toReg()
+                    store(reg, Offset(SpecialReg(SP), 4, true))
+                }
+                bl(AL, Label(ident))
+                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size))
+                Reg(0)
+            }
         }
     }
 

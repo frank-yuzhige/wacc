@@ -1,9 +1,14 @@
 begin
 
-int f(int a, int b, int c, int d) is
-    return a + d
+int f(int a, int b, int c, int d, int e, int f, int g) is
+    return g
 end
 
-exit 1
+int x = 1;
+if (true) then
+    int xx = 2
+else
+    int yy = 3
+fi
 
 end

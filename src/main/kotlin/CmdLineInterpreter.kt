@@ -1,3 +1,4 @@
+import codegen.ASTParserARM
 import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
@@ -37,6 +38,8 @@ fun main(args: Array<String>) {
 
     println("===========")
     println(ast.prettyPrint())
+    println("===========")
+    println(ASTParserARM(ast).translate().printARM())
     println("===========")
     println()
     sa.symbolTable.dump()
