@@ -20,6 +20,11 @@ sealed class Instruction {
     // Reference Compiler uses a library function "__aeabi_idiv"
     data class Div(val dest: Register, val rn: Register): Instruction()
 
+    // Reverse-sub
+    data class Rsb(val s: Boolean, val cond: Condition, val dest: Register, val rn: Register, val op2: Operand): Instruction() {
+        override fun toString(): String = "RSB${if(s) "S" else ""}$cond $dest, $rn, ${op2.inMOV()}"
+    }
+
     /** Comparison Operation **/
     data class Cmp(val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}"
@@ -49,11 +54,12 @@ sealed class Instruction {
         }
         /** Pop Operation **/
         object PopPC: Terminator() {
-            override fun toString(): String {
-                return "POP {pc}"
-            }
+            override fun toString(): String = "POP {pc}"
         }
         /** Fall-through operation -- does nothing **/
+        object FallThrough: Terminator() {
+            override fun toString(): String = ""
+        }
     }
 
     /** Load Operation **/
@@ -89,7 +95,8 @@ sealed class Instruction {
         GT,
         GE,
         LT,
-        LE
+        LE,
+        VS
     }
 
 

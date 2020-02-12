@@ -9,7 +9,7 @@ import ast.BinaryOperator.LT
 import ast.BinaryOperator.MUL
 import ast.Expression.*
 import ast.Statement.*
-import ast.Statement.BuiltinFunc.RETURN
+import ast.Statement.BuiltinFunc.*
 import ast.Type.BaseType
 import ast.Type.BaseTypeKind.*
 import ast.Type.Companion.anyPairType
@@ -17,6 +17,9 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.stringType
+import ast.UnaryOperator.*
+import codegen.PreludeFunc.OVERFLOW_ERROR
+import codegen.PreludeFunc.RUNTIME_ERROR
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
@@ -29,11 +32,11 @@ import codegen.arm.Operand.ImmNum.Companion.immTrue
 import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
-import jdk.nashorn.internal.runtime.regexp.joni.constants.StringType
 import utils.LabelNameTable
 import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
+import kotlin.math.exp
 
 class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val labelNameTable = LabelNameTable()
@@ -44,6 +47,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val firstDefReachedScopes = mutableSetOf<Int>()
     var spOffset = 0           // current stack-pointer offset (in negative form)
     var currScopeOffset = 0    // pre-allocated scope offset for variables
+    val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
 
     var currBlockLabel = Label("")
     var currReg: Reg = Reg(4)
@@ -62,6 +66,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
         ).toARM { Label("main") }
         functions.map { it.toARM() }
+        definePreludes()
     }
 
     private fun ast.Function.toARM(labelBuilder: (String) -> Label = { getLabel(it) }) {
@@ -104,7 +109,6 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             }
 
             is BuiltinFuncCall -> {
-
                 when(func) {
                     RETURN -> {
                         val reg = expr.toARM()
@@ -112,16 +116,16 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                         mov(Reg(0), reg)
                         pop(SpecialReg(PC))
                     }
-                    BuiltinFunc.FREE -> TODO()
-                    BuiltinFunc.EXIT -> {
+                    FREE -> TODO()
+                    EXIT -> {
                         val reg = expr.toARM()
                         mov(Reg(0), reg)
                         bl(AL, Label("exit"))
                     }
-                    BuiltinFunc.PRINT -> {
+                    PRINT -> {
                         callPrintf(expr, false)
                     }
-                    BuiltinFunc.PRINTLN -> {
+                    PRINTLN -> {
                         callPrintf(expr, true)
                     }
                 }
@@ -137,15 +141,11 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 branch(Condition.EQ, ifelse)
 
                 setBlock(ifthen)
-                inScopeDo {
-                    trueBranch.map { it.toARM() }
-                }
+                inScopeDo { trueBranch.map { it.toARM() } }
                 branch(ifend)
 
                 setBlock(ifelse)
-                inScopeDo {
-                    falseBranch.map { it.toARM() }
-                }
+                inScopeDo { falseBranch.map { it.toARM() } }
                 branch(ifend)
 
                 setBlock(ifend)
@@ -194,7 +194,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     private fun findVar(varNode: Identifier): Offset {
-        return Offset(SpecialReg(SP), varOffsetMap[varNode.name to varNode.scopeId]!! - spOffset)
+        return Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
     }
 
     private fun inScopeDo(action: () -> Unit) {
@@ -224,7 +224,16 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 val op2 = right.toARM()
                 binop(op, op1, op1, op2)
             }
-            is UnaryExpr -> TODO()
+            is UnaryExpr -> when(op) {
+                ORD -> expr.toARM()
+                CHR -> expr.toARM()
+                LEN -> TODO()
+                NEG -> {
+                    val reg = expr.toARM().toReg()
+                    rsbs(reg, reg, ImmNum(0)).also { callPrelude(OVERFLOW_ERROR, VS) }
+                }
+                NOT -> not(expr.toARM().toReg())
+            }
             is ArrayElem -> TODO()
             is PairElem -> TODO()
             is ArrayLiteral -> TODO()
@@ -251,6 +260,11 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         return msgLabel
     }
 
+    private fun callPrelude(func: PreludeFunc, cond: Condition = AL) {
+        requiredPreludeFuncs += func.findDependencies()
+        bl(cond, func.getLabel())
+    }
+
     private fun Expression.weight(): Int {
         return when(this) {
             NullLit -> 1
@@ -275,7 +289,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         currBlockLabel = label
     }
 
-    private fun packBlock(terminator: Terminator) {
+    private fun packBlock(terminator: Terminator = FallThrough) {
         val block = InstructionBlock(currBlockLabel, instructions.toMutableList(), terminator)
         blocks.addLast(block)
         instructions.clear()
@@ -361,8 +375,14 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         instructions += Cmp(op1, op2)
     }
 
-    private fun throwOverflowError() {
-        TODO()
+    private fun not(reg: Register): Register {
+        instructions += Xor(AL, reg, reg, immTrue())
+        return reg
+    }
+
+    private fun rsbs(dst: Register, src: Register, op2: Operand): Register {
+        instructions += Rsb(true, AL, dst, src, op2)
+        return dst
     }
 
     private fun Operand.toReg(): Register = when(this) {
@@ -374,6 +394,26 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             binop(ADD, reg, reg, ImmNum(4));
         }
         else -> mov(this)
+    }
+
+    private fun definePreludes() {
+        for (func in requiredPreludeFuncs) {
+            setBlock(Label(func.name.toLowerCase()))
+            when (func) {
+                OVERFLOW_ERROR -> {
+                    callPrintf(StringLit("OverflowError: " +
+                            "the result is too small/large to store in a 4-byte signed-integer."),
+                            true)
+                    bl(AL, Label(RUNTIME_ERROR.name.toLowerCase()))
+                    packBlock()
+                }
+                RUNTIME_ERROR -> {
+                    mov(Reg(0), ImmNum(-1))
+                    bl(AL, Label("exit"))
+                    packBlock()
+                }
+            }
+        }
     }
 
     private fun callPrintf(expr: Expression, newline: Boolean) {

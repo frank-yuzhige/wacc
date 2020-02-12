@@ -8,6 +8,12 @@ class InstructionBlock(val label: Label,
                        val instructions: List<Instruction>,
                        var terminator: Terminator,
                        val tails: MutableList<Instruction> = mutableListOf()) {
-    override fun toString(): String = "$label:\n" +
-            (instructions + terminator + tails).joinToString("\n").prependIndent()
+    override fun toString(): String {
+        val body = if (terminator == Terminator.FallThrough) {
+            instructions + tails
+        } else {
+            instructions + terminator + tails
+        }
+        return "$label:\n" + body.joinToString("\n").prependIndent()
+    }
 }
