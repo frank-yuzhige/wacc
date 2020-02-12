@@ -51,6 +51,12 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     var currBlockLabel = Label("")
     var currReg: Reg = Reg(4)
 
+    private val dataTypeSizeMap: Map<Type, Int> = mapOf(
+            BaseType(INT) to 4,
+            BaseType(CHAR) to 1,
+            BaseType(BOOL) to 1
+    )
+
     fun printARM(): String = ".data\n\n" +
             StringConst.fromMap(stringConsts).joinToString("\n") + "\n.text\n\n" +
             ".global main\n" +
@@ -206,7 +212,25 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             }
             is ArrayElem -> TODO()
             is PairElem -> TODO()
-            is ArrayLiteral -> TODO()
+            is ArrayLiteral -> {
+                // Malloc the memory for each element in the array
+                val elemSize = dataTypeSizeMap.getValue(elements[0].getType(symbolTable))
+                val totalSize = elements.size * elemSize + 4
+
+                // TODO total size might not be accurate for arrays and pairs
+                val baseAddressReg = callMalloc(totalSize)
+                val tempElemReg = getReg()
+
+                // Store each element in the array
+                elements.forEachIndexed { index, it ->
+                    load(tempElemReg, it.toARM())
+                    store(tempElemReg, Offset(baseAddressReg, (index + 1 ) * elemSize, false))
+                }
+                // Store the size of the array at the end
+                load(AL, tempElemReg, ImmNum(elements.size))
+                store(tempElemReg, Offset(baseAddressReg, 0, false))
+                baseAddressReg
+            }
             is NewPair -> TODO()
             is FunctionCall -> {
                 for (arg in args) {
