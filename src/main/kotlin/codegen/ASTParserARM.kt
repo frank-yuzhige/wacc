@@ -203,7 +203,16 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
                 CHR -> expr.toARM()
-                LEN -> TODO()
+                LEN -> {
+                    when (expr) {
+                        is Identifier -> {
+                            val addressReg = getReg()
+                            load(addressReg, findVar(expr))
+                            load(addressReg, Offset(addressReg, 0, false))
+                        }
+                        else -> TODO()
+                    }
+                }
                 NEG -> {
                     val reg = expr.toARM().toReg()
                     rsbs(reg, reg, ImmNum(0)).also { callPrelude(OVERFLOW_ERROR, VS) }
