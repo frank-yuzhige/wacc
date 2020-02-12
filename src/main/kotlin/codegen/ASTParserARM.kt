@@ -220,6 +220,29 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         }
     }
 
+    /* Define all prelude functions that are used in this code. */
+    private fun definePreludes() {
+        for (func in requiredPreludeFuncs) {
+            setBlock(Label(func.name.toLowerCase()))
+            when (func) {
+                OVERFLOW_ERROR -> {
+                    callPrintf(StringLit("OverflowError: " +
+                            "the result is too small/large to store in a 4-byte signed-integer."),
+                            true)
+                    bl(AL, Label(RUNTIME_ERROR.name.toLowerCase()))
+                    packBlock()
+                }
+                RUNTIME_ERROR -> {
+                    mov(Reg(0), ImmNum(-1))
+                    bl(AL, Label("exit"))
+                    packBlock()
+                }
+            }
+        }
+    }
+
+
+    /* Move the current position of sp by the given offset. */
     private fun moveSP(offset: Int) {
         if (offset < 0) {
             binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
@@ -230,18 +253,37 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         }
     }
 
+    /* Move the content within the given operand to a register.
+    *  If the given operand is already a register, it would do nothing
+    *  In other situations, it would automatically move its content to a reg using either MOV or LDR
+    *  Return the register that stores the value of the operand. */
+    private fun Operand.toReg(): Register = when(this) {
+        is Register -> this
+        is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
+        is Label -> {
+            val reg = getReg()
+            load(reg, this)
+            binop(ADD, reg, reg, ImmNum(4));
+        }
+        else -> mov(this)
+    }
+
+
     /* This method allocates some space on stack for a variable,
-    *  returns the offset from the initial sp */
+    *  returns the offset from the initial sp. */
     private fun alloca(varNode: Identifier, reg: Register? = null) {
         val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
         val dest = Offset(SpecialReg(SP), offset)
         reg?.let { store(reg, dest) }
     }
 
+    /* Find the alloca-ed variable's offset from the current position of the sp
+    *  by the given var node. */
     private fun findVar(varNode: Identifier): Offset {
         return Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
     }
 
+    /* Define a string constant and return its label. */
     private fun defString(content: String): Label {
         val prevDef = stringConsts[content]
         if (prevDef != null) {
@@ -252,6 +294,9 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         return msgLabel
     }
 
+    /* Run the provided action in the context of a new scope.
+    *  The original scope offset is recorded and sp is moved back to it
+    *  after the action is finished. */
     private fun inScopeDo(action: () -> Unit) {
         val prevScopeOffset = currScopeOffset
         action()
@@ -259,35 +304,22 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         currScopeOffset = prevScopeOffset
     }
 
+    /* Call a prelude function. */
     private fun callPrelude(func: PreludeFunc, cond: Condition = AL) {
         requiredPreludeFuncs += func.findDependencies()
         bl(cond, func.getLabel())
     }
 
-    private fun Expression.weight(): Int {
-        return when(this) {
-            NullLit -> 1
-            is IntLit -> 1
-            is BoolLit -> 1
-            is CharLit -> 1
-            is StringLit -> 1
-            is Identifier -> 1
-            is BinExpr -> TODO()
-            is UnaryExpr -> TODO()
-            is ArrayElem -> TODO()
-            is PairElem -> TODO()
-            is ArrayLiteral -> TODO()
-            is NewPair -> TODO()
-            is FunctionCall -> TODO()
-        }
-    }
-
+    /* Get the next avaliable register */
     private fun getReg(): Register = currReg.also { currReg = currReg.next() }
 
+    /* Set the current block's label to the given label.
+    *  Indicates the beginning of a new instruction block. */
     private fun setBlock(label: Label) {
         currBlockLabel = label
     }
 
+    /* Finish building the current block, pack it up and record it. */
     private fun packBlock(terminator: Terminator = FallThrough) {
         val block = InstructionBlock(currBlockLabel, instructions.toMutableList(), terminator)
         blocks.addLast(block)
@@ -295,7 +327,10 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         currBlockLabel = getLabel("${currBlockLabel.name}-seq")
     }
 
+    /* Get a new label based on the given name prefix */
     private fun getLabel(name: String): Label = Label(labelNameTable.getName(name))
+
+    /** Instruction helper methods **/
 
     private fun branch(label: Label) {
         packBlock(B(AL, label))
@@ -402,37 +437,6 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         return dst
     }
 
-    private fun Operand.toReg(): Register = when(this) {
-        is Register -> this
-        is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
-        is Label -> {
-            val reg = getReg()
-            load(reg, this)
-            binop(ADD, reg, reg, ImmNum(4));
-        }
-        else -> mov(this)
-    }
-
-    private fun definePreludes() {
-        for (func in requiredPreludeFuncs) {
-            setBlock(Label(func.name.toLowerCase()))
-            when (func) {
-                OVERFLOW_ERROR -> {
-                    callPrintf(StringLit("OverflowError: " +
-                            "the result is too small/large to store in a 4-byte signed-integer."),
-                            true)
-                    bl(AL, Label(RUNTIME_ERROR.name.toLowerCase()))
-                    packBlock()
-                }
-                RUNTIME_ERROR -> {
-                    mov(Reg(0), ImmNum(-1))
-                    bl(AL, Label("exit"))
-                    packBlock()
-                }
-            }
-        }
-    }
-
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM()
         val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
@@ -454,6 +458,12 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         bl(AL, Label("printf"))
         mov(Reg(0), ImmNum(0))
         bl(AL, Label("fflush"))
+    }
+
+    fun callMalloc(size: Int): Register {
+        mov(Reg(0), ImmNum(size).toReg())
+        bl(AL, Label("malloc"))
+        return mov(getReg(), Reg(0))
     }
 
     fun getFormatString(type: Type, newline: Boolean): String {
