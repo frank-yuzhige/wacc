@@ -15,13 +15,6 @@ NEQ: '!=';
 AND: '&&';
 OR : '||';
 
-//BINOP1: MUL | DIV | MOD;
-//BINOP2: ADD | SUB;
-//BINOP3: LTE | LT  | GTE | GT;
-//BINOP4: EQ  | NEQ;
-//BINOP5: AND | OR;
-// BINOP : ADD | SUB | MUL | DIV | MOD | GTE | GT | LTE | LT | EQ | NEQ | AND | OR;
-
 // unary operators
 NOT: '!';
 LEN: 'len';
@@ -68,11 +61,6 @@ PRINTLN: 'println';
 CALL: 'call';
 PAIR: 'pair';
 
-//TYPE: PAIR_TYPE | ARR_TYPE | BASE_TYPE;
-
-//fragment PAIR_ELEM_TYPE: 'pair' | ARR_TYPE | BASE_TYPE;
-//fragment PAIR_TYPE: 'pair' WS? '(' PAIR_ELEM_TYPE ',' WS? PAIR_ELEM_TYPE ')';
-//fragment ARR_TYPE: BASE_TYPE ('[]')+;
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
 // numbers
