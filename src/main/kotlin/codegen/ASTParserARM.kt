@@ -36,7 +36,6 @@ import utils.LabelNameTable
 import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
-import kotlin.math.exp
 
 class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val labelNameTable = LabelNameTable()
@@ -175,35 +174,6 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         }
     }
 
-    private fun moveSP(offset: Int) {
-        if (offset < 0) {
-            binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
-            spOffset -= offset
-        } else if (offset > 0) {
-            binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
-            spOffset -= offset
-        }
-    }
-
-    /* This method allocates some space on stack for a variable,
-    *  returns the offset from the initial sp */
-    private fun alloca(varNode: Identifier, reg: Register? = null) {
-        val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
-        val dest = Offset(SpecialReg(SP), offset)
-        reg?.let { store(reg, dest) }
-    }
-
-    private fun findVar(varNode: Identifier): Offset {
-        return Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
-    }
-
-    private fun inScopeDo(action: () -> Unit) {
-        val prevScopeOffset = currScopeOffset
-        action()
-        moveSP(currScopeOffset)
-        currScopeOffset = prevScopeOffset
-    }
-
     private fun Expression.toARM(): Operand {
         return when(this) {
             NullLit   -> immNull()
@@ -222,7 +192,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
-                binop(op, op1, op1, op2)
+                binop(op, op1, op1, op2).also {  }
             }
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
@@ -250,6 +220,28 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         }
     }
 
+    private fun moveSP(offset: Int) {
+        if (offset < 0) {
+            binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
+            spOffset -= offset
+        } else if (offset > 0) {
+            binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
+            spOffset -= offset
+        }
+    }
+
+    /* This method allocates some space on stack for a variable,
+    *  returns the offset from the initial sp */
+    private fun alloca(varNode: Identifier, reg: Register? = null) {
+        val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
+        val dest = Offset(SpecialReg(SP), offset)
+        reg?.let { store(reg, dest) }
+    }
+
+    private fun findVar(varNode: Identifier): Offset {
+        return Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
+    }
+
     private fun defString(content: String): Label {
         val prevDef = stringConsts[content]
         if (prevDef != null) {
@@ -258,6 +250,13 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         val msgLabel = getLabel("msg")
         stringConsts[content] = msgLabel
         return msgLabel
+    }
+
+    private fun inScopeDo(action: () -> Unit) {
+        val prevScopeOffset = currScopeOffset
+        action()
+        moveSP(currScopeOffset)
+        currScopeOffset = prevScopeOffset
     }
 
     private fun callPrelude(func: PreludeFunc, cond: Condition = AL) {
@@ -352,22 +351,40 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     private fun binop(opType: BinaryOperator, dst: Register, rn: Register, op2: Operand): Register {
-        val instr = when (opType) {
-            ADD -> Add(AL, dst, rn, op2)
-            SUB -> Sub(AL, dst, rn, op2)
-            MUL -> Mul(AL, dst, rn, op2.toReg())
+        val instrs = when (opType) {
+            ADD -> listOf(Add(AL, dst, rn, op2))
+            SUB -> listOf(Sub(AL, dst, rn, op2))
+            MUL -> listOf(Mul(AL, dst, rn, op2.toReg()))
             DIV -> TODO()
             MOD -> TODO()
-            GTE -> TODO()
-            LTE -> TODO()
-            GT -> TODO()
-            LT -> TODO()
-            EQ -> TODO()
-            NEQ -> TODO()
-            AND -> TODO()
-            OR -> TODO()
+            GTE -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.GE, dst, immTrue()),
+                    Mov(Condition.LT, dst, immFalse()))
+            LTE -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.LE, dst, immTrue()),
+                    Mov(Condition.GT, dst, immFalse()))
+            GT -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.GT, dst, immTrue()),
+                    Mov(Condition.LE, dst, immFalse()))
+            LT -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.LT, dst, immTrue()),
+                    Mov(Condition.GE, dst, immFalse()))
+            EQ -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.EQ, dst, immTrue()),
+                    Mov(Condition.NE, dst, immFalse()))
+            NEQ -> listOf(
+                    Cmp(rn, op2),
+                    Mov(Condition.NE, dst, immTrue()),
+                    Mov(Condition.EQ, dst, immFalse()))
+            AND ->  listOf(And(AL, dst, rn, op2))
+            OR ->   listOf(Orr(AL, dst, rn, op2))
         }
-        instructions += instr
+        instructions += instrs
         return dst
     }
 
@@ -464,8 +481,8 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is CharLit -> charType()
             is StringLit -> stringType()
             is Identifier -> map[getVarSID()]!!.type
-            is BinExpr -> TODO()
-            is UnaryExpr -> TODO()
+            is BinExpr -> op.retType
+            is UnaryExpr -> op.retType
             is ArrayElem -> TODO()
             is PairElem -> TODO()
             is ArrayLiteral -> TODO()

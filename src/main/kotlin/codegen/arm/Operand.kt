@@ -33,11 +33,6 @@ sealed class Operand {
         override fun toString(): String = name
         override fun inLDR(): String = "=$name"
     }
-//    data class AbsString(val value: String): Operand() {
-//        override fun toString(): String {
-//            return
-//        }
-//    }
 
     data class Offset(val src: Register, val offset: Int, val wb: Boolean = false): Operand() {
         override fun toString(): String {

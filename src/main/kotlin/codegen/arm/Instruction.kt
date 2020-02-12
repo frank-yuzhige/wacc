@@ -35,13 +35,13 @@ sealed class Instruction {
         override fun toString(): String = "MOV$cond $dest, ${opr.inMOV()}"
     }
     data class And(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "AND$cond $dest, ${opr.inMOV()}"
+        override fun toString(): String = "AND$cond $dest, $rn, ${opr.inMOV()}"
+    }
+    data class Orr(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "ORR$cond $dest, $rn, ${opr.inMOV()}"
     }
     data class Xor(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "XOR$cond $dest, $opr"
-    }
-    data class Or(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "OR$cond $dest, $opr"
+        override fun toString(): String = "XOR$cond $dest, ${opr.inMOV()}"
     }
 
     sealed class Terminator: Instruction() {
