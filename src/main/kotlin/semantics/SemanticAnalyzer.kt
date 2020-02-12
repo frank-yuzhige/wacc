@@ -334,5 +334,54 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
+    fun Expression.getType(symbolTable: SymbolTable): Type = when (this) {
+        is NullLit -> anyPairType()
+        is IntLit -> Type.BaseType(Type.BaseTypeKind.INT)
+        is BoolLit -> Type.BaseType(Type.BaseTypeKind.BOOL)
+        is CharLit -> Type.BaseType(Type.BaseTypeKind.CHAR)
+        is StringLit -> Type.BaseType(Type.BaseTypeKind.STRING)
+        is Identifier -> symbolTable.lookupVar(name)?.type
+                ?: throw SemanticException.UndefinedVarException(name)
+        is BinExpr -> op.retType
+        is UnaryExpr -> op.retType
+        is ArrayElem -> {
+            val type= symbolTable.lookupVar(arrIdent.name)?.type
+                    ?: throw SemanticException.UndefinedVarException(arrIdent.name)
+
+            type.unwrapArrayType(indices.size)
+                    ?: throw SemanticException.NotEnoughArrayRankException(arrIdent.name)
+        }
+        is PairElem -> {
+            val exprType = expr.getType(symbolTable)
+            when (exprType) {
+                is Type.PairType -> when (func) {
+                    FST -> exprType.firstElemType
+                    SND -> exprType.secondElemType
+                }
+                else -> throw SemanticException.TypeMismatchException(anyPairType(), exprType)
+            }
+        }
+        is ArrayLiteral -> {
+            if (elements.isEmpty()) {
+                Type.ArrayType(Type.BaseType(Type.BaseTypeKind.ANY))
+            } else {
+                val fstType = elements[0].getType(symbolTable)
+                for (expr in elements.drop(1)) {
+                    val sndType = expr.getType(symbolTable)
+                    if (sndType != fstType) {
+                        throw SemanticException.TypeMismatchException(fstType, sndType)
+                    }
+                }
+                fstType
+            }
+        }
+        is NewPair -> {
+            Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
+        }
+        is FunctionCall -> {
+            symbolTable.lookupFunc(ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(ident)
+        }
+    }
+
 }
 

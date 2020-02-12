@@ -9,6 +9,11 @@ import ast.Statement.*
 import ast.Statement.BuiltinFunc.RETURN
 import ast.Type.BaseType
 import ast.Type.BaseTypeKind.*
+import ast.Type.Companion.anyPairType
+import ast.Type.Companion.boolType
+import ast.Type.Companion.charType
+import ast.Type.Companion.intType
+import ast.Type.Companion.stringType
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
@@ -23,14 +28,15 @@ import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
 import utils.LabelNameTable
 import utils.SymbolTable
+import utils.VarWithSID
 import java.util.*
 
 class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val labelNameTable = LabelNameTable()
-    val stringConsts: MutableList<StringConst> = mutableListOf()
+    val stringConsts: MutableMap<String, Label> = mutableMapOf()
     val blocks: Deque<InstructionBlock> = ArrayDeque()
     val instructions: MutableList<Instruction> = mutableListOf()
-    val varOffsetMap = mutableMapOf<Pair<String, Int>, Int>()
+    val varOffsetMap = mutableMapOf<VarWithSID, Int>()
     val firstDefReachedScopes = mutableSetOf<Int>()
     var spOffset = 0           // current stack-pointer offset (in negative form)
     var currScopeOffset = 0    // pre-allocated scope offset for variables
@@ -38,7 +44,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     var currBlockLabel = Label("")
     var currReg: Reg = Reg(0)
 
-    fun printARM(): String = ".text" + stringConsts.joinToString("\n").prependIndent() + "\n" +
+    fun printARM(): String = ".text" + StringConst.fromMap(stringConsts).joinToString("\n").prependIndent() + "\n" +
             ".global main\n" +
             blocks.joinToString("\n")
 
@@ -185,7 +191,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     /* This method allocates some space on stack for a variable,
     *  returns the offset from the initial sp */
     private fun alloca(varNode: Identifier, reg: Register? = null) {
-        val offset = spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!
+        val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
         val dest = Offset(SpecialReg(SP), offset)
         reg?.let { store(reg, dest) }
     }
@@ -239,8 +245,12 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     private fun defString(content: String): Label {
+        val prevDef = stringConsts[content]
+        if (prevDef != null) {
+            return prevDef
+        }
         val msgLabel = getLabel("msg")
-        stringConsts += StringConst(msgLabel, content)
+        stringConsts[content] = msgLabel
         return msgLabel
     }
 
@@ -361,7 +371,48 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
         else -> mov(this)
     }
+
+    fun callPrintf(expression: Expression, newline: Boolean) {
+
+    }
+
+    fun getFormatString(type: Type, newline: Boolean): String {
+        val format = when(type) {
+            is BaseType -> when(type.kind) {
+                INT -> "%d"
+                CHAR -> "%c"
+                BOOL -> "%s"
+                STRING -> "%s"
+                else -> "%p"
+            }
+            is Type.ArrayType -> if (type.type == charType()) "%s" else "%p"
+            is Type.PairType -> "%p"
+            is Type.FuncType -> "%p"
+        }
+        return format + if (newline) "\n" else ""
+    }
+
+    private fun Expression.getType(symbolTable: SymbolTable): Type {
+        val map = symbolTable.collect
+        return when (this) {
+            NullLit -> anyPairType()
+            is IntLit -> intType()
+            is BoolLit -> boolType()
+            is CharLit -> charType()
+            is StringLit -> stringType()
+            is Identifier -> map[getVarSID()]!!.type
+            is BinExpr -> TODO()
+            is UnaryExpr -> TODO()
+            is ArrayElem -> TODO()
+            is PairElem -> TODO()
+            is ArrayLiteral -> TODO()
+            is NewPair -> TODO()
+            is FunctionCall -> TODO()
+        }
+    }
 }
+
+
 
 
 

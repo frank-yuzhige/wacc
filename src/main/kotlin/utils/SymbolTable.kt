@@ -9,7 +9,7 @@ class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
     val functions: MutableMap<String, FuncAttributes> = hashMapOf()
-    val collect: MutableMap<Pair<String, Int>, VarAttributes> = hashMapOf()
+    val collect: MutableMap<VarWithSID, VarAttributes> = hashMapOf()
     val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
     private var scopeIdGen = 0
 
