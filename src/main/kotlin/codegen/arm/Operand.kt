@@ -31,6 +31,7 @@ sealed class Operand {
     }
     data class Label(val name: String): Operand() {
         override fun toString(): String = name
+        override fun inLDR(): String = "=$name"
     }
 //    data class AbsString(val value: String): Operand() {
 //        override fun toString(): String {

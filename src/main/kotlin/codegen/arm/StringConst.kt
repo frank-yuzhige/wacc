@@ -12,11 +12,7 @@ class StringConst(val label: Label, val content: String) {
     }
 
     override fun toString(): String {
-        return """
-            ${label.name}
-                .word ${content.length}
-                .ascii "$content"
-        """.trimIndent()
+        return "${label.name}:\n    .word ${content.length}\n    .ascii \"$content\\0\""
     }
 
 }

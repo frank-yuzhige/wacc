@@ -3,6 +3,9 @@ package codegen
 import ast.*
 import ast.BinaryOperator.*
 import ast.BinaryOperator.DIV
+import ast.BinaryOperator.EQ
+import ast.BinaryOperator.GT
+import ast.BinaryOperator.LT
 import ast.BinaryOperator.MUL
 import ast.Expression.*
 import ast.Statement.*
@@ -17,7 +20,7 @@ import ast.Type.Companion.stringType
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
-import codegen.arm.Instruction.Condition.AL
+import codegen.arm.Instruction.Condition.*
 import codegen.arm.Instruction.Terminator.*
 import codegen.arm.Operand.*
 import codegen.arm.Operand.ImmNum.Companion.immFalse
@@ -26,6 +29,7 @@ import codegen.arm.Operand.ImmNum.Companion.immTrue
 import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
+import jdk.nashorn.internal.runtime.regexp.joni.constants.StringType
 import utils.LabelNameTable
 import utils.SymbolTable
 import utils.VarWithSID
@@ -42,9 +46,10 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     var currScopeOffset = 0    // pre-allocated scope offset for variables
 
     var currBlockLabel = Label("")
-    var currReg: Reg = Reg(0)
+    var currReg: Reg = Reg(4)
 
-    fun printARM(): String = ".text" + StringConst.fromMap(stringConsts).joinToString("\n").prependIndent() + "\n" +
+    fun printARM(): String = ".data\n\n" +
+            StringConst.fromMap(stringConsts).joinToString("\n") + "\n.text\n\n" +
             ".global main\n" +
             blocks.joinToString("\n")
 
@@ -99,34 +104,26 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             }
 
             is BuiltinFuncCall -> {
-                val reg = expr.toARM()
+
                 when(func) {
                     RETURN -> {
+                        val reg = expr.toARM()
                         moveSP(spOffset)
                         mov(Reg(0), reg)
                         pop(SpecialReg(PC))
                     }
                     BuiltinFunc.FREE -> TODO()
                     BuiltinFunc.EXIT -> {
+                        val reg = expr.toARM()
                         mov(Reg(0), reg)
                         bl(AL, Label("exit"))
                     }
                     BuiltinFunc.PRINT -> {
-                        mov(Reg(0), expr.toARM())
-                        val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
-                        if (exprType == BaseType(CHAR)) {
-                            bl(AL, Label("putchar"))
-                        } else {
-                            val typeLabel = when (exprType) {
-                                BaseType(INT) -> "int"
-                                BaseType(BOOL) -> "bool"
-                                BaseType(STRING) -> "string"
-                                else -> "reference"
-                            }
-                            bl(AL, Label("p_print_$typeLabel"))
-                        }
+                        callPrintf(expr, false)
                     }
-                    BuiltinFunc.PRINTLN -> TODO()
+                    BuiltinFunc.PRINTLN -> {
+                        callPrintf(expr, true)
+                    }
                 }
             }
 
@@ -299,10 +296,12 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         instructions += BL(cond, label)
     }
 
-    private fun load(dst: Register, src: Operand): Register {
-        instructions += Ldr(AL, dst, src)
+    private fun load(cond: Condition, dst: Register, src: Operand): Register {
+        instructions += Ldr(cond, dst, src)
         return dst
     }
+
+    private fun load(dst: Register, src: Operand): Register = load(AL, dst, src)
 
     private fun store(src: Register, dst: Operand): Operand {
         instructions += Str(AL, src, dst)
@@ -369,11 +368,35 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     private fun Operand.toReg(): Register = when(this) {
         is Register -> this
         is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
+        is Label -> {
+            val reg = getReg()
+            load(reg, this)
+            binop(ADD, reg, reg, ImmNum(4));
+        }
         else -> mov(this)
     }
 
-    fun callPrintf(expression: Expression, newline: Boolean) {
-
+    private fun callPrintf(expr: Expression, newline: Boolean) {
+        val operand = expr.toARM()
+        val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
+        when(exprType) {
+            boolType() -> {
+                cmp(operand.toReg(), immFalse())
+                load(NE, Reg(1), defString("true"))
+                load(Condition.EQ, Reg(1), defString("false"))
+                binop(ADD, Reg(1), Reg(1), ImmNum(4))
+                load(Reg(0), defString(getFormatString(exprType, newline)))
+                binop(ADD, Reg(0), Reg(0), ImmNum(4))
+            }
+            else -> {
+                mov(Reg(1), operand.toReg())
+                load(Reg(0), defString(getFormatString(exprType, newline)))
+                binop(ADD, Reg(0), Reg(0), ImmNum(4))
+            }
+        }
+        bl(AL, Label("printf"))
+        mov(Reg(0), ImmNum(0))
+        bl(AL, Label("fflush"))
     }
 
     fun getFormatString(type: Type, newline: Boolean): String {
@@ -389,7 +412,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is Type.PairType -> "%p"
             is Type.FuncType -> "%p"
         }
-        return format + if (newline) "\n" else ""
+        return format + if (newline) "\\n\u0000" else "\u0000"
     }
 
     private fun Expression.getType(symbolTable: SymbolTable): Type {

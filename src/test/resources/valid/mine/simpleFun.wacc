@@ -1,10 +1,6 @@
 begin
-
-int x = 0;
-begin
-    int k = 100
-end;
-int y = 1;
-int z = 2
-
+println "Hello world";
+println true;
+println 1;
+println 'c'
 end
