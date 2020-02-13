@@ -18,8 +18,7 @@ import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.stringType
 import ast.UnaryOperator.*
-import codegen.PreludeFunc.OVERFLOW_ERROR
-import codegen.PreludeFunc.RUNTIME_ERROR
+import codegen.PreludeFunc.*
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
@@ -43,19 +42,26 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     val blocks: Deque<InstructionBlock> = ArrayDeque()
     val instructions: MutableList<Instruction> = mutableListOf()
     val varOffsetMap = mutableMapOf<VarWithSID, Int>()
+    val funcLabelMap = mutableMapOf<String, Label>()
     val firstDefReachedScopes = mutableSetOf<Int>()
     var spOffset = 0           // current stack-pointer offset (in negative form)
     var currScopeOffset = 0    // pre-allocated scope offset for variables
     val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
 
-    var currBlockLabel = Label("")
-    var currReg: Reg = Reg(4)
+    val availableRegIds = TreeSet<Int>()
 
-    private val dataTypeSizeMap: Map<Type, Int> = mapOf(
-            BaseType(INT) to 4,
-            BaseType(CHAR) to 1,
-            BaseType(BOOL) to 1
-    )
+    var currBlockLabel = Label("")
+
+    private fun getDataTypeSize(type: Type): Int = when(type) {
+        charType() -> 1
+        boolType() -> 1
+        else -> 4
+    }
+
+    private fun resetRegs() {
+        availableRegIds.clear()
+        availableRegIds += (4..36)
+    }
 
     fun printARM(): String = ".data\n\n" +
             StringConst.fromMap(stringConsts).joinToString("\n") + "\n.text\n\n" +
@@ -65,19 +71,23 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     fun translate(): ASTParserARM = this.also { ast.toARM() }
 
     private fun ProgramAST.toARM() {
+        funcLabelMap += "main" to Label("main")
+        functions.map { funcLabelMap += it.name to getLabel(it.name) }
         Function(Type.intType(),
                 "main",
                 mutableListOf(),
                 mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
-        ).toARM { Label("main") }
+        ).toARM()
         functions.map { it.toARM() }
         definePreludes()
     }
 
-    private fun ast.Function.toARM(labelBuilder: (String) -> Label = { getLabel(it) }) {
+    private fun ast.Function.toARM() {
+        resetRegs()
         spOffset = 0
+        args.firstOrNull()?.let { scopeEnterDef(it.second) }
         args.map { alloca(it.second) }
-        setBlock(labelBuilder(name))
+        setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
         body.map { it.toARM() }
         addDirective(LTORG)
@@ -87,15 +97,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         when(this) {
             is Skip -> Skip
             is Declaration -> {
-                if (variable.scopeId !in firstDefReachedScopes) {
-                    val defs = symbolTable.scopeDefs[variable.scopeId]!!
-                    currScopeOffset = 4 * defs.size
-                    defs.withIndex().forEach { (i, v) ->
-                        varOffsetMap[v to variable.scopeId] = spOffset + (i + 1) * 4
-                    }
-                    moveSP(-currScopeOffset)
-                    firstDefReachedScopes += variable.scopeId
-                }
+                scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
                 alloca(variable, reg)
             }
@@ -140,8 +142,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 val ifthen = getLabel("if_then")
                 val ifelse = getLabel("if_else")
                 val ifend  = getLabel("if_end")
-                expr.toARM()
-                val cond = currReg
+                val cond = expr.toARM().toReg()
                 cmp(cond, immFalse())
                 branch(Condition.EQ, ifelse)
 
@@ -163,8 +164,9 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 branch(lCheck)
 
                 setBlock(lCheck)
-                val cond = expr.toARM()
-                cmp(cond.toReg(), immFalse())
+                val cond = expr.toARM().toReg()
+                cmp(cond, immFalse())
+                cond.recycleReg()
                 branch(lEnd)
 
                 setBlock(lBody)
@@ -177,6 +179,18 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             }
 
             is Block -> inScopeDo { body.map { it.toARM() } }
+        }
+    }
+
+    private fun scopeEnterDef(variable: Identifier) {
+        if (variable.scopeId !in firstDefReachedScopes) {
+            val defs = symbolTable.scopeDefs[variable.scopeId]!!
+            currScopeOffset = 4 * defs.size
+            defs.withIndex().forEach { (i, v) ->
+                varOffsetMap[v to variable.scopeId] = spOffset + (i + 1) * 4
+            }
+            moveSP(-currScopeOffset)
+            firstDefReachedScopes += variable.scopeId
         }
     }
 
@@ -198,82 +212,111 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
-                binop(op, op1, op1, op2).also {  }
+                binop(op, op1, op1, op2)
             }
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
                 CHR -> expr.toARM()
-                LEN -> {
-                    when (expr) {
-                        is Identifier -> {
-                            val addressReg = getReg()
-                            load(addressReg, findVar(expr))
-                            load(addressReg, Offset(addressReg, 0, false))
-                        }
-                        else -> TODO()
-                    }
-                }
+                LEN -> load(getReg(), Offset(expr.toARM().toReg(), 0, false))
                 NEG -> {
                     val reg = expr.toARM().toReg()
                     rsbs(reg, reg, ImmNum(0)).also { callPrelude(OVERFLOW_ERROR, VS) }
                 }
                 NOT -> not(expr.toARM().toReg())
             }
-            is ArrayElem -> TODO()
+            is ArrayElem -> {
+                var result = load(getReg(), findVar(arrIdent))
+                for (expr in indices) {
+                    val indexReg = expr.toARM().toReg()
+                    callCheckArrBound(indexReg, result)
+                    val offset = binop(MUL, indexReg, indexReg, ImmNum(4))
+                    result = binop(ADD, result, result, offset)
+                    load(result, Offset(result, 4))
+                }
+                result
+            }
             is PairElem -> TODO()
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = dataTypeSizeMap.getValue(elements[0].getType(symbolTable))
+                val elemSize = getDataTypeSize(elements[0].getType(symbolTable))
                 val totalSize = elements.size * elemSize + 4
 
-                // TODO total size might not be accurate for arrays and pairs
                 val baseAddressReg = callMalloc(totalSize)
-                val tempElemReg = getReg()
 
                 // Store each element in the array
                 elements.forEachIndexed { index, it ->
-                    load(tempElemReg, it.toARM())
-                    store(tempElemReg, Offset(baseAddressReg, (index + 1 ) * elemSize, false))
+                    val tempElemReg = it.toARM().toReg()
+                    store(tempElemReg, Offset(baseAddressReg, (index + 1) * elemSize, false))
+                    tempElemReg.recycleReg()
                 }
                 // Store the size of the array at the end
+                val tempElemReg = getReg()
                 load(AL, tempElemReg, ImmNum(elements.size))
                 store(tempElemReg, Offset(baseAddressReg, 0, false))
+                tempElemReg.recycleReg()
                 baseAddressReg
             }
             is NewPair -> TODO()
             is FunctionCall -> {
                 for (arg in args) {
                     val reg = arg.toARM().toReg()
-                    store(reg, Offset(SpecialReg(SP), 4, true))
+                    store(reg, Offset(SpecialReg(SP), -4, true))
+                    reg.recycleReg()
                 }
-                bl(AL, Label(ident))
-                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size))
+                bl(AL, funcLabelMap.getValue(ident))
+                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size * 4))
                 Reg(0)
             }
         }
     }
 
+    private fun callCheckArrBound(expected: Operand, arrayPtr: Register) {
+        mov(Reg(0), expected.toReg())
+        mov(Reg(1), arrayPtr)
+        callPrelude(CHECK_ARR_BOUND)
+    }
+
     /* Define all prelude functions that are used in this code. */
     private fun definePreludes() {
         for (func in requiredPreludeFuncs) {
+            resetRegs()
             setBlock(Label(func.name.toLowerCase()))
             when (func) {
-                OVERFLOW_ERROR -> {
-                    callPrintf(StringLit("OverflowError: " +
-                            "the result is too small/large to store in a 4-byte signed-integer."),
-                            true)
-                    bl(AL, Label(RUNTIME_ERROR.name.toLowerCase()))
-                    packBlock()
-                }
                 RUNTIME_ERROR -> {
                     mov(Reg(0), ImmNum(-1))
                     bl(AL, Label("exit"))
                     packBlock()
                 }
+                OVERFLOW_ERROR -> {
+                    callPrintf(StringLit("OverflowError: " +
+                            "the result is too small/large to store in a 4-byte signed-integer."),
+                            true)
+                    bl(AL, RUNTIME_ERROR.getLabel())
+                    packBlock()
+                }
+                CHECK_ARR_BOUND -> {
+                    val label1 = getLabel("check_too_large")
+                    val label2 = getLabel("check_finish")
+                    push(SpecialReg(LR))
+                    cmp(Reg(0), ImmNum(0))
+                    branch(Condition.GE, label1)
+                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: negative index"),
+                            true)
+                    bl(AL, RUNTIME_ERROR.getLabel())
+                    packBlock()
+                    setBlock(label1)
+                    load(Reg(1), Offset(Reg(1), 0))
+                    cmp(Reg(0), Reg(1))
+                    branch(Condition.LT, label2)
+                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
+                    bl(AL, RUNTIME_ERROR.getLabel())
+                    packBlock()
+                    setBlock(label2)
+                    pop(SpecialReg(PC))
+                }
             }
         }
     }
-
 
     /* Move the current position of sp by the given offset. */
     private fun moveSP(offset: Int) {
@@ -344,7 +387,15 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     /* Get the next avaliable register */
-    private fun getReg(): Register = currReg.also { currReg = currReg.next() }
+    private fun getReg(): Register = Reg(availableRegIds.pollFirst()!!)
+
+    private fun Register.recycleReg() {
+        if (this is Reg) {
+            availableRegIds += id
+        } else {
+            throw IllegalArgumentException("$this is not a recyclable register!")
+        }
+    }
 
     /* Set the current block's label to the given label.
     *  Indicates the beginning of a new instruction block. */
@@ -357,7 +408,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         val block = InstructionBlock(currBlockLabel, instructions.toMutableList(), terminator)
         blocks.addLast(block)
         instructions.clear()
-        currBlockLabel = getLabel("${currBlockLabel.name}-seq")
+        currBlockLabel = getLabel("${currBlockLabel.name}_seq")
     }
 
     /* Get a new label based on the given name prefix */
@@ -378,7 +429,11 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     private fun load(cond: Condition, dst: Register, src: Operand): Register {
-        instructions += Ldr(cond, dst, src)
+        instructions += if (src is ImmNum && src.num in 0..255) {
+            Mov(cond, dst, src)
+        } else {
+            Ldr(cond, dst, src)
+        }
         return dst
     }
 
@@ -390,9 +445,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     private fun mov(src: Operand): Register{
-        val reg = currReg
-        currReg = currReg.next()
-        return mov(reg, src)
+        return mov(getReg(), src)
     }
 
     private fun mov(dst: Register, src: Operand): Register {
@@ -422,7 +475,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         val instrs = when (opType) {
             ADD -> listOf(Add(AL, dst, rn, op2))
             SUB -> listOf(Sub(AL, dst, rn, op2))
-            MUL -> listOf(Mul(AL, dst, rn, op2.toReg()))
+            MUL -> listOf(Mul(AL, dst, rn, op2.toReg().also { it.recycleReg() }))
             DIV -> TODO()
             MOD -> TODO()
             GTE -> listOf(
@@ -494,9 +547,10 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     }
 
     fun callMalloc(size: Int): Register {
-        mov(Reg(0), ImmNum(size).toReg())
+        val target = ImmNum(size).toReg()
+        mov(Reg(0), target)
         bl(AL, Label("malloc"))
-        return mov(getReg(), Reg(0))
+        return mov(target, Reg(0))
     }
 
     fun getFormatString(type: Type, newline: Boolean): String {
@@ -526,7 +580,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is Identifier -> map[getVarSID()]!!.type
             is BinExpr -> op.retType
             is UnaryExpr -> op.retType
-            is ArrayElem -> TODO()
+            is ArrayElem -> map[arrIdent.getVarSID()]!!.type.unwrapArrayType(indices.size)!!
             is PairElem -> TODO()
             is ArrayLiteral -> TODO()
             is NewPair -> TODO()

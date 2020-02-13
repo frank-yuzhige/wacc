@@ -96,7 +96,8 @@ sealed class Instruction {
         GE,
         LT,
         LE,
-        VS
+        VS,
+        CS
     }
 
 
