@@ -85,10 +85,10 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     private fun ast.Function.toARM() {
         resetRegs()
         spOffset = 0
+        push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second) }
         args.map { alloca(it.second) }
         setBlock(funcLabelMap.getValue(name))
-        push(SpecialReg(LR))
         body.map { it.toARM() }
         addDirective(LTORG)
     }
