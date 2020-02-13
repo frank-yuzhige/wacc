@@ -36,19 +36,19 @@ import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
 
-class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
-    val labelNameTable = LabelNameTable()
-    val stringConsts: MutableMap<String, Label> = mutableMapOf()
-    val blocks: Deque<InstructionBlock> = ArrayDeque()
-    val instructions: MutableList<Instruction> = mutableListOf()
-    val varOffsetMap = mutableMapOf<VarWithSID, Int>()
-    val funcLabelMap = mutableMapOf<String, Label>()
-    val firstDefReachedScopes = mutableSetOf<Int>()
+class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
+    private val labelNameTable = LabelNameTable()
+    private val stringConsts: MutableMap<String, Label> = mutableMapOf()
+    private val blocks: Deque<InstructionBlock> = ArrayDeque()
+    private val instructions: MutableList<Instruction> = mutableListOf()
+    private val varOffsetMap = mutableMapOf<VarWithSID, Int>()
+    private val funcLabelMap = mutableMapOf<String, Label>()
+    private val firstDefReachedScopes = mutableSetOf<Int>()
     var spOffset = 0           // current stack-pointer offset (in negative form)
     var currScopeOffset = 0    // pre-allocated scope offset for variables
-    val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
+    private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
 
-    val availableRegIds = TreeSet<Int>()
+    private val availableRegIds = TreeSet<Int>()
 
     var currBlockLabel = Label("")
 
@@ -551,14 +551,14 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
         bl(AL, Label("fflush"))
     }
 
-    fun callMalloc(size: Int): Register {
+    private fun callMalloc(size: Int): Register {
         val target = ImmNum(size).toReg()
         mov(Reg(0), target)
         bl(AL, Label("malloc"))
         return mov(target, Reg(0))
     }
 
-    fun getFormatString(type: Type, newline: Boolean): String {
+    private fun getFormatString(type: Type, newline: Boolean): String {
         val format = when(type) {
             is BaseType -> when(type.kind) {
                 INT -> "%d"
@@ -571,7 +571,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is Type.PairType -> "%p"
             is Type.FuncType -> "%p"
         }
-        return format + if (newline) "\\n\u0000" else "\u0000"
+        return format + if (newline) "\\n\\0" else "\\0"
     }
 
     private fun Expression.getType(symbolTable: SymbolTable): Type {
