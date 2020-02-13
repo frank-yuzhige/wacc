@@ -53,7 +53,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     var currBlockLabel = Label("")
 
-    private fun getDataTypeSize(type: Type): Int = when(type) {
+    private fun sizeof(type: Type): Int = when(type) {
         charType() -> 1
         boolType() -> 1
         else -> 4
@@ -112,7 +112,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                         val rhsReg = rhs.toARM().toReg()
                         load(AL, rhsReg, Offset(rhsReg, 0))
                         val lhsReg = lhs.toARM().toReg()
-                        store(rhsReg, Offset(lhsReg, 0))
+                        store(rhsReg, lhsReg)
 
                         rhsReg.recycleReg()
                         lhsReg.recycleReg()
@@ -149,12 +149,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                         mov(Reg(0), reg)
                         bl(AL, Label("exit"))
                     }
-                    PRINT -> {
-                        callPrintf(expr, false)
-                    }
-                    PRINTLN -> {
-                        callPrintf(expr, true)
-                    }
+                    PRINT -> callPrintf(expr, false)
+                    PRINTLN -> callPrintf(expr, true)
                 }
             }
 
@@ -251,7 +247,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg,
-                            ImmNum(getDataTypeSize(arrIdent.getType(symbolTable).unwrapArrayType()!!)))
+                            ImmNum(sizeof(arrIdent.getType(symbolTable).unwrapArrayType()!!)))
                     result = binop(ADD, result, result, offset)
                     load(result, Offset(result, 4))
                 }
@@ -260,10 +256,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is PairElem -> TODO()
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = getDataTypeSize(elements[0].getType(symbolTable))
+                val elemSize = sizeof(elements[0].getType(symbolTable))
                 val totalSize = elements.size * elemSize + 4
 
-                val baseAddressReg = callMalloc(totalSize)
+                val baseAddressReg = mov(getReg(), callMalloc(totalSize))
 
                 // Store each element in the array
                 elements.forEachIndexed { index, it ->
@@ -278,7 +274,19 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 tempElemReg.recycleReg()
                 baseAddressReg
             }
-            is NewPair -> TODO()
+            is NewPair -> {
+                val pairAddr = mov(getReg(), callMalloc(8))
+                callMalloc(sizeof(first.getType(symbolTable)))
+                val fst = first.toARM().toReg()
+                store(fst, Reg(0))
+                store(Reg(0), pairAddr)
+                fst.recycleReg()
+                callMalloc(sizeof(second.getType(symbolTable)))
+                val snd = second.toARM().toReg()
+                store(snd, Reg(0))
+                store(Reg(0), Offset(pairAddr, 4))
+                pairAddr
+            }
             is FunctionCall -> {
                 for (arg in args) {
                     val reg = arg.toARM().toReg()
@@ -290,12 +298,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 Reg(0)
             }
         }
-    }
-
-    private fun callCheckArrBound(expected: Operand, arrayPtr: Register) {
-        mov(Reg(0), expected.toReg())
-        mov(Reg(1), arrayPtr)
-        callPrelude(CHECK_ARR_BOUND)
     }
 
     /* Define all prelude functions that are used in this code. */
@@ -320,7 +322,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     val label2 = getLabel("check_finish")
                     push(SpecialReg(LR))
                     cmp(Reg(0), ImmNum(0))
-                    branch(Condition.GE, label1)
+                    branch(GE, label1)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: negative index"),
                             true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
@@ -338,10 +340,29 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     val notNullLabel = getLabel("free_not_null")
                     push(SpecialReg(LR))
                     cmp(Reg(0), immNull())
-                    branch(Condition.NE, notNullLabel)
+                    branch(NE, notNullLabel)
+                    callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
+                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
+
+                    setBlock(notNullLabel)
+                    bl(AL, Label("free"))
+                    pop(SpecialReg(PC))
+                }
+                FREE_PAIR -> {
+                    val notNullLabel = getLabel("free_not_null")
+                    push(SpecialReg(LR))
+                    cmp(Reg(0), immNull())
+                    branch(NE, notNullLabel)
                     callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(notNullLabel)
+                    push(Reg(0))
+                    load(Reg(0), Offset(Reg(0), 0))
+                    bl(AL, Label("free"))
+                    load(Reg(0), Offset(SpecialReg(SP), 0))
+                    load(Reg(0), Offset(Reg(0), 4))
+                    bl(AL, Label("free"))
+                    pop(Reg(0))
                     bl(AL, Label("free"))
                     pop(SpecialReg(PC))
                 }
@@ -412,12 +433,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         currScopeOffset = prevScopeOffset
     }
 
-    /* Call a prelude function. */
-    private fun callPrelude(func: PreludeFunc, cond: Condition = AL) {
-        requiredPreludeFuncs += func.findDependencies()
-        bl(cond, func.getLabel())
-    }
-
     /* Get the next avaliable register */
     private fun getReg(): Register = Reg(availableRegIds.pollFirst()!!)
 
@@ -433,6 +448,9 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     /* Set the current block's label to the given label.
     *  Indicates the beginning of a new instruction block. */
     private fun setBlock(label: Label) {
+        if (blocks.isNotEmpty() && blocks.last.terminator != B(AL, label)) {
+            blocks.last.terminator = FallThrough
+        }
         currBlockLabel = label
     }
 
@@ -478,7 +496,12 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private fun load(dst: Register, src: Operand): Register = load(AL, dst, src)
 
     private fun store(src: Register, dst: Operand): Operand {
-        instructions += Str(AL, src, dst)
+        val realDst = if (dst is Register) {
+            Offset(dst, 0)
+        } else {
+            dst
+        }
+        instructions += Str(AL, src, realDst)
         return dst
     }
 
@@ -561,6 +584,20 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         return dst
     }
 
+    private fun callCheckArrBound(expected: Operand, arrayPtr: Register) {
+        mov(Reg(0), expected.toReg())
+        mov(Reg(1), arrayPtr)
+        callPrelude(CHECK_ARR_BOUND)
+    }
+
+    private fun callMalloc(size: Int): Register {
+        val target = ImmNum(size).toReg()
+        mov(Reg(0), target)
+        target.recycleReg()
+        bl(AL, Label("malloc"))
+        return Reg(0)
+    }
+
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM()
         val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
@@ -584,11 +621,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         bl(AL, Label("fflush"))
     }
 
-    private fun callMalloc(size: Int): Register {
-        val target = ImmNum(size).toReg()
-        mov(Reg(0), target)
-        bl(AL, Label("malloc"))
-        return mov(target, Reg(0))
+    /* Call a prelude function. */
+    private fun callPrelude(func: PreludeFunc, cond: Condition = AL) {
+        requiredPreludeFuncs += func.findDependencies()
+        bl(cond, func.getLabel())
     }
 
     private fun getFormatString(type: Type, newline: Boolean): String {
@@ -626,8 +662,3 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         }
     }
 }
-
-
-
-
-
