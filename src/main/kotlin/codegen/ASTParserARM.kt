@@ -85,10 +85,10 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     private fun ast.Function.toARM() {
         resetRegs()
         spOffset = 0
+        setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second) }
         args.map { alloca(it.second) }
-        setBlock(funcLabelMap.getValue(name))
         body.map { it.toARM() }
         addDirective(LTORG)
     }
@@ -100,6 +100,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
                 alloca(variable, reg)
+                reg.recycleReg()
             }
 
             is Assignment -> {
@@ -109,6 +110,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                     is ArrayElem -> TODO()
                     is PairElem -> TODO()
                 }
+                reg.recycleReg()
             }
 
             is Read -> {
@@ -145,6 +147,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 val cond = expr.toARM().toReg()
                 cmp(cond, immFalse())
                 branch(Condition.EQ, ifelse)
+                cond.recycleReg()
 
                 setBlock(ifthen)
                 inScopeDo { trueBranch.map { it.toARM() } }
@@ -167,13 +170,13 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
                 val cond = expr.toARM().toReg()
                 cmp(cond, immFalse())
                 cond.recycleReg()
-                branch(lEnd)
+                branch(Condition.EQ, lEnd)
 
                 setBlock(lBody)
                 inScopeDo {
                     body.map { it.toARM() }
                 }
-                branch(lBody)
+                branch(lCheck)
 
                 setBlock(lEnd)
             }
@@ -375,6 +378,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     *  after the action is finished. */
     private fun inScopeDo(action: () -> Unit) {
         val prevScopeOffset = currScopeOffset
+        currScopeOffset = 0
         action()
         moveSP(currScopeOffset)
         currScopeOffset = prevScopeOffset
@@ -389,6 +393,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
     /* Get the next avaliable register */
     private fun getReg(): Register = Reg(availableRegIds.pollFirst()!!)
 
+    /* 'Recycle' the given register so that it can be re-used in the future. */
     private fun Register.recycleReg() {
         if (this is Reg) {
             availableRegIds += id
@@ -584,7 +589,7 @@ class ASTParserARM(val ast: ProgramAST, val symbolTable: SymbolTable) {
             is PairElem -> TODO()
             is ArrayLiteral -> TODO()
             is NewPair -> TODO()
-            is FunctionCall -> TODO()
+            is FunctionCall -> symbolTable.functions[ident]!!.type.retType
         }
     }
 }
