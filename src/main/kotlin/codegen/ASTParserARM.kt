@@ -10,6 +10,7 @@ import ast.BinaryOperator.MUL
 import ast.Expression.*
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
+import ast.Type.ArrayType
 import ast.Type.BaseType
 import ast.Type.BaseTypeKind.*
 import ast.Type.Companion.anyPairType
@@ -133,7 +134,16 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                         mov(Reg(0), reg)
                         pop(SpecialReg(PC))
                     }
-                    FREE -> TODO()
+                    FREE -> {
+                        val reg = expr.toARM().toReg()
+                        mov(Reg(0), reg)
+                        when(expr.getType(symbolTable)) {
+                            is ArrayType -> callPrelude(FREE_ARRAY)
+                            is Type.PairType -> callPrelude(FREE_PAIR)
+                            else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
+                        }
+                        reg.recycleReg()
+                    }
                     EXIT -> {
                         val reg = expr.toARM()
                         mov(Reg(0), reg)
@@ -303,8 +313,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     callPrintf(StringLit("OverflowError: " +
                             "the result is too small/large to store in a 4-byte signed-integer."),
                             true)
-                    bl(AL, RUNTIME_ERROR.getLabel())
-                    packBlock()
+                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                 }
                 CHECK_ARR_BOUND -> {
                     val label1 = getLabel("check_too_large")
@@ -314,16 +323,26 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     branch(Condition.GE, label1)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: negative index"),
                             true)
-                    bl(AL, RUNTIME_ERROR.getLabel())
-                    packBlock()
+                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label1)
                     load(Reg(1), Offset(Reg(1), 0))
                     cmp(Reg(0), Reg(1))
                     branch(Condition.LT, label2)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
-                    bl(AL, RUNTIME_ERROR.getLabel())
+                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     packBlock()
                     setBlock(label2)
+                    pop(SpecialReg(PC))
+                }
+                FREE_ARRAY -> {
+                    val notNullLabel = getLabel("free_not_null")
+                    push(SpecialReg(LR))
+                    cmp(Reg(0), immNull())
+                    branch(Condition.NE, notNullLabel)
+                    callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
+                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
+                    setBlock(notNullLabel)
+                    bl(AL, Label("free"))
                     pop(SpecialReg(PC))
                 }
             }
@@ -438,8 +457,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         packBlock(B(cond, label))
     }
 
-    private fun bl(cond: Condition = AL, label: Label) {
+    private fun bl(cond: Condition, label: Label) {
         instructions += BL(cond, label)
+    }
+
+    private fun bl(cond: Condition, label: Label, terminator: Terminator) {
+        bl(cond, RUNTIME_ERROR.getLabel())
+        packBlock(terminator)
     }
 
     private fun load(cond: Condition, dst: Register, src: Operand): Register {
@@ -576,7 +600,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 STRING -> "%s"
                 else -> "%p"
             }
-            is Type.ArrayType -> if (type.type == charType()) "%s" else "%p"
+            is ArrayType -> if (type.type == charType()) "%s" else "%p"
             is Type.PairType -> "%p"
             is Type.FuncType -> "%p"
         }

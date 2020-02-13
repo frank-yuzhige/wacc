@@ -60,6 +60,9 @@ sealed class Instruction {
         object FallThrough: Terminator() {
             override fun toString(): String = ""
         }
+        object Unreachable: Terminator() {
+            override fun toString(): String = ""
+        }
     }
 
     /** Load Operation **/

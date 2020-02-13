@@ -9,10 +9,10 @@ class InstructionBlock(val label: Label,
                        var terminator: Terminator,
                        val tails: MutableList<Instruction> = mutableListOf()) {
     override fun toString(): String {
-        val body = if (terminator == Terminator.FallThrough) {
-            instructions + tails
-        } else {
-            instructions + terminator + tails
+        val body = when (terminator) {
+            is Terminator.FallThrough,
+            is Terminator.Unreachable -> instructions + tails
+            else -> instructions + terminator + tails
         }
         return "$label:\n" + body.joinToString("\n").prependIndent()
     }
