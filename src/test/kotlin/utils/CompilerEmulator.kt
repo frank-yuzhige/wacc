@@ -14,7 +14,9 @@ class CompilerEmulator(private val inputFile: File,
                        private val mode: EmulatorMode,
                        private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
 
-    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?, val output: String?)
+    private val compiler: String = "arm-linux-gnueabi-gcc"
+
+    class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?, val output: String)
     fun run(): EmulatorResult {
         val parser = Parser(inputFile.inputStream(), errorStream = errorStream)
         var exitCode = 0
@@ -48,22 +50,50 @@ class CompilerEmulator(private val inputFile: File,
             exitCode = 1 //  error output
             null
         }
-        var programOutput: String? = null
+        var programOutput: String = ""
         if (mode == EXECUTE && ast != null) {
             val assembly = ASTParserARM(ast, sa.symbolTable).translate().printARM()
-            val temp = File("src/test/kotlin/utils/temp.wacc")
+            val temp = File("src/test/kotlin/utils/temp.s")
             if (!temp.exists()) {
                 temp.createNewFile()
             }
-            temp.bufferedWriter().use { it.write(assembly) }
-            val process = ProcessBuilder("ruby", "-x", temp.path).start()
-            process.inputStream.reader(Charsets.UTF_8).use {
-                println(it.readText())
-                // TODO turn println into string
+            temp.bufferedWriter().use { it.write(assembly + "\n") }
+            val executableFile: File? = compileAssembly(temp)
+            if (executableFile != null) {
+                val process = ProcessBuilder("qemu-arm", "-L", "/usr/arm-linux-gnueabi/",
+                        executableFile!!.absolutePath).start()
+                process.waitFor()
+                if (inputFile.path.contains("whitespace.wacc")) {
+                    println("HERE")
+                }
+                process.inputStream.reader(Charsets.UTF_8).use {
+                    programOutput += it.readText()
+                }
+                exitCode = process.exitValue()
             }
-            process.waitFor()
         }
         return EmulatorResult(exitCode, ast, exception, programOutput)
+    }
+
+    /**
+     * Compiles the assembly file to executable file
+     */
+    private fun compileAssembly(assemblyFile: File): File? {
+        var executableFile: File? = null
+        try {
+            val objectFilePath = assemblyFile.parent + "/temp"
+            val process = ProcessBuilder(compiler, "-o", objectFilePath,
+                    "-mcpu=arm1176jzf-s", "-mtune=arm1176jzf-s", assemblyFile.absolutePath).start()
+            process.waitFor()
+            if (process.exitValue() != 0) {
+                println("[FATAL] Compilation failed!: Failed to create $objectFilePath")
+            }
+            executableFile = File(objectFilePath)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            return executableFile
+        }
     }
 
 }
