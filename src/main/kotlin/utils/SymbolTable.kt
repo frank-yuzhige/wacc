@@ -51,10 +51,11 @@ class SymbolTable {
     }
 
 
-    fun lookupVar(ident: String): VarAttributes? = scopeStack
-            .mapNotNull { it[ident] }
+    fun lookupVar(ident: Identifier): VarAttributes? = scopeStack
+            .mapNotNull { it[ident.name] }
             .firstOrNull()
             ?.addOccurrence()
+            ?.also { ident.scopeId = it.scopeId }
 
     fun lookupFunc(ident: String): FuncAttributes? = functions[ident]?.addOccurrence()
 

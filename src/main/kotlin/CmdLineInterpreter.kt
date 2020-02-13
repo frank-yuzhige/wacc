@@ -37,8 +37,8 @@ fun main(args: Array<String>) {
     }
     println("===========")
     println(ast.prettyPrint())
+    sa.symbolTable.dump()
     println("===========")
     println(ASTParserARM(ast, sa.symbolTable).translate().printARM())
     println("===========\n")
-    sa.symbolTable.dump()
 }

@@ -13,6 +13,9 @@ build:
 test:
   stage: test
   script:
+    - apt-get install apt-file
+    - apt-file update
+    - apt-get install gcc-arm-linux-gnueabi
     - ./gradlew test -i
   tags:
     - shell

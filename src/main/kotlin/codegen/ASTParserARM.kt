@@ -107,7 +107,15 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 val reg = rhs.toARM().toReg()
                 when(lhs) {
                     is Identifier -> store(reg, findVar(lhs))
-                    is ArrayElem -> TODO()
+                    is ArrayElem -> {
+                        val rhsReg = rhs.toARM().toReg()
+                        load(AL, rhsReg, Offset(rhsReg, 0))
+                        val lhsReg = lhs.toARM().toReg()
+                        store(rhsReg, Offset(lhsReg, 0))
+
+                        rhsReg.recycleReg()
+                        lhsReg.recycleReg()
+                    }
                     is PairElem -> TODO()
                 }
                 reg.recycleReg()
@@ -232,7 +240,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 for (expr in indices) {
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
-                    val offset = binop(MUL, indexReg, indexReg, ImmNum(4))
+                    val offset = binop(MUL, indexReg, indexReg,
+                            ImmNum(getDataTypeSize(arrIdent.getType(symbolTable).unwrapArrayType()!!)))
                     result = binop(ADD, result, result, offset)
                     load(result, Offset(result, 4))
                 }
@@ -519,7 +528,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     private fun not(reg: Register): Register {
-        instructions += Xor(AL, reg, reg, immTrue())
+        instructions += Eor(AL, reg, reg, immTrue())
         return reg
     }
 

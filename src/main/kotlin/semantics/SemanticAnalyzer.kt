@@ -122,7 +122,7 @@ class SemanticAnalyzer() {
             is Declaration -> {
                 val prevAttr = symbolTable.defineVar(type, variable)
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable.name)!!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable)!!.index)))
                 }
                 rhs.check(match(type))
             }
@@ -164,7 +164,7 @@ class SemanticAnalyzer() {
         }
         when (this) {
             is Identifier -> {
-                val attr = symbolTable.lookupVar(name)
+                val attr = symbolTable.lookupVar(this)
                 if (attr != null) {
                     val actual = attr.type
                     val scopeId = attr.scopeId
@@ -196,7 +196,7 @@ class SemanticAnalyzer() {
             }
             is ArrayElem -> {
                 /* Check if the array var is in scope */
-                symbolTable.lookupVar(arrIdent.name)?.let { attr ->
+                symbolTable.lookupVar(arrIdent)?.let { attr ->
                     this.arrIdent.scopeId = attr.scopeId
                     attr.type.unwrapArrayType(indices.count())?.let { actual ->
                         /* Check each index is int */
@@ -340,12 +340,12 @@ class SemanticAnalyzer() {
         is BoolLit -> Type.BaseType(Type.BaseTypeKind.BOOL)
         is CharLit -> Type.BaseType(Type.BaseTypeKind.CHAR)
         is StringLit -> Type.BaseType(Type.BaseTypeKind.STRING)
-        is Identifier -> symbolTable.lookupVar(name)?.type
+        is Identifier -> symbolTable.lookupVar(this)?.type
                 ?: throw SemanticException.UndefinedVarException(name)
         is BinExpr -> op.retType
         is UnaryExpr -> op.retType
         is ArrayElem -> {
-            val type= symbolTable.lookupVar(arrIdent.name)?.type
+            val type= symbolTable.lookupVar(arrIdent)?.type
                     ?: throw SemanticException.UndefinedVarException(arrIdent.name)
 
             type.unwrapArrayType(indices.size)

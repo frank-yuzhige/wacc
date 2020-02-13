@@ -9,6 +9,8 @@ import semantics.SemanticAnalyzer
 import utils.EmulatorMode.*
 import java.io.*
 import java.lang.Exception
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class CompilerEmulator(private val inputFile: File,
                        private val mode: EmulatorMode,
@@ -62,9 +64,9 @@ class CompilerEmulator(private val inputFile: File,
             if (executableFile != null) {
                 val process = ProcessBuilder("qemu-arm", "-L", "/usr/arm-linux-gnueabi/",
                         executableFile!!.absolutePath).start()
-                process.waitFor()
-                if (inputFile.path.contains("whitespace.wacc")) {
-                    println("HERE")
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    process.destroy()
+                    throw TimeoutException("Program timed out!")
                 }
                 process.inputStream.reader(Charsets.UTF_8).use {
                     programOutput += it.readText()
