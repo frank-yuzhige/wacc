@@ -122,9 +122,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 reg.recycleReg()
             }
 
-            is Read -> {
-
-            }
+            is Read -> TODO()
 
             is BuiltinFuncCall -> {
                 when(func) {
@@ -448,7 +446,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     /* Set the current block's label to the given label.
     *  Indicates the beginning of a new instruction block. */
     private fun setBlock(label: Label) {
-        if (blocks.isNotEmpty() && blocks.last.terminator != B(AL, label)) {
+        if (blocks.isNotEmpty() && blocks.last.terminator == B(AL, label)) {
             blocks.last.terminator = FallThrough
         }
         currBlockLabel = label

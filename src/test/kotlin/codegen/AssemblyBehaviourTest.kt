@@ -11,6 +11,12 @@ import kotlin.test.assertEquals
 
 class AssemblyBehaviourTest {
     data class RefCompilerOutput(val output: String, val exitCode: Int)
+    private val failedTestsInfo: MutableMap<String, String> = mutableMapOf()
+    enum class FailureType(val cause: String) {
+        OUTPUT_MISMATCH("Mismatched output"),
+        TIMEOUT("Execution timeout"),
+        EXECUTION_FAILURE("Execution failed")
+    }
 
     private fun getRefCompilerOutput(file: File): RefCompilerOutput {
         val process = ProcessBuilder("./refCompile", "-x", file.absolutePath).start()
@@ -29,7 +35,6 @@ class AssemblyBehaviourTest {
     fun assemblyBehaviourBatchTest() {
         var correctCount = 0
         var totalCount = 0
-        val failedTests: MutableList<String> = mutableListOf()
         File("src/test/resources/valid").walkTopDown().forEach { testFile ->
             if (testFile.path.endsWith(".wacc")) {
                 println("Current file $testFile")
@@ -38,16 +43,21 @@ class AssemblyBehaviourTest {
                     val result = emulator.run()
                     val expectedResult = getRefCompilerOutput(testFile)
                     if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
+                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                                FailureType.OUTPUT_MISMATCH)
                         println("Mismatched output: ${testFile.path}")
                     } else {
                         correctCount++
                         println("All is good: ${testFile.path}")
                     }
                 } catch (e: Throwable) {
-                    failedTests += testFile.relativeTo(File("src/test/resources/valid/")).path
                     if (e is TimeoutException) {
+                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                                FailureType.TIMEOUT)
                         println("Timeout: ${testFile.path}")
                     } else {
+                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                                FailureType.EXECUTION_FAILURE)
                         println("Execution failed: ${testFile.path}")
                     }
                 } finally {
@@ -57,8 +67,10 @@ class AssemblyBehaviourTest {
         }
         cleanUp()
         println("\n\nTest passed: $correctCount/$totalCount")
-        failedTests.forEach { println(it) }
+        failedTestsInfo.forEach { (file, cause) -> println("$file: $cause") }
     }
+
+    private fun logFailedTest(testFile: File, cause: FailureType) = failedTestsInfo.set(testFile.path, cause.cause)
 
     private fun cleanUp() {
         val tempFiles: List<File> = listOf(File("src/test/kotlin/utils/temp"), File("src/test/kotlin/utils/temp.s"))
