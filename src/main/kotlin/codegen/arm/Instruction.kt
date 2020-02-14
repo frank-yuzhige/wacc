@@ -75,6 +75,10 @@ sealed class Instruction {
         override fun toString(): String = "STR$cond ${dest.inLDR()}, ${opr.inLDR()}"
     }
 
+    data class Strb(val dest: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "STRB ${dest.inLDR()}, ${opr.inLDR()}"
+    }
+
     /** Stack Operation **/
     data class Push(val regList: MutableList<Register>): Instruction() {
         override fun toString(): String {

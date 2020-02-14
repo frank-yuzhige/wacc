@@ -262,7 +262,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 // Store each element in the array
                 elements.forEachIndexed { index, it ->
                     val tempElemReg = it.toARM().toReg()
-                    store(tempElemReg, Offset(baseAddressReg, (index + 1) * elemSize, false))
+                    store(tempElemReg, Offset(baseAddressReg, 4 + index * elemSize, false), true)
                     tempElemReg.recycleReg()
                 }
                 // Store the size of the array at the end
@@ -493,13 +493,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun load(dst: Register, src: Operand): Register = load(AL, dst, src)
 
-    private fun store(src: Register, dst: Operand): Operand {
-        val realDst = if (dst is Register) {
-            Offset(dst, 0)
+    private fun store(src: Register, dst: Operand, byte: Boolean = false): Operand {
+        val realDst = if (dst is Register) Offset(dst, 0) else dst
+        instructions += if (byte) {
+            Strb(src, realDst)
         } else {
-            dst
+            Str(AL, src, realDst)
         }
-        instructions += Str(AL, src, realDst)
         return dst
     }
 
@@ -604,6 +604,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 cmp(operand.toReg(), immFalse())
                 load(NE, Reg(1), defString("true"))
                 load(Condition.EQ, Reg(1), defString("false"))
+                binop(ADD, Reg(1), Reg(1), ImmNum(4))
+                load(Reg(0), defString(getFormatString(exprType, newline)))
+                binop(ADD, Reg(0), Reg(0), ImmNum(4))
+            }
+            stringType(),
+            ArrayType(charType()) -> {
+                mov(Reg(1), operand.toReg())
                 binop(ADD, Reg(1), Reg(1), ImmNum(4))
                 load(Reg(0), defString(getFormatString(exprType, newline)))
                 binop(ADD, Reg(0), Reg(0), ImmNum(4))
