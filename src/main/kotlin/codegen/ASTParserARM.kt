@@ -39,7 +39,8 @@ import java.util.*
 
 class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val labelNameTable = LabelNameTable()
-    private val stringConsts: MutableMap<String, Label> = mutableMapOf()
+    private val singletonStringConsts: MutableMap<String, Label> = mutableMapOf()
+    private val commonStringConsts: MutableList<Pair<String, Label>> = mutableListOf()
     private val blocks: Deque<InstructionBlock> = ArrayDeque()
     private val instructions: MutableList<Instruction> = mutableListOf()
     private val varOffsetMap = mutableMapOf<VarWithSID, Int>()
@@ -65,7 +66,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     fun printARM(): String = ".data\n\n" +
-            StringConst.fromMap(stringConsts).joinToString("\n") + "\n.text\n\n" +
+            StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts).joinToString("\n") + "\n.text\n\n" +
             ".global main\n" +
             blocks.joinToString("\n")
 
@@ -222,7 +223,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             }
             is BoolLit -> if (b) immTrue() else immFalse()
             is CharLit -> ImmNum(c.toInt())
-            is StringLit -> defString(string)
+            is StringLit -> defString(string, false)
             is Identifier -> load(getReg(), findVar(this))
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
@@ -389,7 +390,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         is Label -> {
             val reg = getReg()
             load(reg, this)
-            binop(ADD, reg, reg, ImmNum(4));
         }
         else -> mov(this)
     }
@@ -410,13 +410,17 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     /* Define a string constant and return its label. */
-    private fun defString(content: String): Label {
-        val prevDef = stringConsts[content]
-        if (prevDef != null) {
-            return prevDef
+    private fun defString(content: String, isSingleton: Boolean = true): Label {
+        val msgLabel = getLabel(if (isSingleton) "singleton" else "msg")
+        if (isSingleton) {
+            val prevDef = singletonStringConsts[content]
+            if (prevDef != null) {
+                return prevDef
+            }
+            singletonStringConsts[content] = msgLabel
+        } else {
+            commonStringConsts += content to msgLabel
         }
-        val msgLabel = getLabel("msg")
-        stringConsts[content] = msgLabel
         return msgLabel
     }
 
@@ -597,11 +601,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     private fun callPrintf(expr: Expression, newline: Boolean) {
-        val operand = expr.toARM()
+        val operand = expr.toARM().toReg()
         val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
         when(exprType) {
             boolType() -> {
-                cmp(operand.toReg(), immFalse())
+                cmp(operand, immFalse())
                 load(NE, Reg(1), defString("true"))
                 load(Condition.EQ, Reg(1), defString("false"))
                 binop(ADD, Reg(1), Reg(1), ImmNum(4))
@@ -610,17 +614,18 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             }
             stringType(),
             ArrayType(charType()) -> {
-                mov(Reg(1), operand.toReg())
+                mov(Reg(1), operand)
                 binop(ADD, Reg(1), Reg(1), ImmNum(4))
                 load(Reg(0), defString(getFormatString(exprType, newline)))
                 binop(ADD, Reg(0), Reg(0), ImmNum(4))
             }
             else -> {
-                mov(Reg(1), operand.toReg())
+                mov(Reg(1), operand)
                 load(Reg(0), defString(getFormatString(exprType, newline)))
                 binop(ADD, Reg(0), Reg(0), ImmNum(4))
             }
         }
+        operand.recycleReg()
         bl(AL, Label("printf"))
         mov(Reg(0), ImmNum(0))
         bl(AL, Label("fflush"))
