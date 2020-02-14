@@ -303,7 +303,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private fun definePreludes() {
         for (func in requiredPreludeFuncs) {
             resetRegs()
-            setBlock(Label(func.name.toLowerCase()))
+            setBlock(func.getLabel())
             when (func) {
                 RUNTIME_ERROR -> {
                     mov(Reg(0), ImmNum(-1))
@@ -331,8 +331,14 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     branch(Condition.LT, label2)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
-                    packBlock()
                     setBlock(label2)
+                    pop(SpecialReg(PC))
+                }
+                CHECK_DIV_BY_ZERO -> {
+                    push(SpecialReg(LR))
+                    cmp(Reg(1), ImmNum(0))
+                    load(Condition.EQ, Reg(0), defString("DivideByZeroError: divide or modulo by zero", true))
+                    bl(Condition.EQ, RUNTIME_ERROR.getLabel(), Unreachable)
                     pop(SpecialReg(PC))
                 }
                 FREE_ARRAY -> {
@@ -342,7 +348,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     branch(NE, notNullLabel)
                     callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
-
                     setBlock(notNullLabel)
                     bl(AL, Label("free"))
                     pop(SpecialReg(PC))
@@ -536,11 +541,25 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun binop(opType: BinaryOperator, dst: Register, rn: Register, op2: Operand): Register {
         val instrs = when (opType) {
-            ADD -> listOf(Add(AL, dst, rn, op2))
-            SUB -> listOf(Sub(AL, dst, rn, op2))
+            ADD -> listOf(Add(AL, dst, rn, op2).also { callPrelude(OVERFLOW_ERROR, VS) })
+            SUB -> listOf(Sub(AL, dst, rn, op2).also { callPrelude(OVERFLOW_ERROR, VS) })
             MUL -> listOf(Mul(AL, dst, rn, op2.toReg().also { it.recycleReg() }))
-            DIV -> TODO()
-            MOD -> TODO()
+            DIV -> {
+                mov(Reg(0), rn)
+                mov(Reg(1), op2)
+                callPrelude(CHECK_DIV_BY_ZERO)
+                bl(AL, Label("__aeabi_idiv"))
+                mov(dst, Reg(0))
+                listOf()
+            }
+            MOD -> {
+                mov(Reg(0), rn)
+                mov(Reg(1), op2)
+                callPrelude(CHECK_DIV_BY_ZERO)
+                bl(AL, Label("__aeabi_idivmod"))
+                mov(dst, Reg(0))
+                listOf()
+            }
             GTE -> listOf(
                     Cmp(rn, op2),
                     Mov(Condition.GE, dst, immTrue()),
@@ -665,9 +684,9 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is BinExpr -> op.retType
             is UnaryExpr -> op.retType
             is ArrayElem -> map[arrIdent.getVarSID()]!!.type.unwrapArrayType(indices.size)!!
-            is PairElem -> TODO()
-            is ArrayLiteral -> TODO()
-            is NewPair -> TODO()
+            is PairElem -> expr.getType(symbolTable).unwrapPairType(func)!!
+            is ArrayLiteral -> elements.first().getType(symbolTable)
+            is NewPair -> Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
             is FunctionCall -> symbolTable.functions[ident]!!.type.retType
         }
     }

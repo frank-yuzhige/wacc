@@ -5,6 +5,7 @@ import parser.Parser
 import semantics.SemanticAnalyzer
 import utils.ERROR
 import utils.RESET
+import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import kotlin.system.exitProcess
@@ -39,6 +40,9 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
-    println(ASTParserARM(ast, sa.symbolTable).translate().printARM())
+    val arm = ASTParserARM(ast, sa.symbolTable).translate().printARM()
+    println(arm)
+    val output = File("src/test/resources/valid/mine/gen.s")
+    output.writeText(arm)
     println("===========\n")
 }
