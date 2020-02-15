@@ -42,5 +42,7 @@ sealed class Operand {
                 "[$src, #$offset]${if (wb) "!" else "" }"
             }
         }
+
+        fun shift(amount: Int): Operand = Offset(src, offset + amount, wb)
     }
 }

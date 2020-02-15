@@ -127,7 +127,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 reg.recycleReg()
             }
 
-            is Read -> TODO()
+            is Read -> callScanf(target)
 
             is BuiltinFuncCall -> {
                 when(func) {
@@ -420,9 +420,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     /* Find the alloca-ed variable's offset from the current position of the sp
     *  by the given var node. */
-    private fun findVar(varNode: Identifier): Offset {
-        return Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
-    }
+    private fun findVar(varNode: Identifier): Offset =
+            Offset(SpecialReg(SP), spOffset - varOffsetMap[varNode.name to varNode.scopeId]!!)
 
     /* Define a string constant and return its label. */
     private fun defString(content: String, isSingleton: Boolean = true): Label {
@@ -637,6 +636,15 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         return Reg(0)
     }
 
+    private fun callScanf(expr: Expression) {
+        val exprOffset: Offset = getLhsAddress(expr)
+        binop(ADD, Reg(1), exprOffset.src, ImmNum(exprOffset.offset))
+        load(Reg(0), defString(getFormatString(expr.getType(symbolTable), false), true))
+        binop(ADD, Reg(0), Reg(0), ImmNum(4))
+        bl(AL, Label("scanf"))
+    }
+
+
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
         val exprType = expr.getType(symbolTable)
@@ -673,6 +681,34 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         requiredPreludeFuncs += func.findDependencies()
         bl(cond, func.getLabel())
     }
+
+    private fun getLhsAddress(lhs: Expression): Offset = when(lhs) {
+        is Identifier -> findVar(lhs)
+        is ArrayElem -> {
+            var result = findVar(lhs.arrIdent)
+            val arrReg = getReg()
+            val originalType = lhs.arrIdent.getType(symbolTable)
+            for ((i, expr) in lhs.indices.withIndex()) {
+                val indexReg = expr.toARM().toReg()
+                load(AL, arrReg, result)
+                callCheckArrBound(indexReg, arrReg)
+                binop(MUL, indexReg, indexReg,
+                        ImmNum(sizeof(originalType.unwrapArrayType(i + 1)!!)))
+                binop(ADD, indexReg, indexReg, ImmNum(4))
+                binop(ADD, arrReg, arrReg, indexReg)
+                result = Offset(arrReg)
+                indexReg.recycleReg()
+            }
+            result
+        }
+        is PairElem -> {
+            TODO()
+        }
+        else -> {
+            throw IllegalArgumentException("Target has to be a left-hand-side expression")
+        }
+    }
+
 
     private fun getFormatString(type: Type, newline: Boolean): String {
         val format = when(type) {
