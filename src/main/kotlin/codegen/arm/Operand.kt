@@ -34,7 +34,7 @@ sealed class Operand {
         override fun inLDR(): String = "=$name"
     }
 
-    data class Offset(val src: Register, val offset: Int, val wb: Boolean = false): Operand() {
+    data class Offset(val src: Register, val offset: Int = 0, val wb: Boolean = false): Operand() {
         override fun toString(): String {
             return if (offset == 0) {
                 "[$src]${if (wb) "!" else "" }"

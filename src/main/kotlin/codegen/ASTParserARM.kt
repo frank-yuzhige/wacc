@@ -110,15 +110,19 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 when(lhs) {
                     is Identifier -> store(reg, findVar(lhs))
                     is ArrayElem -> {
-                        val rhsReg = rhs.toARM().toReg()
-                        load(AL, rhsReg, Offset(rhsReg, 0))
+                        load(AL, reg, Offset(reg, 0))
                         val lhsReg = lhs.toARM().toReg()
-                        store(rhsReg, lhsReg)
+                        store(reg, Offset(lhsReg))
 
-                        rhsReg.recycleReg()
+                        reg.recycleReg()
                         lhsReg.recycleReg()
                     }
-                    is PairElem -> TODO()
+                    is PairElem -> {
+                        val lreg = lhs.toARM().toReg()
+                        store(reg, Offset(lreg))
+                        lreg.recycleReg()
+                        reg.recycleReg()
+                    }
                 }
                 reg.recycleReg()
             }
@@ -252,7 +256,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 }
                 result
             }
-            is PairElem -> TODO()
+            is PairElem -> {
+                val temp = expr.toARM().toReg()
+                mov(Reg(0), temp)
+                callPrelude(CHECK_NULL_PTR)
+                load(temp, Offset(temp, when(func){ PairElemFunction.FST -> 0; PairElemFunction.SND -> 4 }))
+                load(temp, Offset(temp))
+            }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
                 val elemSize = sizeof(elements[0].getType(symbolTable))
@@ -341,25 +351,25 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     bl(Condition.EQ, RUNTIME_ERROR.getLabel(), Unreachable)
                     pop(SpecialReg(PC))
                 }
-                FREE_ARRAY -> {
-                    val notNullLabel = getLabel("free_not_null")
+                CHECK_NULL_PTR -> {
                     push(SpecialReg(LR))
+                    val notNullLabel = getLabel("not_null")
                     cmp(Reg(0), immNull())
                     branch(NE, notNullLabel)
                     callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(notNullLabel)
+                    pop(SpecialReg(PC))
+                }
+                FREE_ARRAY -> {
+                    push(SpecialReg(LR))
+                    bl(AL, CHECK_NULL_PTR.getLabel())
                     bl(AL, Label("free"))
                     pop(SpecialReg(PC))
                 }
                 FREE_PAIR -> {
-                    val notNullLabel = getLabel("free_not_null")
                     push(SpecialReg(LR))
-                    cmp(Reg(0), immNull())
-                    branch(NE, notNullLabel)
-                    callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
-                    bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
-                    setBlock(notNullLabel)
+                    bl(AL, CHECK_NULL_PTR.getLabel())
                     push(Reg(0))
                     load(Reg(0), Offset(Reg(0), 0))
                     bl(AL, Label("free"))
@@ -539,11 +549,16 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         blocks.last.tails += Directive(type)
     }
 
-    private fun binop(opType: BinaryOperator, dst: Register, rn: Register, op2: Operand): Register {
+    private fun binop(opType: BinaryOperator,
+                      dst: Register,
+                      rn: Register,
+                      op2: Operand,
+                      allowOverflowError: Boolean = true): Register {
+        var overflow = false
         val instrs = when (opType) {
-            ADD -> listOf(Add(AL, dst, rn, op2).also { callPrelude(OVERFLOW_ERROR, VS) })
-            SUB -> listOf(Sub(AL, dst, rn, op2).also { callPrelude(OVERFLOW_ERROR, VS) })
-            MUL -> listOf(Mul(AL, dst, rn, op2.toReg().also { it.recycleReg() }))
+            ADD -> listOf(Add(AL, dst, rn, op2)).also { overflow = true }
+            SUB -> listOf(Sub(AL, dst, rn, op2)).also { overflow = true }
+            MUL -> listOf(Mul(AL, dst, rn, op2.toReg().also { it.recycleReg(); overflow = true }))
             DIV -> {
                 mov(Reg(0), rn)
                 mov(Reg(1), op2)
@@ -588,6 +603,9 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             OR ->   listOf(Orr(AL, dst, rn, op2))
         }
         instructions += instrs
+        if (allowOverflowError && overflow) {
+            callPrelude(OVERFLOW_ERROR, VS)
+        }
         return dst
     }
 
@@ -627,16 +645,16 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 cmp(operand, immFalse())
                 load(NE, Reg(1), defString("true"))
                 load(Condition.EQ, Reg(1), defString("false"))
-                binop(ADD, Reg(1), Reg(1), ImmNum(4))
+                binop(ADD, Reg(1), Reg(1), ImmNum(4), false)
                 load(Reg(0), defString(getFormatString(exprType, newline)))
-                binop(ADD, Reg(0), Reg(0), ImmNum(4))
+                binop(ADD, Reg(0), Reg(0), ImmNum(4), false)
             }
             stringType(),
             ArrayType(charType()) -> {
                 mov(Reg(1), operand)
-                binop(ADD, Reg(1), Reg(1), ImmNum(4))
+                binop(ADD, Reg(1), Reg(1), ImmNum(4), false)
                 load(Reg(0), defString(getFormatString(exprType, newline)))
-                binop(ADD, Reg(0), Reg(0), ImmNum(4))
+                binop(ADD, Reg(0), Reg(0), ImmNum(4), false)
             }
             else -> {
                 mov(Reg(1), operand)
