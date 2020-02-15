@@ -116,9 +116,7 @@ files.each do |file_path|
                     :testfile => File.new(file_path)
                    ) do |response|
     json = JSON.load(response)
-    puts "-- Compiler Output:"
     puts json['compiler_out']
-    puts ""
   end
   
 end

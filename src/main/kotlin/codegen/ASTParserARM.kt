@@ -46,8 +46,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val varOffsetMap = mutableMapOf<VarWithSID, Int>()
     private val funcLabelMap = mutableMapOf<String, Label>()
     private val firstDefReachedScopes = mutableSetOf<Int>()
-    var spOffset = 0           // current stack-pointer offset (in negative form)
-    var currScopeOffset = 0    // pre-allocated scope offset for variables
+    private var spOffset = 0           // current stack-pointer offset (in negative form)
+    private var currScopeOffset = 0    // pre-allocated scope offset for variables
     private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
 
     private val availableRegIds = TreeSet<Int>()
@@ -62,7 +62,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun resetRegs() {
         availableRegIds.clear()
-        availableRegIds += (4..36)
+        availableRegIds += (4..11)
     }
 
     fun printARM(): String = ".data\n\n" +
@@ -621,7 +621,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
-        val exprType = expr.getType(symbolTable) // TODO Symbol Table needs to be persistent
+        val exprType = expr.getType(symbolTable)
         when(exprType) {
             boolType() -> {
                 cmp(operand, immFalse())
@@ -669,7 +669,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is Type.PairType -> "%p"
             is Type.FuncType -> "%p"
         }
-        return format + if (newline) "\\n\\0" else "\\0"
+        return format + if (newline) "\\n" else ""
     }
 
     private fun Expression.getType(symbolTable: SymbolTable): Type {

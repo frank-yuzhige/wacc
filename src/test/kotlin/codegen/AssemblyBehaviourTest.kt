@@ -25,17 +25,20 @@ class AssemblyBehaviourTest {
         process.inputStream.reader(Charsets.UTF_8).use {
             expectedOutput += it.readText()
         }
-        val pureOutputRegex = """=+\n([^=]*)=+""".toRegex()
+        val pureOutputRegex = """={59}\n([\s\S]*)={59}""".toRegex()
         val matchResult = pureOutputRegex.find(expectedOutput)
 
-        return RefCompilerOutput(if (matchResult != null) { matchResult.groups[1]!!.value } else { "" }, process.exitValue())
+        val exitCodeRegex = """exit code is (\d+)""".toRegex()
+        val exitCodeMatchResult = exitCodeRegex.find(expectedOutput)
+        return RefCompilerOutput(if (matchResult != null) { matchResult.groups[1]!!.value } else { "" },
+                exitCodeMatchResult!!.groups[1]!!.value.toInt())
     }
 
     @Test
     fun assemblyBehaviourBatchTest() {
         var correctCount = 0
         var totalCount = 0
-        File("src/test/resources/valid").walkTopDown().forEach { testFile ->
+        File("src/test/resources/valid/").walkTopDown().forEach { testFile ->
             if (testFile.path.endsWith(".wacc")) {
                 println("Current file $testFile")
                 try {
