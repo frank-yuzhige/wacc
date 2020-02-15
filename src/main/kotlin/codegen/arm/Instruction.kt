@@ -7,16 +7,21 @@ sealed class Instruction {
 
     /** Arithmetic Operations **/
     // Rd := Rn + Op
-    data class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "ADD$cond $dest, $rn, ${opr.inMOV()}"
+    data class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
+        override fun toString(): String = "ADD${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
     }
-    data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "SUB$cond $dest, $rn, ${opr.inMOV()}"
+    data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
+        override fun toString(): String = "SUB${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
     }
     // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
-    data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register): Instruction() {
-        override fun toString(): String = "MUL$cond $dest, $rm, $rs"
+    data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register, val setFlag: Boolean = false): Instruction() {
+        override fun toString(): String = "MUL${if(setFlag) "S" else ""}$cond $dest, $rm, $rs"
     }
+
+    data class Smull(val cond: Condition, val rdLo: Register, val rdHi: Register, val rn: Register, val rm: Register): Instruction() {
+        override fun toString(): String = "SMULL$cond $rdLo, $rdHi, $rn, $rm"
+    }
+
     // Reference Compiler uses a library function "__aeabi_idiv"
     data class Div(val dest: Register, val rn: Register): Instruction()
 
@@ -26,8 +31,8 @@ sealed class Instruction {
     }
 
     /** Comparison Operation **/
-    data class Cmp(val rn: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}"
+    data class Cmp(val rn: Register, val opr: Operand, val modifier: Pair<ShiftModifier, Int>? = null): Instruction() {
+        override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}${if(modifier != null) ", ${modifier.first} #${modifier.second}" else ""}"
     }
 
     /** Logical Operations **/
@@ -105,6 +110,10 @@ sealed class Instruction {
         LE,
         VS,
         CS
+    }
+
+    enum class ShiftModifier {
+        ASR
     }
 
 

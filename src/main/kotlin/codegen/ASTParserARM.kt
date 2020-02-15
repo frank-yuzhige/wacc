@@ -8,6 +8,7 @@ import ast.BinaryOperator.GT
 import ast.BinaryOperator.LT
 import ast.BinaryOperator.MUL
 import ast.Expression.*
+import ast.Expression.PairElemFunction.*
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.ArrayType
@@ -24,6 +25,7 @@ import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction.*
 import codegen.arm.Instruction.Condition.*
+import codegen.arm.Instruction.ShiftModifier.ASR
 import codegen.arm.Instruction.Terminator.*
 import codegen.arm.Operand.*
 import codegen.arm.Operand.ImmNum.Companion.immFalse
@@ -33,6 +35,7 @@ import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
 import utils.LabelNameTable
+import utils.Parameter
 import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
@@ -110,16 +113,18 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 when(lhs) {
                     is Identifier -> store(reg, findVar(lhs))
                     is ArrayElem -> {
-                        load(AL, reg, Offset(reg, 0))
-                        val lhsReg = lhs.toARM().toReg()
-                        store(reg, Offset(lhsReg))
-
+                        val dstOffset = getLhsAddress(lhs)
+                        val isByte = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!) == 1
+                        store(reg, dstOffset, isByte)
                         reg.recycleReg()
-                        lhsReg.recycleReg()
+
                     }
                     is PairElem -> {
                         val pairPtr = lhs.expr.toARM().toReg()
-                        load(pairPtr, Offset(pairPtr))
+                        mov(Reg(0), pairPtr)
+                        callPrelude(CHECK_NULL_PTR)
+                        val offset = Offset(pairPtr, when(lhs.func) { FST -> 0; SND -> 4})
+                        load(pairPtr, offset)
                         store(reg, Offset(pairPtr))
                         pairPtr.recycleReg()
                         reg.recycleReg()
@@ -233,7 +238,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
-                binop(op, op1, op1, op2)
+                binop(op, op1, op1, op2, true)
             }
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
@@ -261,12 +266,12 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 val temp = expr.toARM().toReg()
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                load(temp, Offset(temp, when(func){ PairElemFunction.FST -> 0; PairElemFunction.SND -> 4 }))
+                load(temp, Offset(temp, when(func){ FST -> 0; SND -> 4 }))
                 load(temp, Offset(temp))
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = sizeof(elements[0].getType(symbolTable))
+                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) }?:0
                 val totalSize = elements.size * elemSize + 4
 
                 val baseAddressReg = mov(getReg(), callMalloc(totalSize))
@@ -274,7 +279,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 // Store each element in the array
                 elements.forEachIndexed { index, it ->
                     val tempElemReg = it.toARM().toReg()
-                    store(tempElemReg, Offset(baseAddressReg, 4 + index * elemSize, false), true)
+                    store(tempElemReg, Offset(baseAddressReg, 4 + index * elemSize, false), elemSize == 1)
                     tempElemReg.recycleReg()
                 }
                 // Store the size of the array at the end
@@ -346,10 +351,14 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     pop(SpecialReg(PC))
                 }
                 CHECK_DIV_BY_ZERO -> {
+                    val noErr = getLabel("no_err")
                     push(SpecialReg(LR))
                     cmp(Reg(1), ImmNum(0))
-                    load(Condition.EQ, Reg(0), defString("DivideByZeroError: divide or modulo by zero", true))
+                    branch(NE, noErr)
+                    callPrintf(StringLit("DivideByZeroError: divide or modulo by zero"),
+                            true)
                     bl(Condition.EQ, RUNTIME_ERROR.getLabel(), Unreachable)
+                    setBlock(noErr)
                     pop(SpecialReg(PC))
                 }
                 CHECK_NULL_PTR -> {
@@ -553,57 +562,64 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                       dst: Register,
                       rn: Register,
                       op2: Operand,
-                      allowOverflowError: Boolean = true): Register {
+                      setFlag: Boolean = false): Register {
         var overflow = false
-        val instrs = when (opType) {
-            ADD -> listOf(Add(AL, dst, rn, op2)).also { overflow = true }
-            SUB -> listOf(Sub(AL, dst, rn, op2)).also { overflow = true }
-            MUL -> listOf(Mul(AL, dst, rn, op2.toReg().also { it.recycleReg(); overflow = true }))
+        when (opType) {
+            ADD -> instructions += listOf(Add(AL, dst, rn, op2, setFlag)).also { overflow = true }
+            SUB -> instructions += listOf(Sub(AL, dst, rn, op2, setFlag)).also { overflow = true }
+            MUL -> {
+                val op2Reg = op2.toReg()
+                if (op2 !is Register) {
+                    op2Reg.recycleReg()
+                }
+                val rdHi = getReg()
+                instructions += Smull(AL, dst, rdHi, rn, op2Reg)
+                instructions += Cmp(rdHi, dst, ASR to 31)
+                rdHi.recycleReg()
+                callPrelude(OVERFLOW_ERROR, NE)
+            }
             DIV -> {
                 mov(Reg(0), rn)
                 mov(Reg(1), op2)
                 callPrelude(CHECK_DIV_BY_ZERO)
                 bl(AL, Label("__aeabi_idiv"))
                 mov(dst, Reg(0))
-                listOf()
             }
             MOD -> {
                 mov(Reg(0), rn)
                 mov(Reg(1), op2)
                 callPrelude(CHECK_DIV_BY_ZERO)
                 bl(AL, Label("__aeabi_idivmod"))
-                mov(dst, Reg(0))
-                listOf()
+                mov(dst, Reg(1))
             }
-            GTE -> listOf(
+            GTE -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.GE, dst, immTrue()),
                     Mov(Condition.LT, dst, immFalse()))
-            LTE -> listOf(
+            LTE -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.LE, dst, immTrue()),
                     Mov(Condition.GT, dst, immFalse()))
-            GT -> listOf(
+            GT -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.GT, dst, immTrue()),
                     Mov(Condition.LE, dst, immFalse()))
-            LT -> listOf(
+            LT -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.LT, dst, immTrue()),
                     Mov(Condition.GE, dst, immFalse()))
-            EQ -> listOf(
+            EQ -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.EQ, dst, immTrue()),
                     Mov(Condition.NE, dst, immFalse()))
-            NEQ -> listOf(
+            NEQ -> instructions += listOf(
                     Cmp(rn, op2),
                     Mov(Condition.NE, dst, immTrue()),
                     Mov(Condition.EQ, dst, immFalse()))
-            AND ->  listOf(And(AL, dst, rn, op2))
-            OR ->   listOf(Orr(AL, dst, rn, op2))
+            AND ->  instructions += listOf(And(AL, dst, rn, op2))
+            OR ->   instructions += listOf(Orr(AL, dst, rn, op2))
         }
-        instructions += instrs
-        if (allowOverflowError && overflow) {
+        if (setFlag && overflow) {
             callPrelude(OVERFLOW_ERROR, VS)
         }
         return dst
