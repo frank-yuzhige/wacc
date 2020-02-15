@@ -118,9 +118,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                         lhsReg.recycleReg()
                     }
                     is PairElem -> {
-                        val lreg = lhs.toARM().toReg()
-                        store(reg, Offset(lreg))
-                        lreg.recycleReg()
+                        val pairPtr = lhs.expr.toARM().toReg()
+                        load(pairPtr, Offset(pairPtr))
+                        store(reg, Offset(pairPtr))
+                        pairPtr.recycleReg()
                         reg.recycleReg()
                     }
                 }
