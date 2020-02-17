@@ -139,14 +139,15 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                         val dstOffset = getLhsAddress(lhs)
                         val isByte = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!) == 1
                         store(reg, dstOffset, isByte)
+                        dstOffset.recycleOffsetReg()
                         reg.recycleReg()
-
                     }
                     is PairElem -> {
                         val offset = getLhsAddress(lhs)
                         val ptr = getReg()
                         load(ptr, offset)
                         store(reg, Offset(ptr))
+                        offset.recycleOffsetReg()
                         ptr.recycleReg()
                         reg.recycleReg()
                     }
@@ -263,7 +264,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     op1 = if (op1 == Reg(0) || op1 == Reg(1)) mov(getReg(), op1) else op1
                     op2 = if (op2 == Reg(0) || op2 == Reg(1)) mov(getReg().also { it.recycleReg() }, op2) else op2
                 }
-                binop(op, op1, op1, op2, true)
+                binop(op, op1, op1, op2, true).also {
+                    if (op2 is Reg) {
+                        op2.recycleReg()
+                    }
+                }
             }
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
@@ -278,12 +283,14 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is ArrayElem -> {
                 var result = load(getReg(), findVar(arrIdent))
                 for (expr in indices) {
+                    val currType = arrIdent.getType(symbolTable).unwrapArrayType()!!
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg,
-                            ImmNum(sizeof(arrIdent.getType(symbolTable).unwrapArrayType()!!)))
+                            ImmNum(sizeof(currType)))
                     result = binop(ADD, result, result, offset)
-                    load(result, Offset(result, 4))
+                    load(result, Offset(result, 4), sizeof(currType) == 1)
+                    indexReg.recycleReg()
                 }
                 result
             }
@@ -325,6 +332,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 val snd = second.toARM().toReg()
                 store(snd, Reg(0))
                 store(Reg(0), Offset(pairAddr, 4))
+                snd.recycleReg()
+
                 pairAddr
             }
             is FunctionCall -> {
@@ -495,6 +504,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             availableRegIds += id
         }
     }
+
+    private fun Offset.recycleOffsetReg() = this.src.recycleReg()
 
     /* Set the current block's label to the given label.
     *  Indicates the beginning of a new instruction block. */
@@ -693,6 +704,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private fun callScanf(expr: Expression) {
         val exprOffset: Offset = getLhsAddress(expr)
         binop(ADD, Reg(1), exprOffset.src, ImmNum(exprOffset.offset))
+        exprOffset.recycleOffsetReg()
         load(Reg(0), defString(getFormatString(expr.getType(symbolTable), false), true))
         binop(ADD, Reg(0), Reg(0), ImmNum(4))
         bl(AL, Label("scanf"))
