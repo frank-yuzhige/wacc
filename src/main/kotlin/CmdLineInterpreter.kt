@@ -36,13 +36,15 @@ fun main(args: Array<String>) {
         System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
+    val asmPath = args[0]!!.substringBeforeLast('.', "") + ".s"
+
     println("===========")
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
     val arm = ASTParserARM(ast, sa.symbolTable).translate().printARM()
     println(arm)
-    val output = File("src/test/resources/valid/mine/gen.s")
+    val output = File(asmPath)
     output.writeText(arm)
     println("===========\n")
 }
