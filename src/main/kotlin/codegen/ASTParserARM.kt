@@ -67,7 +67,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun resetRegs() {
         availableRegIds.clear()
-        availableRegIds += (4..11)
+        availableRegIds += (4..126)
     }
 
     private fun<T> getReg(action: (Register) -> T): T {

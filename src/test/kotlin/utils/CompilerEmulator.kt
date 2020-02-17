@@ -71,6 +71,10 @@ class CompilerEmulator(private val inputFile: File,
                 process.inputStream.reader(Charsets.UTF_8).use {
                     programOutput += it.readText()
                 }
+
+                val addressRegex = """0x\w{5}""".toRegex()
+                programOutput = programOutput.replace(addressRegex, "0x*****")
+
                 exitCode = process.exitValue()
             }
         }
