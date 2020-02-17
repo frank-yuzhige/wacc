@@ -76,7 +76,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     fun translate(): ASTParserARM = this.also { ast.toARM() }
 
-
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
         funcLabelMap += "main" to Label("main")
@@ -123,13 +122,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
                     }
                     is PairElem -> {
-                        val pairPtr = lhs.expr.toARM().toReg()
-                        mov(Reg(0), pairPtr)
-                        callPrelude(CHECK_NULL_PTR)
-                        val offset = Offset(pairPtr, when(lhs.func) { FST -> 0; SND -> 4})
-                        load(pairPtr, offset)
-                        store(reg, Offset(pairPtr))
-                        pairPtr.recycleReg()
+                        val offset = getLhsAddress(lhs)
+                        val ptr = getReg()
+                        load(ptr, offset)
+                        store(reg, Offset(ptr))
+                        ptr.recycleReg()
                         reg.recycleReg()
                     }
                 }
@@ -722,7 +719,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             result
         }
         is PairElem -> {
-            TODO()
+            val pairAddr = lhs.expr.toARM().toReg()
+            mov(Reg(0), pairAddr)
+            callPrelude(CHECK_NULL_PTR)
+            Offset(pairAddr, when(lhs.func) { FST -> 0; SND -> 4})
+                    .also { pairAddr.recycleReg() }
         }
         else -> {
             throw IllegalArgumentException("Target has to be a left-hand-side expression")
