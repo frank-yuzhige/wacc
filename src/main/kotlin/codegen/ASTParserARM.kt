@@ -67,10 +67,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun resetRegs() {
         availableRegIds.clear()
-        availableRegIds += (4..126)
+        availableRegIds += (4..10)
     }
 
-    private fun<T> getReg(action: (Register) -> T): T {
+    private inline fun<T> tempReg(action: (Register) -> T): T {
         val rId = availableRegIds.pollFirst()
         return if (rId != null) {
             action(Reg(rId)).also { availableRegIds += rId }
@@ -257,12 +257,24 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is CharLit -> ImmNum(c.toInt())
             is StringLit -> defString(fromEscape(string).toString(), false)
             is Identifier -> load(getReg(), findVar(this), sizeof(this.getType(symbolTable)) == 1)
-            is BinExpr -> {
-                var op1 = left.toARM().toReg()
-                var op2 = right.toARM()
+            is BinExpr -> {   // x + (y + z)
+                var op1 = left.toARM().toReg()  // x
+                val isPush = op1 == Reg(10)
+                if (isPush) {
+                    push(op1)
+                }
+                var op2 = right.toARM() // y + z -> R10
+                if (isPush) {
+                    op2 = op2.toReg(Reg(10))
+                }
                 if (op == DIV || op == MOD) {
                     op1 = if (op1 == Reg(0) || op1 == Reg(1)) mov(getReg(), op1) else op1
                     op2 = if (op2 == Reg(0) || op2 == Reg(1)) mov(getReg().also { it.recycleReg() }, op2) else op2
+                }
+                if (isPush) {
+                    op1 = Reg(10)
+                    op2 = Reg(11)
+                    pop(op2)
                 }
                 binop(op, op1, op1, op2, true).also {
                     if (op2 is Reg) {
@@ -315,21 +327,23 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     tempElemReg.recycleReg()
                 }
                 // Store the size of the array at the end
-                val tempElemReg = getReg()
-                load(AL, tempElemReg, ImmNum(elements.size))
-                store(tempElemReg, Offset(baseAddressReg, 0, false))
-                tempElemReg.recycleReg()
+                tempReg { tmp ->
+                    load(AL, tmp, ImmNum(elements.size))
+                    store(tmp, Offset(baseAddressReg, 0, false))
+                }
                 baseAddressReg
             }
             is NewPair -> {
                 val pairAddr = mov(getReg(), callMalloc(8))
                 callMalloc(sizeof(first.getType(symbolTable)))
-                val fst = first.toARM().toReg()
+                val fst = getReg()
+                first.toARM().toReg(fst)
                 store(fst, Reg(0))
                 store(Reg(0), pairAddr)
                 fst.recycleReg()
                 callMalloc(sizeof(second.getType(symbolTable)))
-                val snd = second.toARM().toReg()
+                val snd = getReg()
+                second.toARM().toReg(snd)
                 store(snd, Reg(0))
                 store(Reg(0), Offset(pairAddr, 4))
                 snd.recycleReg()
@@ -445,14 +459,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     *  If the given operand is already a register, it would do nothing
     *  In other situations, it would automatically move its content to a reg using either MOV or LDR
     *  Return the register that stores the value of the operand. */
-    private fun Operand.toReg(): Register = when(this) {
-        is Register -> this
-        is ImmNum -> if (num in 0..255) mov(this) else load(getReg(), this)
+    private fun Operand.toReg(dst: Register? = null): Register = when(this) {
+        is Register -> dst?.let { mov(dst, this) } ?: this
+        is ImmNum -> if (num in 0..255) mov(dst?:getReg(), this) else load(dst?:getReg(), this)
         is Label -> {
-            val reg = getReg()
-            load(reg, this)
+            load(dst?:getReg(), this)
         }
-        else -> mov(this)
+        else -> mov(dst?:getReg(), this)
     }
 
 
@@ -573,10 +586,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         return dst
     }
 
-    private fun mov(src: Operand): Register{
-        return mov(getReg(), src)
-    }
-
     private fun mov(dst: Register, src: Operand): Register {
         if (dst != src) {
             instructions += Mov(AL, dst, src)
@@ -586,6 +595,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun push(vararg regs: Register) {
         instructions += Push(regs.toMutableList())
+        regs.filterIsInstance<Reg>().map { it.recycleReg() }
     }
 
     private fun pop(vararg regs: Register) {
@@ -593,6 +603,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             packBlock(PopPC)
         } else {
             instructions += Pop(regs.toMutableList())
+            availableRegIds -= regs.filterIsInstance<Reg>().map { it.id }
         }
     }
 

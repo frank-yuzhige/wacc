@@ -1,0 +1,1 @@
+src/test/resources/valid/mine/gen.s

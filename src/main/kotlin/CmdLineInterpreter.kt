@@ -36,7 +36,12 @@ fun main(args: Array<String>) {
         System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
-    val asmPath = args[0]!!.substringBeforeLast('.', "") + ".s"
+    val debug = true
+    val asmPath = if (debug) {
+        "src/test/resources/valid/mine/gen.s"
+    } else {
+        args[0].substringBeforeLast('.', "") + ".s"
+    }
 
     println("===========")
     println(ast.prettyPrint())
