@@ -51,9 +51,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val firstDefReachedScopes = mutableSetOf<Int>()
     private var spOffset = 0           // current stack-pointer offset (in negative form)
     private var currScopeOffset = 0    // pre-allocated scope offset for variables
-    private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs
-                                                                   // to be run after code gen
-
+    private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
+    private val maxImmNum = 1024
     private val availableRegIds = TreeSet<Int>()
 
     var currBlockLabel = Label("")
@@ -564,9 +563,15 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                       op2: Operand,
                       setFlag: Boolean = false): Register {
         var overflow = false
+        // If the immediate value is greater than 1024, load it into a separate register first
+        var tempOp2: Operand = op2
+        if (op2 is ImmNum && op2.num > maxImmNum) {
+            tempOp2 = load(getReg(), op2)
+            tempOp2.toReg().recycleReg()
+        }
         when (opType) {
-            ADD -> instructions += listOf(Add(AL, dst, rn, op2, setFlag)).also { overflow = true }
-            SUB -> instructions += listOf(Sub(AL, dst, rn, op2, setFlag)).also { overflow = true }
+            ADD -> instructions += Add(AL, dst, rn, tempOp2, setFlag).also { overflow = true }
+            SUB -> instructions += Sub(AL, dst, rn, tempOp2, setFlag).also { overflow = true }
             MUL -> {
                 val op2Reg = op2.toReg()
                 if (op2 !is Register) {
@@ -616,8 +621,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     Cmp(rn, op2),
                     Mov(Condition.NE, dst, immTrue()),
                     Mov(Condition.EQ, dst, immFalse()))
-            AND ->  instructions += listOf(And(AL, dst, rn, op2))
-            OR ->   instructions += listOf(Orr(AL, dst, rn, op2))
+            AND ->  instructions += And(AL, dst, rn, op2)
+            OR ->   instructions += Orr(AL, dst, rn, op2)
         }
         if (setFlag && overflow) {
             callPrelude(OVERFLOW_ERROR, VS)
