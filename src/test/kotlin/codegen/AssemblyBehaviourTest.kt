@@ -1,13 +1,11 @@
 package codegen
 
 import utils.CompilerEmulator
-import utils.EmulatorMode
 import utils.EmulatorMode.*
 import java.io.File
 import java.util.concurrent.TimeoutException
-import kotlin.math.exp
 import kotlin.test.Test
-import kotlin.test.assertEquals
+import kotlin.test.fail
 
 class AssemblyBehaviourTest {
     data class RefCompilerOutput(val output: String, val exitCode: Int)
@@ -69,8 +67,12 @@ class AssemblyBehaviourTest {
             }
         }
         cleanUp()
+        if (correctCount < totalCount) {
+            var errorMsg = "\n\nTest passed: $correctCount/$totalCount\n\n"
+            failedTestsInfo.forEach {(file, cause) -> errorMsg += "$file: $cause\n"}
+            fail(errorMsg)
+        }
         println("\n\nTest passed: $correctCount/$totalCount")
-        failedTestsInfo.forEach { (file, cause) -> println("$file: $cause") }
     }
 
     private fun logFailedTest(testFile: File, cause: FailureType) = failedTestsInfo.set(testFile.path, cause.cause)

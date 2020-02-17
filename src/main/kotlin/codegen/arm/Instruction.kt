@@ -123,6 +123,4 @@ sealed class Instruction {
             DirectiveType.LTORG -> ".ltorg"
         }
     }
-
-//    abstract fun generateCode(): String
 }

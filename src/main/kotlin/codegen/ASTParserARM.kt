@@ -51,7 +51,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val firstDefReachedScopes = mutableSetOf<Int>()
     private var spOffset = 0           // current stack-pointer offset (in negative form)
     private var currScopeOffset = 0    // pre-allocated scope offset for variables
-    private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
+    private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs
+                                                                   // to be run after code gen
 
     private val availableRegIds = TreeSet<Int>()
 
@@ -75,6 +76,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     fun translate(): ASTParserARM = this.also { ast.toARM() }
 
+
+    /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
         funcLabelMap += "main" to Label("main")
         functions.map { funcLabelMap += it.name to getLabel(it.name) }
