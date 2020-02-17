@@ -70,6 +70,16 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         availableRegIds += (4..11)
     }
 
+    private fun<T> getReg(action: (Register) -> T): T {
+        val rId = availableRegIds.pollFirst()
+        return if (rId != null) {
+            action(Reg(rId)).also { availableRegIds += rId }
+        } else {
+            push(Reg(11))
+            action(Reg(11)).also { pop(Reg(11)) }
+        }
+    }
+
     fun printARM(): String = ".data\n\n" +
             StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts).joinToString("\n") + "\n.text\n\n" +
             ".global main\n" +
