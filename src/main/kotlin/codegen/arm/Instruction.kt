@@ -75,6 +75,10 @@ sealed class Instruction {
         override fun toString(): String = "LDR$cond ${dest.inLDR()}, ${opr.inLDR()}"
     }
 
+    data class Ldrsb(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "LDRSB$cond ${dest.inLDR()}, ${opr.inLDR()}"
+    }
+
     /** Store Operation **/
     data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "STR$cond ${dest.inLDR()}, ${opr.inLDR()}"

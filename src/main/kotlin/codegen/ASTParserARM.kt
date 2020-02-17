@@ -34,6 +34,7 @@ import codegen.arm.Operand.ImmNum.Companion.immTrue
 import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
+import utils.EscapeCharMap.Companion.fromEscape
 import utils.LabelNameTable
 import utils.Parameter
 import utils.SymbolTable
@@ -54,6 +55,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val requiredPreludeFuncs = mutableSetOf<PreludeFunc>() // prelude definitions that needs to be run after codegen
     private val maxImmNum = 1024
     private val availableRegIds = TreeSet<Int>()
+    private var blockComplete = false
 
     var currBlockLabel = Label("")
 
@@ -90,13 +92,23 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun ast.Function.toARM() {
         resetRegs()
+        val originalOffset = spOffset
         spOffset = 0
+        currScopeOffset = 0
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
-        args.firstOrNull()?.let { scopeEnterDef(it.second) }
-        args.map { alloca(it.second) }
+        args.firstOrNull()?.let { scopeEnterDef(it.second, args.toSet()) }
+        args.withIndex().map { (i, arg) -> markParam(arg.second, -(i + 1) * 4) }
         body.map { it.toARM() }
+        if (!blockComplete) {
+            packBlock(Unreachable)
+        }
         addDirective(LTORG)
+        spOffset = originalOffset
+    }
+
+    private fun markParam(paramIdent: Identifier, offset: Int) {
+        varOffsetMap[paramIdent.getVarSID()] = offset
     }
 
     private fun Statement.toARM() {
@@ -138,7 +150,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 when(func) {
                     RETURN -> {
                         val reg = expr.toARM()
-                        moveSP(spOffset)
+                        moveSP(spOffset, false)
                         mov(Reg(0), reg)
                         pop(SpecialReg(PC))
                     }
@@ -207,12 +219,12 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         }
     }
 
-    private fun scopeEnterDef(variable: Identifier) {
+    private fun scopeEnterDef(variable: Identifier, params: Set<Parameter> = emptySet()) {
         if (variable.scopeId !in firstDefReachedScopes) {
-            val defs = symbolTable.scopeDefs[variable.scopeId]!!
-            currScopeOffset = 4 * defs.size
+            val defs = symbolTable.scopeDefs[variable.scopeId]!! - params.map { it.second.name }
             defs.withIndex().forEach { (i, v) ->
                 varOffsetMap[v to variable.scopeId] = spOffset + (i + 1) * 4
+                currScopeOffset += 4
             }
             moveSP(-currScopeOffset)
             firstDefReachedScopes += variable.scopeId
@@ -232,11 +244,15 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             }
             is BoolLit -> if (b) immTrue() else immFalse()
             is CharLit -> ImmNum(c.toInt())
-            is StringLit -> defString(string, false)
-            is Identifier -> load(getReg(), findVar(this))
+            is StringLit -> defString(fromEscape(string).toString(), false)
+            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType(symbolTable)) == 1)
             is BinExpr -> {
-                val op1 = left.toARM().toReg()
-                val op2 = right.toARM()
+                var op1 = left.toARM().toReg()
+                var op2 = right.toARM()
+                if (op == DIV || op == MOD) {
+                    op1 = if (op1 == Reg(0) || op1 == Reg(1)) mov(getReg(), op1) else op1
+                    op2 = if (op2 == Reg(0) || op2 == Reg(1)) mov(getReg().also { it.recycleReg() }, op2) else op2
+                }
                 binop(op, op1, op1, op2, true)
             }
             is UnaryExpr -> when(op) {
@@ -302,13 +318,14 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 pairAddr
             }
             is FunctionCall -> {
-                for (arg in args) {
+                for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
                     store(reg, Offset(SpecialReg(SP), -4, true))
+                    spOffset += 4
                     reg.recycleReg()
                 }
                 bl(AL, funcLabelMap.getValue(ident))
-                binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(args.size * 4))
+                moveSP(args.size * 4)
                 Reg(0)
             }
         }
@@ -394,12 +411,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     /* Move the current position of sp by the given offset. */
-    private fun moveSP(offset: Int) {
+    private fun moveSP(offset: Int, record: Boolean = true) {
         if (offset < 0) {
             binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
-            spOffset -= offset
         } else if (offset > 0) {
             binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
+        }
+        if (record) {
             spOffset -= offset
         }
     }
@@ -463,10 +481,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     /* 'Recycle' the given register so that it can be re-used in the future. */
     private fun Register.recycleReg() {
-        if (this is Reg) {
+        if (this is Reg && this.id >= 4) {
             availableRegIds += id
-        } else {
-            throw IllegalArgumentException("$this is not a recyclable register!")
         }
     }
 
@@ -477,6 +493,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             blocks.last.terminator = FallThrough
         }
         currBlockLabel = label
+        blockComplete = false
     }
 
     /* Finish building the current block, pack it up and record it. */
@@ -485,6 +502,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         blocks.addLast(block)
         instructions.clear()
         currBlockLabel = getLabel("${currBlockLabel.name}_seq")
+        blockComplete = true
     }
 
     /* Get a new label based on the given name prefix */
@@ -505,20 +523,24 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     private fun bl(cond: Condition, label: Label, terminator: Terminator) {
-        bl(cond, RUNTIME_ERROR.getLabel())
+        bl(cond, label)
         packBlock(terminator)
     }
 
-    private fun load(cond: Condition, dst: Register, src: Operand): Register {
+    private fun load(cond: Condition, dst: Register, src: Operand, byte: Boolean = false): Register {
         instructions += if (src is ImmNum && src.num in 0..255) {
             Mov(cond, dst, src)
         } else {
-            Ldr(cond, dst, src)
+            if (byte) {
+                Ldrsb(cond, dst, src)
+            } else {
+                Ldr(cond, dst, src)
+            }
         }
         return dst
     }
 
-    private fun load(dst: Register, src: Operand): Register = load(AL, dst, src)
+    private fun load(dst: Register, src: Operand, byte: Boolean = false): Register = load(AL, dst, src, byte)
 
     private fun store(src: Register, dst: Operand, byte: Boolean = false): Operand {
         val realDst = if (dst is Register) Offset(dst, 0) else dst

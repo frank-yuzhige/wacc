@@ -64,7 +64,7 @@ class CompilerEmulator(private val inputFile: File,
             if (executableFile != null) {
                 val process = ProcessBuilder("qemu-arm", "-L", "/usr/arm-linux-gnueabi/",
                         executableFile!!.absolutePath).start()
-                if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
                     process.destroy()
                     throw TimeoutException("Program timed out!")
                 }
