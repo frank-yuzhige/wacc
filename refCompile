@@ -108,6 +108,10 @@ files.each do |file_path|
   
   # get stdin from the user to pass to the reference compiler
   stdin = ""
+  if $options[:execute] then
+    puts "please provide a stdin stream to use when executing the program:"
+    stdin = STDIN.gets
+  end
 
   # make the call to the reference compiler
   RestClient.post("https://teaching.doc.ic.ac.uk/wacc_compiler/run.cgi", 
@@ -116,7 +120,16 @@ files.each do |file_path|
                     :testfile => File.new(file_path)
                    ) do |response|
     json = JSON.load(response)
+    puts "-- Test: #{json['test']}"
+    puts ""
+    puts "-- Uploaded file: "
+    puts "---------------------------------------------------------------"
+    puts json['upload']
+    puts "---------------------------------------------------------------"
+    puts ""
+    puts "-- Compiler Output:"
     puts json['compiler_out']
+    puts ""
   end
   
 end

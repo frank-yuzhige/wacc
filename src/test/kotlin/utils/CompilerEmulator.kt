@@ -19,11 +19,14 @@ class CompilerEmulator(private val inputFile: File,
     private val compiler: String = "arm-linux-gnueabi-gcc"
 
     class EmulatorResult(val exitCode: Int, val ast: WaccAST?, val exception: Exception?, val output: String)
-    fun run(): EmulatorResult {
+
+    fun run(inputData: List<String> = emptyList()): EmulatorResult {
         val parser = Parser(inputFile.inputStream(), errorStream = errorStream)
         var exitCode = 0
         var exception: Exception? = null
         val sa = SemanticAnalyzer()
+
+        /* Perform parsing */
         val ast = try {
             val temp = parser.parseProgram()
             if (mode != PARSE_ONLY) {
@@ -52,6 +55,8 @@ class CompilerEmulator(private val inputFile: File,
             exitCode = 1 //  error output
             null
         }
+
+        /* If parse was successful and emulated execution is required */
         var programOutput: String = ""
         if (mode == EXECUTE && ast != null) {
             val assembly = ASTParserARM(ast, sa.symbolTable).translate().printARM()
@@ -63,8 +68,18 @@ class CompilerEmulator(private val inputFile: File,
             val executableFile: File? = compileAssembly(temp)
             if (executableFile != null) {
                 val process = ProcessBuilder("qemu-arm", "-L", "/usr/arm-linux-gnueabi/",
-                        executableFile!!.absolutePath).start()
-                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                        executableFile.absolutePath).start()
+                if (inputData.isNotEmpty()) {
+                    val writer = BufferedWriter(OutputStreamWriter(process.outputStream, "UTF-8"))
+                    inputData.forEach() { it -> println(it)}
+                    for (line: String in inputData) {
+                        writer.write(line)
+                        writer.flush()
+                    }
+                    writer.close()
+                }
+
+                if (!process.waitFor(3, TimeUnit.SECONDS)) {
                     process.destroy()
                     throw TimeoutException("Program timed out!")
                 }

@@ -1,7 +1,8 @@
 #ignore generated binary files and auto-generated ANTLR code
 bin
 src/main/java/antlr
-gen
+src/test/resources/valid/mine
+src/test/kotlin/utils/temp*
 
 #ignore Java class files
 *.class
