@@ -3,13 +3,11 @@ import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
 import semantics.SemanticAnalyzer
-import sun.swing.FilePane
 import utils.ERROR
 import utils.RESET
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
-import java.nio.file.Path
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
