@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
         }
     }
 
-    val filePath = args[flags.size]
+    val filePath = args.getOrNull(flags.size)
             ?: throw FileNotFoundException("Empty file path!")
     val inputStream = try {
         FileInputStream(filePath)

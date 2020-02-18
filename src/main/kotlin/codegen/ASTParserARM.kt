@@ -108,7 +108,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second, args.toSet()) }
-        args.withIndex().map { (i, arg) -> markParam(arg.second, -(i + 1) * 4) }
+        var offsetAcc = 4
+        args.map { arg ->
+            markParam(arg.second, -offsetAcc)
+            offsetAcc += sizeof(arg.first)
+        }
         body.map { it.toARM() }
         if (!blockComplete) {
             packBlock(Unreachable)
@@ -127,14 +131,17 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is Declaration -> {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
-                alloca(variable, reg)
+                alloca(variable, reg, sizeof(type) == 1)
                 reg.recycleReg()
             }
 
             is Assignment -> {
                 val reg = rhs.toARM().toReg()
                 when(lhs) {
-                    is Identifier -> store(reg, findVar(lhs))
+                    is Identifier -> {
+                        val size = sizeof(lhs.getType(symbolTable))
+                        store(reg, findVar(lhs), size == 1)
+                    }
                     is ArrayElem -> {
                         val dstOffset = getLhsAddress(lhs)
                         val isByte = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!) == 1
@@ -144,9 +151,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     }
                     is PairElem -> {
                         val offset = getLhsAddress(lhs)
+                        val size = sizeof(lhs.getType(symbolTable))
                         val ptr = getReg()
                         load(ptr, offset)
-                        store(reg, Offset(ptr))
+                        store(reg, Offset(ptr), size == 1)
                         offset.recycleOffsetReg()
                         ptr.recycleReg()
                         reg.recycleReg()
@@ -233,9 +241,13 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private fun scopeEnterDef(variable: Identifier, params: Set<Parameter> = emptySet()) {
         if (variable.scopeId !in firstDefReachedScopes) {
             val defs = symbolTable.scopeDefs[variable.scopeId]!! - params.map { it.second.name }
-            defs.withIndex().forEach { (i, v) ->
-                varOffsetMap[v to variable.scopeId] = spOffset + (i + 1) * 4
-                currScopeOffset += 4
+            var offsetAcc = 0
+            defs.forEach { v->
+                val pair = v to variable.scopeId
+                val size = sizeof(symbolTable.collect[pair]!!.type)
+                varOffsetMap[v to variable.scopeId] = spOffset + offsetAcc + size
+                offsetAcc += size
+                currScopeOffset += size
             }
             moveSP(-currScopeOffset)
             firstDefReachedScopes += variable.scopeId
@@ -311,7 +323,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
                 load(temp, Offset(temp, when(func){ FST -> 0; SND -> 4 }))
-                load(temp, Offset(temp))
+                load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
@@ -338,27 +350,29 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 callMalloc(sizeof(first.getType(symbolTable)))
                 val fst = getReg()
                 first.toARM().toReg(fst)
-                store(fst, Reg(0))
+                store(fst, Reg(0), sizeof(first.getType(symbolTable)) == 1)
                 store(Reg(0), pairAddr)
                 fst.recycleReg()
                 callMalloc(sizeof(second.getType(symbolTable)))
                 val snd = getReg()
                 second.toARM().toReg(snd)
-                store(snd, Reg(0))
+                store(snd, Reg(0),  sizeof(second.getType(symbolTable)) == 1)
                 store(Reg(0), Offset(pairAddr, 4))
                 snd.recycleReg()
 
                 pairAddr
             }
             is FunctionCall -> {
+                val oldSPOffset = spOffset
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
-                    store(reg, Offset(SpecialReg(SP), -4, true))
-                    spOffset += 4
+                    val size = sizeof(arg.getType(symbolTable))
+                    store(reg, Offset(SpecialReg(SP), -size, true), size == 1)
+                    spOffset += size
                     reg.recycleReg()
                 }
                 bl(AL, funcLabelMap.getValue(ident))
-                moveSP(args.size * 4)
+                moveSP(spOffset - oldSPOffset)
                 Reg(0)
             }
         }
@@ -471,10 +485,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     /* This method allocates some space on stack for a variable,
     *  returns the offset from the initial sp. */
-    private fun alloca(varNode: Identifier, reg: Register? = null) {
+    private fun alloca(varNode: Identifier, reg: Register? = null, byte: Boolean = false) {
         val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
         val dest = Offset(SpecialReg(SP), offset)
-        reg?.let { store(reg, dest) }
+        reg?.let { store(reg, dest, byte) }
     }
 
     /* Find the alloca-ed variable's offset from the current position of the sp
@@ -716,7 +730,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         val exprOffset: Offset = getLhsAddress(expr)
         binop(ADD, Reg(1), exprOffset.src, ImmNum(exprOffset.offset))
         exprOffset.recycleOffsetReg()
-        load(Reg(0), defString(getFormatString(expr.getType(symbolTable), false), true))
+        val type = expr.getType(symbolTable)
+        val fmtStr = (if (type == charType()) " " else "") +
+                getFormatString(type, false)
+        load(Reg(0), defString(fmtStr, true))
         binop(ADD, Reg(0), Reg(0), ImmNum(4))
         bl(AL, Label("scanf"))
     }
