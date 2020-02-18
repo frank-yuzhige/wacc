@@ -71,7 +71,6 @@ class CompilerEmulator(private val inputFile: File,
                         executableFile.absolutePath).start()
                 if (inputData.isNotEmpty()) {
                     val writer = BufferedWriter(OutputStreamWriter(process.outputStream, "UTF-8"))
-                    inputData.forEach() { it -> println(it)}
                     for (line: String in inputData) {
                         writer.write(line)
                         writer.flush()

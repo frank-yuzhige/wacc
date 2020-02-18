@@ -5,7 +5,9 @@ import semantics.TypeChecker.Companion.pass
 import utils.CompilerEmulator
 import utils.EmulatorMode.*
 import java.io.*
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import kotlin.math.exp
 import kotlin.test.Test
 import kotlin.test.fail
 
@@ -28,7 +30,6 @@ class AssemblyBehaviourTest {
             }
         } else {
             writer.newLine()
-            writer.close()
         }
         writer.close()
         process.waitFor()
@@ -70,7 +71,6 @@ class AssemblyBehaviourTest {
                     }
                 } catch (e: Throwable) {
                     if (e is TimeoutException) {
-                        correctCount++
                         logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
                                 FailureType.TIMEOUT)
                         println("Timeout: ${testFile.path}")
@@ -85,26 +85,23 @@ class AssemblyBehaviourTest {
             }
         }
         cleanUp()
-        if (correctCount < totalCount) {
-            var errorMsg = "\n\nTest passed: $correctCount/$totalCount\n\n"
-            failedTestsInfo.forEach {(file, cause) -> errorMsg += "$file: $cause\n"}
-            fail(errorMsg)
-        }
         println("\n\nTest passed: $correctCount/$totalCount")
+        if (correctCount < totalCount) {
+            var errorMsg = ""
+            failedTestsInfo.forEach {(file, cause) -> errorMsg += "$file: $cause\n"}
+            println(errorMsg)
+        }
     }
 
     @Test
     fun inputBehaviourSingularTest() {
-        var testFile = File("src/test/resources/valid/IO/IOLoop.wacc")
+        var testFile = File("src/test/resources/valid/while/fibonacciFullIt.wacc")
         println("File is found ${testFile.exists()}")
         try {
             val emulator = CompilerEmulator(testFile, EXECUTE)
             val inputData = requiresInput(testFile.nameWithoutExtension)
             val result = emulator.run(inputData)
-            println(result.output)
-            println("reached 1")
             val expectedResult = getRefCompilerOutput(testFile, inputData)
-            println("reached 2")
             if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
                 logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
                         FailureType.OUTPUT_MISMATCH)
@@ -118,6 +115,7 @@ class AssemblyBehaviourTest {
                         FailureType.TIMEOUT)
                 println("Timeout: ${testFile.path}")
             } else {
+                println("===================================")
                 println(e.message)
                 logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
                         FailureType.EXECUTION_FAILURE)
