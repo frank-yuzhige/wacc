@@ -318,10 +318,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             }
             is PairElem -> {
                 val temp = expr.toARM().toReg()
-                push(Reg(0))
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                pop(Reg(0))
                 load(temp, Offset(temp, when(func){ FST -> 0; SND -> 4 }))
                 load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
             }
@@ -372,7 +370,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 }
                 bl(AL, funcLabelMap.getValue(ident))
                 moveSP(spOffset - oldSPOffset)
-                Reg(0)
+                mov(getReg(), Reg(0))
             }
         }
     }
@@ -794,10 +792,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         }
         is PairElem -> {
             val pairAddr = lhs.expr.toARM().toReg()
-            push(Reg(0))
             mov(Reg(0), pairAddr)
             callPrelude(CHECK_NULL_PTR)
-            pop(Reg(0))
             Offset(pairAddr, when(lhs.func) { FST -> 0; SND -> 4})
         }
         else -> {
