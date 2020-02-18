@@ -108,10 +108,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second, args.toSet()) }
-        var offsetAcc = 4
+        var offsetAcc = -4
         args.map { arg ->
-            markParam(arg.second, -offsetAcc)
-            offsetAcc += sizeof(arg.first)
+            markParam(arg.second, offsetAcc)
+            offsetAcc -= sizeof(arg.first)
         }
         body.map { it.toARM() }
         if (!blockComplete) {
@@ -131,7 +131,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is Declaration -> {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
-                alloca(variable, reg, sizeof(type) == 1)
+                alloca(variable, reg, sizeof(type))
                 reg.recycleReg()
             }
 
@@ -140,24 +140,22 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 when(lhs) {
                     is Identifier -> {
                         val size = sizeof(lhs.getType(symbolTable))
-                        store(reg, findVar(lhs), size == 1)
+                        store(reg, findVar(lhs), size)
                     }
                     is ArrayElem -> {
                         val dstOffset = getLhsAddress(lhs)
-                        val isByte = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!) == 1
-                        store(reg, dstOffset, isByte)
+                        val size = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!)
+                        store(reg, dstOffset, size)
                         dstOffset.recycleOffsetReg()
-                        reg.recycleReg()
                     }
                     is PairElem -> {
                         val offset = getLhsAddress(lhs)
                         val size = sizeof(lhs.getType(symbolTable))
                         val ptr = getReg()
                         load(ptr, offset)
-                        store(reg, Offset(ptr), size == 1)
+                        store(reg, Offset(ptr), size)
                         offset.recycleOffsetReg()
                         ptr.recycleReg()
-                        reg.recycleReg()
                     }
                 }
                 reg.recycleReg()
@@ -320,8 +318,10 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             }
             is PairElem -> {
                 val temp = expr.toARM().toReg()
+                push(Reg(0))
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
+                pop(Reg(0))
                 load(temp, Offset(temp, when(func){ FST -> 0; SND -> 4 }))
                 load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
             }
@@ -335,7 +335,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 // Store each element in the array
                 elements.forEachIndexed { index, it ->
                     val tempElemReg = it.toARM().toReg()
-                    store(tempElemReg, Offset(baseAddressReg, 4 + index * elemSize, false), elemSize == 1)
+                    store(tempElemReg, Offset(baseAddressReg, 4 + index * elemSize, false), elemSize)
                     tempElemReg.recycleReg()
                 }
                 // Store the size of the array at the end
@@ -346,17 +346,16 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 baseAddressReg
             }
             is NewPair -> {
-                val pairAddr = mov(getReg(), callMalloc(8))
+                callMalloc(8)
+                val pairAddr = mov(getReg(), Reg(0))
+                val fst= first.toARM().toReg()
                 callMalloc(sizeof(first.getType(symbolTable)))
-                val fst = getReg()
-                first.toARM().toReg(fst)
-                store(fst, Reg(0), sizeof(first.getType(symbolTable)) == 1)
-                store(Reg(0), pairAddr)
+                store(fst, Reg(0), sizeof(first.getType(symbolTable)))
+                store(Reg(0), Offset(pairAddr))
                 fst.recycleReg()
+                val snd = second.toARM().toReg()
                 callMalloc(sizeof(second.getType(symbolTable)))
-                val snd = getReg()
-                second.toARM().toReg(snd)
-                store(snd, Reg(0),  sizeof(second.getType(symbolTable)) == 1)
+                store(snd, Reg(0), sizeof(second.getType(symbolTable)))
                 store(Reg(0), Offset(pairAddr, 4))
                 snd.recycleReg()
 
@@ -367,7 +366,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
                     val size = sizeof(arg.getType(symbolTable))
-                    store(reg, Offset(SpecialReg(SP), -size, true), size == 1)
+                    store(reg, Offset(SpecialReg(SP), -size, true), size)
                     spOffset += size
                     reg.recycleReg()
                 }
@@ -485,7 +484,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     /* This method allocates some space on stack for a variable,
     *  returns the offset from the initial sp. */
-    private fun alloca(varNode: Identifier, reg: Register? = null, byte: Boolean = false) {
+    private fun alloca(varNode: Identifier, reg: Register? = null, byte: Int = 4) {
         val offset = spOffset - varOffsetMap[varNode.getVarSID()]!!
         val dest = Offset(SpecialReg(SP), offset)
         reg?.let { store(reg, dest, byte) }
@@ -590,9 +589,9 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun load(dst: Register, src: Operand, byte: Boolean = false): Register = load(AL, dst, src, byte)
 
-    private fun store(src: Register, dst: Operand, byte: Boolean = false): Operand {
+    private fun store(src: Register, dst: Operand, byte: Int = 4): Operand {
         val realDst = if (dst is Register) Offset(dst, 0) else dst
-        instructions += if (byte) {
+        instructions += if (byte == 1) {
             Strb(src, realDst)
         } else {
             Str(AL, src, realDst)
@@ -719,9 +718,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     private fun callMalloc(size: Int): Register {
-        val target = ImmNum(size).toReg()
-        mov(Reg(0), target)
-        target.recycleReg()
+        mov(Reg(0), ImmNum(size))
         bl(AL, Label("malloc"))
         return Reg(0)
     }
@@ -797,10 +794,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         }
         is PairElem -> {
             val pairAddr = lhs.expr.toARM().toReg()
+            push(Reg(0))
             mov(Reg(0), pairAddr)
             callPrelude(CHECK_NULL_PTR)
+            pop(Reg(0))
             Offset(pairAddr, when(lhs.func) { FST -> 0; SND -> 4})
-                    .also { pairAddr.recycleReg() }
         }
         else -> {
             throw IllegalArgumentException("Target has to be a left-hand-side expression")
