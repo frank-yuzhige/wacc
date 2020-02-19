@@ -75,8 +75,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         return if (rId != null) {
             action(Reg(rId)).also { availableRegIds += rId }
         } else {
-            push(Reg(11))
-            action(Reg(11)).also { pop(Reg(11)) }
+            push(Reg(10))
+            action(Reg(10)).also { pop(Reg(10)) }
         }
     }
 
@@ -236,22 +236,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         }
     }
 
-    private fun scopeEnterDef(variable: Identifier, params: Set<Parameter> = emptySet()) {
-        if (variable.scopeId !in firstDefReachedScopes) {
-            val defs = symbolTable.scopeDefs[variable.scopeId]!! - params.map { it.second.name }
-            var offsetAcc = 0
-            defs.forEach { v->
-                val pair = v to variable.scopeId
-                val size = sizeof(symbolTable.collect[pair]!!.type)
-                varOffsetMap[v to variable.scopeId] = spOffset + offsetAcc + size
-                offsetAcc += size
-                currScopeOffset += size
-            }
-            moveSP(-currScopeOffset)
-            firstDefReachedScopes += variable.scopeId
-        }
-    }
-
     private fun Expression.toARM(): Operand {
         return when(this) {
             NullLit   -> immNull()
@@ -267,28 +251,31 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is CharLit -> ImmNum(c.toInt())
             is StringLit -> defString(fromEscape(string).toString(), false)
             is Identifier -> load(getReg(), findVar(this), sizeof(this.getType(symbolTable)) == 1)
-            is BinExpr -> {   // x + (y + z)
-                var op1 = left.toARM().toReg()  // x
-                val isPush = op1 == Reg(10)
-                if (isPush) {
-                    push(op1)
-                }
-                var op2 = right.toARM() // y + z -> R10
-                if (isPush) {
-                    op2 = op2.toReg(Reg(10))
-                }
-                if (op == DIV || op == MOD) {
-                    op1 = if (op1 == Reg(0) || op1 == Reg(1)) mov(getReg(), op1) else op1
-                    op2 = if (op2 == Reg(0) || op2 == Reg(1)) mov(getReg().also { it.recycleReg() }, op2) else op2
-                }
-                if (isPush) {
-                    op1 = Reg(10)
-                    op2 = Reg(11)
-                    pop(op2)
-                }
-                binop(op, op1, op1, op2, true).also {
+            is BinExpr -> {
+                val dst = peekReg()
+//                If we are running out of registers, activate stack mode...
+                if (dst == Reg(10)) {
+                    val op2 = right.toARM()
+//                    We do not push & pop when the second operand is not a register (Imm for example)
                     if (op2 is Reg) {
-                        op2.recycleReg()
+                        push(op2)
+                    }
+                    left.toARM().toReg(dst)
+//                    If we did push, pop the pushed value to R11, and make op2 to be r11
+                    val realOp2 = if (op2 is Reg) {
+                        pop(Reg(11))
+                        Reg(11)
+                    } else {
+                        op2
+                    }
+                    binop(op, dst, dst, realOp2, true).also {
+                        (op2 as? Reg)?.recycleReg()
+                    }
+                } else {
+                    val op1 = left.toARM().toReg()
+                    val op2 = right.toARM()
+                    binop(op, op1, op1, op2, true).also {
+                        (op2 as? Reg)?.recycleReg()
                     }
                 }
             }
@@ -372,6 +359,25 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 moveSP(spOffset - oldSPOffset)
                 mov(getReg(), Reg(0))
             }
+        }
+    }
+
+    /* Pre-allocate space on stack for all variables defined in this scope, except for function parameters.
+    *  It would be called on the first occurrence of any declaration of any variable in this scope.
+    *  Calling this method twice would do no effect. */
+    private fun scopeEnterDef(variable: Identifier, params: Set<Parameter> = emptySet()) {
+        if (variable.scopeId !in firstDefReachedScopes) {
+            val defs = symbolTable.scopeDefs[variable.scopeId]!! - params.map { it.second.name }
+            var offsetAcc = 0
+            defs.forEach { v->
+                val pair = v to variable.scopeId
+                val size = sizeof(symbolTable.collect[pair]!!.type)
+                varOffsetMap[v to variable.scopeId] = spOffset + offsetAcc + size
+                offsetAcc += size
+                currScopeOffset += size
+            }
+            moveSP(-currScopeOffset)
+            firstDefReachedScopes += variable.scopeId
         }
     }
 
@@ -479,7 +485,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         else -> mov(dst?:getReg(), this)
     }
 
-
     /* This method allocates some space on stack for a variable,
     *  returns the offset from the initial sp. */
     private fun alloca(varNode: Identifier, reg: Register? = null, byte: Int = 4) {
@@ -521,6 +526,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     /* Get the next avaliable register */
     private fun getReg(): Register = Reg(availableRegIds.pollFirst()!!)
+
+    private fun peekReg(): Register? = availableRegIds.firstOrNull()?.let { Reg(it) }
 
     /* 'Recycle' the given register so that it can be re-used in the future. */
     private fun Register.recycleReg() {

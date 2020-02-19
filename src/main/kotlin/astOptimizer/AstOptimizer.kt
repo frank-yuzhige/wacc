@@ -1,0 +1,4 @@
+package astOptimizer
+
+class AstOptimizer {
+}
