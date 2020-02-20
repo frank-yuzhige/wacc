@@ -1,15 +1,9 @@
 package codegen
-
-import semantics.TypeChecker.Companion.match
-import semantics.TypeChecker.Companion.pass
 import utils.CompilerEmulator
 import utils.EmulatorMode.*
 import java.io.*
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import kotlin.math.exp
 import kotlin.test.Test
-import kotlin.test.fail
 
 class AssemblyBehaviourTest {
     data class RefCompilerOutput(val output: String, val exitCode: Int)

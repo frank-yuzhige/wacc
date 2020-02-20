@@ -5,51 +5,73 @@ import codegen.arm.Operand.Label
 
 sealed class Instruction {
 
-    open fun getWrite(): List<Register> = emptyList()
-    open fun getRead(): List<Register> = emptyList()
+    open fun getDefs(): List<Register> = emptyList()
+    open fun getUses(): List<Register> = emptyList()
 
     /** Arithmetic Operations **/
     // Rd := Rn + Op
     class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "ADD${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
     data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "SUB${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
     // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
     data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "MUL${if(setFlag) "S" else ""}$cond $dest, $rm, $rs"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = listOf(rm, rs)
     }
 
     data class Smull(val cond: Condition, val rdLo: Register, val rdHi: Register, val rn: Register, val rm: Register): Instruction() {
         override fun toString(): String = "SMULL$cond $rdLo, $rdHi, $rn, $rm"
+        override fun getDefs(): List<Register> = listOf(rdLo, rdHi)
+        override fun getUses(): List<Register> = listOf(rn, rm)
     }
 
     // Reference Compiler uses a library function "__aeabi_idiv"
-    data class Div(val dest: Register, val rn: Register): Instruction()
+    data class Div(val dest: Register, val rn: Register): Instruction() {
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = listOf(rn)
+    }
 
     // Reverse-sub
-    data class Rsb(val s: Boolean, val cond: Condition, val dest: Register, val rn: Register, val op2: Operand): Instruction() {
-        override fun toString(): String = "RSB${if(s) "S" else ""}$cond $dest, $rn, ${op2.inMOV()}"
+    data class Rsb(val s: Boolean, val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
+        override fun toString(): String = "RSB${if(s) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
 
     /** Comparison Operation **/
     data class Cmp(val rn: Register, val opr: Operand, val modifier: Pair<ShiftModifier, Int>? = null): Instruction() {
         override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}${if(modifier != null) ", ${modifier.first} #${modifier.second}" else ""}"
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
 
     /** Logical Operations **/
     data class Mov(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "MOV$cond $dest, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
     }
     data class And(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "AND$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
     data class Orr(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "ORR$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
     data class Eor(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "EOR$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
     }
 
     sealed class Terminator: Instruction() {
@@ -76,19 +98,27 @@ sealed class Instruction {
     /** Load Operation **/
     data class Ldr(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "LDR$cond ${dest.inLDR()}, ${opr.inLDR()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
     }
 
     data class Ldrsb(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "LDRSB$cond ${dest.inLDR()}, ${opr.inLDR()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
     }
 
     /** Store Operation **/
     data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "STR$cond ${dest.inLDR()}, ${opr.inLDR()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
     }
 
     data class Strb(val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "STRB ${dest.inLDR()}, ${opr.inLDR()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
     }
 
     /** Stack Operation **/
@@ -96,12 +126,14 @@ sealed class Instruction {
         override fun toString(): String {
             return "PUSH ${regList.joinToString(prefix = "{", separator = ", ", postfix = "}") { it.toString() }}"
         }
+        override fun getUses(): List<Register> = regList
     }
 
     data class Pop(val regList: MutableList<Register>): Instruction() {
         override fun toString(): String {
             return "POP ${regList.joinToString(prefix = "{", separator = ", ", postfix = "}") { it.toString() }}"
         }
+        override fun getDefs(): List<Register> = regList
     }
 
 
