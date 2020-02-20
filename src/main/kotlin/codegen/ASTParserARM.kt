@@ -65,10 +65,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         else -> 4
     }
 
-    fun printARM(): String = ".data\n\n" +
-            StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts).joinToString("\n") + "\n.text\n\n" +
-            ".global main\n" +
-            blocks.joinToString("\n")
+    fun export(): ArmProgram
+            = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
 
     fun translate(): ASTParserARM = this.also { ast.toARM() }
 
@@ -86,7 +84,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     }
 
     private fun ast.Function.toARM() {
-        virtualRegIdAcc = 0
+        virtualRegIdAcc = 4
         val originalOffset = spOffset
         spOffset = 0
         currScopeOffset = 0

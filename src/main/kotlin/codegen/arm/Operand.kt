@@ -7,7 +7,10 @@ sealed class Operand {
     open fun inMOV(): String = toString()
     open fun inLDR(): String = toString()
 
+    open fun getAllRegs(): List<Register> = emptyList()
+
     sealed class Register: Operand() {
+        override fun getAllRegs(): List<Register> = listOf(this)
         data class Reg(val id: Int): Register() {
             fun next(offset: Int = 1): Reg = Reg(id + offset)
             fun prev(offset: Int = 1): Reg = Reg(id - offset)
@@ -37,6 +40,7 @@ sealed class Operand {
     }
 
     data class Offset(val src: Register, val offset: Int = 0, val wb: Boolean = false): Operand() {
+        override fun getAllRegs(): List<Register> = listOf(src)
         override fun toString(): String {
             return if (offset == 0) {
                 "[$src]${if (wb) "!" else "" }"

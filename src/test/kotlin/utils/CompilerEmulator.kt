@@ -59,7 +59,7 @@ class CompilerEmulator(private val inputFile: File,
         /* If parse was successful and emulated execution is required */
         var programOutput: String = ""
         if (mode == EXECUTE && ast != null) {
-            val assembly = ASTParserARM(ast, sa.symbolTable).translate().printARM()
+            val assembly = ASTParserARM(ast, sa.symbolTable).translate().export().toString()
             val temp = File("src/test/kotlin/utils/temp.s")
             if (!temp.exists()) {
                 temp.createNewFile()

@@ -13,12 +13,12 @@ sealed class Instruction {
     class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "ADD${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
     data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "SUB${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
     // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
     data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register, val setFlag: Boolean = false): Instruction() {
@@ -43,35 +43,35 @@ sealed class Instruction {
     data class Rsb(val s: Boolean, val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "RSB${if(s) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs()
     }
 
     /** Comparison Operation **/
     data class Cmp(val rn: Register, val opr: Operand, val modifier: Pair<ShiftModifier, Int>? = null): Instruction() {
         override fun toString(): String = "CMP ${rn.inMOV()}, ${opr.inMOV()}${if(modifier != null) ", ${modifier.first} #${modifier.second}" else ""}"
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
 
     /** Logical Operations **/
     data class Mov(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "MOV$cond $dest, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
+        override fun getUses(): List<Register> = opr.getAllRegs()
     }
     data class And(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "AND$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
     data class Orr(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "ORR$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
     data class Eor(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "EOR$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(rn, opr) else listOf(rn)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
 
     sealed class Terminator: Instruction() {
@@ -109,16 +109,16 @@ sealed class Instruction {
     }
 
     /** Store Operation **/
-    data class Str(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "STR$cond ${dest.inLDR()}, ${opr.inLDR()}"
-        override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
+    data class Str(val cond: Condition, val src: Register, val dst: Operand): Instruction() {
+        override fun toString(): String = "STR$cond ${src.inLDR()}, ${dst.inLDR()}"
+        override fun getDefs(): List<Register> = emptyList()
+        override fun getUses(): List<Register> = listOf(src) + dst.getAllRegs()
     }
 
-    data class Strb(val dest: Register, val opr: Operand): Instruction() {
-        override fun toString(): String = "STRB ${dest.inLDR()}, ${opr.inLDR()}"
-        override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
+    data class Strb(val src: Register, val dst: Operand): Instruction() {
+        override fun toString(): String = "STRB ${src.inLDR()}, ${dst.inLDR()}"
+        override fun getDefs(): List<Register> = emptyList()
+        override fun getUses(): List<Register> = listOf(src) + dst.getAllRegs()
     }
 
     /** Stack Operation **/
