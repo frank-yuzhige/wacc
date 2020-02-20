@@ -87,37 +87,6 @@ class AssemblyBehaviourTest {
         }
     }
 
-    @Test
-    fun inputBehaviourSingularTest() {
-        var testFile = File("src/test/resources/valid/while/fibonacciFullIt.wacc")
-        println("File is found ${testFile.exists()}")
-        try {
-            val emulator = CompilerEmulator(testFile, EXECUTE)
-            val inputData = requiresInput(testFile.nameWithoutExtension)
-            val result = emulator.run(inputData)
-            val expectedResult = getRefCompilerOutput(testFile, inputData)
-            if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
-                logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                        FailureType.OUTPUT_MISMATCH)
-                println("Mismatched output: ${testFile.path}")
-            } else {
-                println("All is good: ${testFile.path}")
-            }
-        } catch (e: Throwable) {
-            if (e is TimeoutException) {
-                logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                        FailureType.TIMEOUT)
-                println("Timeout: ${testFile.path}")
-            } else {
-                println("===================================")
-                println(e.message)
-                logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                        FailureType.EXECUTION_FAILURE)
-                println("Execution failed: ${testFile.path}")
-            }
-        } finally {
-        }
-    }
 
     private fun logFailedTest(testFile: File, cause: FailureType) = failedTestsInfo.set(testFile.path, cause.cause)
 
@@ -135,26 +104,5 @@ class AssemblyBehaviourTest {
             return emptyList()
         }
         return inputFile.readLines()
-    }
-
-    private fun executableWriteInput(process: Process, data: List<String>) {
-        val writer = OutputStreamWriter(process.outputStream, "UTF-8")
-        if (data.isNotEmpty()) {
-            for (line in data) {
-                writer.write(line)
-                writer.flush()
-            }
-        } else {
-            writer.write("")
-            writer.flush()
-        }
-    }
-
-    private fun getInputPath(filename: String): String {
-        val inputFile = File("src/test/resources/inputs/${filename}.txt")
-        if (inputFile.exists()) {
-            return inputFile.absolutePath
-        }
-        return ""
     }
 }
