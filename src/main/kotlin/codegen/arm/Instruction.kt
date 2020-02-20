@@ -5,9 +5,12 @@ import codegen.arm.Operand.Label
 
 sealed class Instruction {
 
+    open fun getWrite(): List<Register> = emptyList()
+    open fun getRead(): List<Register> = emptyList()
+
     /** Arithmetic Operations **/
     // Rd := Rn + Op
-    data class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
+    class Add(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "ADD${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
     }
     data class Sub(val cond: Condition, val dest: Register, val rn: Register, val opr: Operand, val setFlag: Boolean = false): Instruction() {
@@ -125,6 +128,13 @@ sealed class Instruction {
     data class Directive(val type: DirectiveType): Instruction() {
         override fun toString(): String = when(type) {
             DirectiveType.LTORG -> ".ltorg"
+        }
+    }
+
+    /** Named instruction which can be referenced as operands **/
+    class Named (val name: Int, val instr: Instruction): Instruction() {
+        override fun toString(): String {
+            return "%$name = $instr"
         }
     }
 }

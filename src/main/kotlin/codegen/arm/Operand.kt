@@ -1,5 +1,7 @@
 package codegen.arm
 
+import ast.WaccAST
+
 sealed class Operand {
 
     open fun inMOV(): String = toString()
@@ -44,5 +46,10 @@ sealed class Operand {
         }
 
         fun shift(amount: Int): Operand = Offset(src, offset + amount, wb)
+    }
+
+    /** Reference to a named instruction **/
+    data class LocalReference(val name: Int) {
+        override fun toString(): String = "%$name"
     }
 }
