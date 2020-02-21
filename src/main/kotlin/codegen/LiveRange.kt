@@ -40,11 +40,12 @@ typealias LiveRangeMap = Map<Reg, LiveRange>
 fun LiveRangeMap.findVirtualToPush(
         waitingVirtual: Reg,
         virtualToRealMap: MutableMap<Reg, Reg>,
-        pushedVirtuals: MutableSet<Reg>
+        pushedVirtuals: MutableSet<Reg>,
+        deadVirtuals: MutableSet<Reg>
 ): Reg {
     val waitingRegRange = this[waitingVirtual]
             ?: throw IllegalArgumentException("Given register $waitingVirtual is not in the live range map")
-    virtualToRealMap.keys.filterNot { it in pushedVirtuals }.forEach { candidate ->
+    virtualToRealMap.keys.filterNot { it in pushedVirtuals || it in deadVirtuals }.forEach { candidate ->
         val liveRange = this.getValue(candidate)
         if (liveRange.isNotUsedDuring(waitingRegRange)) {
             return candidate

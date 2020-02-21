@@ -36,6 +36,7 @@ class RegisterAllocator(val program: ArmProgram) {
         val newInstructions = mutableListOf<Instruction>()
         val popMap = mutableMapOf<Int, MutableList<Reg>>()
         val pushedVirtuals = mutableSetOf<Reg>()
+        val deadVirtuals = mutableSetOf<Reg>()
         var spOffset = 0
         for ((index, instr) in instructions.withIndex()) {
             val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs }
@@ -48,7 +49,7 @@ class RegisterAllocator(val program: ArmProgram) {
                     *  the current virtual register, push that virtual register, make the current virtual register to
                     *  be unified with the actual register that the already pushed virtual register unifies to,
                     *  and pop the pushed virtual back when the current register finishes its life. */
-                    val pushedVirtual = liveRangeMap.findVirtualToPush(virtual, virtualToRealMap, pushedVirtuals)
+                    val pushedVirtual = liveRangeMap.findVirtualToPush(virtual, virtualToRealMap, pushedVirtuals, deadVirtuals)
                     System.err.println("$virtual: pushed $pushedVirtual, which unifies real ${virtualToRealMap.getValue(pushedVirtual)}")
                     newInstructions += Push(mutableListOf(pushedVirtual))
                     virtualToRealMap[virtual] = virtualToRealMap.getValue(pushedVirtual)
@@ -67,8 +68,13 @@ class RegisterAllocator(val program: ArmProgram) {
             }
             newInstructions += instr.adjustBySpOffset(spOffset)
             /* Free any used registers */
-            freeRegMap[index]?.forEach { virtual -> virtualToRealMap[virtual]?.let { real -> realRegSet += real.id } }
+            freeRegMap[index]?.forEach { virtual ->
+                virtualToRealMap[virtual]?.let { real -> realRegSet += real.id }
+                deadVirtuals += virtual
+            }
             popMap[index]?.let {
+                /* TODO: instead of poping directly, load the pushed stuff to the dest reg if the first on the stack is not
+                *   the loaded stuff, then ... */
                 val pops = it.asReversed().toMutableList()
                 spOffset -= 4 * pops.size
                 pushedVirtuals -= pops
