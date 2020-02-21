@@ -284,11 +284,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst= first.toARM().toReg()
                 callMalloc(sizeof(first.getType(symbolTable)))
-                store(fst, Reg(0), sizeof(first.getType(symbolTable)))
+                store(fst, Offset(Reg(0)), sizeof(first.getType(symbolTable)))
                 store(Reg(0), Offset(pairAddr))
                 val snd = second.toARM().toReg()
                 callMalloc(sizeof(second.getType(symbolTable)))
-                store(snd, Reg(0), sizeof(second.getType(symbolTable)))
+                store(snd, Offset(Reg(0)), sizeof(second.getType(symbolTable)))
                 store(Reg(0), Offset(pairAddr, 4))
                 pairAddr
             }
@@ -528,12 +528,11 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
 
     private fun load(dst: Register, src: Operand, byte: Boolean = false): Register = load(AL, dst, src, byte)
 
-    private fun store(src: Register, dst: Operand, byte: Int = 4): Operand {
-        val realDst = if (dst is Register) Offset(dst, 0) else dst
+    private fun store(src: Register, dst: Offset, byte: Int = 4): Operand {
         instructions += if (byte == 1) {
-            Strb(src, realDst)
+            Strb(src, dst)
         } else {
-            Str(AL, src, realDst)
+            Str(AL, src, dst)
         }
         return dst
     }

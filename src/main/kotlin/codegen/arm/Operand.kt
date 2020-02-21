@@ -1,13 +1,14 @@
 package codegen.arm
 
 import ast.WaccAST
+import codegen.arm.SpecialRegName.SP
 
 sealed class Operand {
 
     open fun inMOV(): String = toString()
     open fun inLDR(): String = toString()
-
     open fun getAllRegs(): List<Register> = emptyList()
+    open fun adjustBySpOffset(offset: Int): Operand = this
 
     sealed class Register: Operand() {
         override fun getAllRegs(): List<Register> = listOf(this)
@@ -48,6 +49,8 @@ sealed class Operand {
                 "[$src, #$offset]${if (wb) "!" else "" }"
             }
         }
+
+        override fun adjustBySpOffset(offset: Int) = if(src == Register.SpecialReg(SP)) shift(offset) else this
 
         fun shift(amount: Int): Operand = Offset(src, offset + amount, wb)
     }
