@@ -40,7 +40,7 @@ typealias LiveRangeMap = Map<Reg, LiveRange>
 fun LiveRangeMap.findVirtualToPush(
         waitingVirtual: Reg,
         virtualToRealMap: MutableMap<Reg, Reg>,
-        pushedVirtuals: MutableSet<Reg>,
+        pushedVirtuals: MutableList<Reg>,
         deadVirtuals: MutableSet<Reg>
 ): Reg {
     val waitingRegRange = this[waitingVirtual]

@@ -148,6 +148,8 @@ sealed class Instruction {
 
     /** Stack Operation **/
     data class Push(val regList: MutableList<out Register>): Instruction() {
+        constructor(reg: Register) : this(mutableListOf(reg))
+
         override fun toString(): String {
             return "PUSH ${regList.joinToString(prefix = "{", separator = ", ", postfix = "}") { it.toString() }}"
         }
@@ -155,6 +157,8 @@ sealed class Instruction {
     }
 
     data class Pop(val regList: MutableList<out Register>): Instruction() {
+        constructor(reg: Register) : this(mutableListOf(reg))
+
         override fun toString(): String {
             return "POP ${regList.joinToString(prefix = "{", separator = ", ", postfix = "}") { it.toString() }}"
         }
