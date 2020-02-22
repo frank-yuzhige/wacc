@@ -4,10 +4,12 @@ import codegen.arm.ArmProgram
 import codegen.arm.Instruction
 import codegen.arm.Instruction.*
 import codegen.arm.Operand
-import codegen.arm.Operand.Offset
+import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
+import utils.ERROR
+import utils.RESET
 import java.util.*
 
 class RegisterAllocator(val program: ArmProgram) {
@@ -36,9 +38,10 @@ class RegisterAllocator(val program: ArmProgram) {
         }
         /* Dynamically construct a virtual register to real register unification */
         val virtualToRealMap = mutableMapOf<Reg, Reg>()
-        val realToVirtualMap = (4..11).map { Reg(it) to mutableListOf<Reg>() }.toMap()
+        val realToVirtualMap = (4..11).map { Reg(it) to ArrayDeque<Reg>() }.toMap()
         val newInstructions = mutableListOf<Instruction>()
         val virtualsStack = mutableListOf<Reg>()
+        val popedVirtuals = mutableSetOf<Reg>()
         val deadVirtuals = mutableSetOf<Reg>()
         var spOffset = 0
         for ((index, instr) in instructions.withIndex()) {
@@ -55,6 +58,7 @@ class RegisterAllocator(val program: ArmProgram) {
                     val pushedVirtual = liveRangeMap.findVirtualToPush(virtual, virtualToRealMap, virtualsStack, deadVirtuals)
                     System.err.println("$virtual: pushed $pushedVirtual, which unifies real ${virtualToRealMap.getValue(pushedVirtual)}")
                     newInstructions += Push(mutableListOf(pushedVirtual))
+                            .also { System.err.println("$it     :: ${virtualToRealMap.getValue(pushedVirtual)} <- $virtual") }
                     val currReal = virtualToRealMap.getValue(pushedVirtual)
                     virtualToRealMap[virtual] = currReal
                     realToVirtualMap.getValue(currReal) += virtual
@@ -66,31 +70,47 @@ class RegisterAllocator(val program: ArmProgram) {
                     realToVirtualMap.getValue(real) += virtual
                 }
             }
-            newInstructions += instr.adjustBySpOffset(spOffset)
+            if (virtualsStack.isNotEmpty()) {
+                System.err.println("[${virtualsStack.asReversed().joinToString(", ") { if (it in popedVirtuals) "$ERROR$it$RESET" else it.toString() }}]")
+            }
+            newInstructions += instr.adjustBySpOffset(spOffset).also { System.err.println(it) }
             /* According to the freeRegMap, "kill" all virtual registers by:
             *  1. If it is on the top of the virtual stack, pop it, mark it as dead.
             *  2. If it is in, yet not on the top of the virtual stack, load its address to the real register,
             *     and mark it as dead.
             *  3. Otherwise, add the id of the real reg that it is unified with to the set of available real
-            *     regs, and mark it as dead.   */
-            freeRegMap[index]?.forEach { dying ->
-                val real = virtualToRealMap.getValue(dying)
-                realToVirtualMap.getValue(real) -= dying
-                if (virtualsStack[0] == dying) {
-                    spOffset -= 4
-                    newInstructions += Pop(dying)
-                    virtualsStack.removeAt(0)
-                } else if (dying in virtualsStack) {
-                    val offset = 4 * virtualsStack.indexOf(dying)
-                    newInstructions += Ldr(Condition.AL, dying, Offset(SpecialReg(SP), offset))
-                } else {
+            *     regs(since no other virtual regs are using it), and mark it as dead.   */
+            freeRegMap[index]?.forEach { dyingReg ->
+                val real = virtualToRealMap.getValue(dyingReg)
+                val pushed = realToVirtualMap.getValue(real).lastOrNull { it != dyingReg }
+                if (pushed == null) {
                     realRegSet += real.id
+                } else if (virtualsStack.isNotEmpty() && virtualsStack[0] == pushed) {
+                    spOffset -= 4
+                    newInstructions += Pop(pushed)
+                            .also { System.err.println("$it     :: $real <- $pushed") }
+                    virtualsStack.removeAt(0)
+                } else if (pushed in virtualsStack) {
+                    val offset = 4 * virtualsStack.indexOf(pushed)
+                    newInstructions += Ldr(Condition.AL, dyingReg, Offset(SpecialReg(SP), offset))
+                            .also { System.err.println("$it     :: $real <- $pushed") }
+                    popedVirtuals += pushed
                 }
-                deadVirtuals += dying
+                realToVirtualMap.getValue(real) -= dyingReg
+                deadVirtuals += dyingReg
             }
             /* Remove already dead virtual regs on the top of the stack. */
-            while (virtualsStack.firstOrNull() in deadVirtuals) {
-                virtualsStack.removeAt(0)
+            var acc = 0
+            while (virtualsStack.firstOrNull() in popedVirtuals) {
+                val virtual = virtualsStack.removeAt(0)
+                val real = virtualToRealMap.getValue(virtual)
+                realToVirtualMap.getValue(real) -= virtual
+                acc += 4
+                popedVirtuals -= virtual
+            }
+            if (acc > 0) {
+                spOffset -= acc
+                newInstructions += Add(Condition.AL, SpecialReg(SP), SpecialReg(SP), ImmNum(acc))
             }
         }
         /* Finally, unify the newly-generated instructions with the generated unification.

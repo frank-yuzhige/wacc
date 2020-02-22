@@ -45,7 +45,10 @@ fun LiveRangeMap.findVirtualToPush(
 ): Reg {
     val waitingRegRange = this[waitingVirtual]
             ?: throw IllegalArgumentException("Given register $waitingVirtual is not in the live range map")
-    virtualToRealMap.keys.filterNot { it in pushedVirtuals || it in deadVirtuals }.forEach { candidate ->
+    virtualToRealMap.keys
+            .filterNot { it in pushedVirtuals || it in deadVirtuals }
+            .sortedBy { -it.id }
+            .forEach { candidate ->
         val liveRange = this.getValue(candidate)
         if (liveRange.isNotUsedDuring(waitingRegRange)) {
             return candidate

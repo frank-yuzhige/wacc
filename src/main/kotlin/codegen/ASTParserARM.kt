@@ -229,7 +229,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
-                binop(op, op1, op1, op2, true)
+                binop(op, op1, op1, op2, op2Destructive = true, setFlag = true)
             }
             is UnaryExpr -> when(op) {
                 ORD -> expr.toARM()
@@ -247,8 +247,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                     val currType = arrIdent.getType(symbolTable).unwrapArrayType()!!
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
-                    val offset = binop(MUL, indexReg, indexReg,
-                            ImmNum(sizeof(currType)))
+                    val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
                     result = binop(ADD, result, result, offset)
                     load(result, Offset(result, 4), sizeof(currType) == 1)
                 }
@@ -564,6 +563,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                       dst: Register,
                       rn: Register,
                       op2: Operand,
+                      op2Destructive: Boolean = false,
                       setFlag: Boolean = false): Register {
         var overflow = false
         // If the immediate value is greater than 1024, load it into a separate register first
@@ -576,7 +576,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             SUB -> instructions += Sub(AL, dst, rn, tempOp2, setFlag).also { overflow = true }
             MUL -> {
                 val op2Reg = op2.toReg()
-                val rdHi = getReg()
+                val rdHi = if (op2Destructive) op2Reg else getReg()
                 instructions += Smull(AL, dst, rdHi, rn, op2Reg)
                 instructions += Cmp(rdHi, dst, ASR to 31)
                 callPrelude(OVERFLOW_ERROR, NE)
@@ -712,8 +712,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
                 val indexReg = expr.toARM().toReg()
                 load(AL, arrReg, result)
                 callCheckArrBound(indexReg, arrReg)
-                binop(MUL, indexReg, indexReg,
-                        ImmNum(sizeof(originalType.unwrapArrayType(i + 1)!!)))
+                binop(MUL, indexReg, indexReg, ImmNum(sizeof(originalType.unwrapArrayType(i + 1)!!)), op2Destructive = true)
                 binop(ADD, indexReg, indexReg, ImmNum(4))
                 binop(ADD, arrReg, arrReg, indexReg)
                 result = Offset(arrReg)
