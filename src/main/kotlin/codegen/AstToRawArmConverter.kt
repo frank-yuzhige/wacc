@@ -41,7 +41,13 @@ import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
 
-class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
+/* AstToRawArmConverter takes the program AST and the generated symbol table, returns a "raw" ARM program.
+*  The converter will generate a 'sort-of-functional' ARM program (meets ARM's syntax), except that it does
+*  not free any registers and do any PUSH/POP to normal registers(R4..).
+*  Thus, the generated program could work if it does not contain any normal register with its id > 11.
+*  All of the normal registers in the generated raw ARM program are "virtual" registers. Which will be unified
+*  with "real" registers by RegisterAllocator */
+class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private val labelNameTable = LabelNameTable()
     private val singletonStringConsts: MutableMap<String, Label> = mutableMapOf()
     private val commonStringConsts: MutableList<Pair<String, Label>> = mutableListOf()
@@ -68,7 +74,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     fun export(): ArmProgram
             = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
 
-    fun translate(): ASTParserARM = this.also { ast.toARM() }
+    fun translate(): AstToRawArmConverter = this.also { ast.toARM() }
 
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
@@ -494,6 +500,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
     private fun getLabel(name: String): Label = Label(labelNameTable.getName(name))
 
     /** Instruction helper methods **/
+    /* These methods are helper methods that inserts instructions, change block state, etc. */
 
     private fun branch(label: Label) {
         packBlock(B(AL, label))
@@ -642,6 +649,8 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         return dst
     }
 
+    /** Call Prelude Function Helper Methods **/
+
     private fun callCheckArrBound(expected: Operand, arrayPtr: Register) {
         mov(Reg(0), expected.toReg())
         mov(Reg(1), arrayPtr)
@@ -702,6 +711,7 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
         bl(cond, func.getLabel())
     }
 
+    /* Get the address of a lhs expression, returns an offset. */
     private fun getLhsAddress(lhs: Expression): Offset = when(lhs) {
         is Identifier -> findVar(lhs)
         is ArrayElem -> {
@@ -729,7 +739,6 @@ class ASTParserARM(val ast: ProgramAST, private val symbolTable: SymbolTable) {
             throw IllegalArgumentException("Target has to be a left-hand-side expression")
         }
     }
-
 
     private fun getFormatString(type: Type, newline: Boolean): String {
         val format = when(type) {

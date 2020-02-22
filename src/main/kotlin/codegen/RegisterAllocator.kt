@@ -12,6 +12,10 @@ import utils.ERROR
 import utils.RESET
 import java.util.*
 
+/* RegisterAllocator takes a "raw" ARM program, generates a unification (virtual -> real), and
+*  apply such unification to the original arm program to give a truly functional program.
+*  Necessary PUSHes and POPs are inserted to the original program as well, and the offset of SP
+*  will also be corrected accordingly. */
 class RegisterAllocator(val program: ArmProgram) {
 
     private val debug = true
@@ -22,9 +26,20 @@ class RegisterAllocator(val program: ArmProgram) {
         return ArmProgram(program.stringConsts, program.blocks.map { it.rename() })
     }
 
+    /* "Rename" all virtual registers in a given instruction block to real registers.
+    *  It would automatically generate a unification which is applicable in the context of
+    *  the current instruction block, add PUSH and POP instructions where necessary, re-calculates
+    *  and updates the SP offset, and finally "renames" (unifies) all virtual registers with the
+    *  generated unification.
+    *
+    *  Each virtual register is assigned to a real register. Each real register can accept multiple virtual
+    *  registers. However, if a real register accepts several virtual regs at the same time, it is guaranteed
+    *  that each virtual register is pushed to the stack in the order of their occurrence (def), except for
+    *  the last virtual register which is currently in use. It is also guaranteed that if a virtual register
+    *  "PUSHed" the other register, they must satisfy several rules to ensure no register collision (see method
+    *  "LiveRangeMap.findVirtualToPush" in LiveRange.kt). */
     private fun InstructionBlock.rename(): InstructionBlock {
-        /* All currently available 'normal' registers */
-        val realRegSet: TreeSet<Int> = (4..11).toCollection(TreeSet())
+        val availableRealRegs: TreeSet<Int> = (4..11).toCollection(TreeSet())
         val liveRangeMap = getLiveRangeMap()
         println("In block <${this.label}>:")
         liveRangeMap.dump()
@@ -52,7 +67,7 @@ class RegisterAllocator(val program: ArmProgram) {
             /* For each un-unified register which has been defined in the current instruction,
             *  unify it with a given real Reg. */
             defs.filterNot { it in virtualToRealMap }.forEach { virtual ->
-                val real = realRegSet.pollFirst()?.let(::Reg)
+                val real = availableRealRegs.pollFirst()?.let(::Reg)
                 if (real == null) { // if we are running out of registers...
                     /* Find a already unified virtual register which will not be used at all during the live range of
                     *  the current virtual register, push that virtual register, make the current virtual register to
@@ -95,16 +110,16 @@ class RegisterAllocator(val program: ArmProgram) {
             /* For each virtual register that should be dead by the end of this instruction, "kill" it.
             *  [INVARIANT]: each dying reg should not be on the stack (if it is on the stack, that means the virtual
             *     which pushed the current virtual is not yet killed, which contradicts with our live-range reg allocation
-            *     policy, hence it would never happen.)
-            *  1. If the virtual has not pushed any virtual, means the real register that is unified with it is free.
+            *     policy. Hence it would never happen.)
+            *  1. If it has not pushed any virtual, means the real register that is unified with it is now free.
             *  2. If the virtual it pushed is on the top of the stack, simply pop that register down.
-            *  3. Otherwise, the virtual has pushed some virtual, yet the pushed is not on the top of the stack.
+            *  3. Otherwise, it has pushed some virtual, yet the pushed virtual is not on the top of the stack.
             *     In this case, find and load the value of the pushed virtual, mark the pushed virtual as "to be poped". */
             freeRegMap[index]?.forEach { dyingReg ->
                 val real = virtualToRealMap.getValue(dyingReg)
                 val pushed = realVirtualStackMap.getValue(real).lastOrNull { it != dyingReg }
                 if (pushed == null) {
-                    realRegSet += real.id
+                    availableRealRegs += real.id
                 } else if (virtualsStack.isNotEmpty() && virtualsStack[0] == pushed) {
                     spOffset -= 4
                     newInstructions += Pop(pushed)
@@ -135,10 +150,11 @@ class RegisterAllocator(val program: ArmProgram) {
             }
         }
         /* Finally, unify the newly-generated instructions with the generated unification.
-        *  Then re-pack it to the same instruction block. */
+        *  Then re-pack it to get our final instruction block. */
         return InstructionBlock(label, newInstructions.map { it.unify(virtualToRealMap) }, terminator, tails)
     }
 
+    /* Generate a live range map for all virtual registers appeared in this instruction block. */
     private fun InstructionBlock.getLiveRangeMap(): LiveRangeMap {
         val virtualLiveRangeMap = mutableMapOf<Reg, LiveRange>()
         for ((index, instr) in this.instructions.withIndex()) {
@@ -158,11 +174,13 @@ class RegisterAllocator(val program: ArmProgram) {
         return virtualLiveRangeMap
     }
 
+    /* Unifies virtual registers in the given instruction by the real instruction, as per the given
+    *  virtual-to-real unification map. */
     private fun Instruction.unify(unification: Map<Reg, Reg>): Instruction {
         return when(this) {
-            is Add -> Add(cond, dest.unify(unification), rn.unify(unification), opr.unify(unification))
-            is Sub -> Sub(cond, dest.unify(unification), rn.unify(unification), opr.unify(unification))
-            is Mul -> Mul(cond, dest.unify(unification), rm.unify(unification), rs.unify(unification))
+            is Add -> Add(cond, dest.unify(unification), rn.unify(unification), opr.unify(unification), setFlag)
+            is Sub -> Sub(cond, dest.unify(unification), rn.unify(unification), opr.unify(unification), setFlag)
+            is Mul -> Mul(cond, dest.unify(unification), rm.unify(unification), rs.unify(unification), setFlag)
             is Smull ->  Smull(cond, rdLo.unify(unification), rdHi.unify(unification), rn.unify(unification), rm.unify(unification))
             is Div -> Div(dest.unify(unification), rn.unify(unification))
             is Rsb -> Rsb(s, cond, dest.unify(unification), rn.unify(unification), opr.unify(unification))
