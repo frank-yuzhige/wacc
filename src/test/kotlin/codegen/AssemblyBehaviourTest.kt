@@ -15,8 +15,10 @@ class AssemblyBehaviourTest {
         EXECUTION_FAILURE("Execution failed")
     }
 
-    private val notApplicableCases = setOf<String>(
-            "src/test/resources/valid/advanced/ticTacToe.wacc"
+    private val notApplicableCases = setOf(
+            "src/test/resources/valid/advanced/ticTacToe.wacc",
+            "src/test/resources/valid/mine/varvarvar.wacc",
+            "src/test/resources/valid/mine/kata.wacc"
     )
 
     private fun getRefCompilerOutput(file: File, inputData: List<String>): RefCompilerOutput {

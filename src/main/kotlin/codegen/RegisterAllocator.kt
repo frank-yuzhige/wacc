@@ -6,10 +6,10 @@ import codegen.arm.Instruction.*
 import codegen.arm.Operand
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.Reg
+import codegen.arm.Operand.Register.Reg.Companion.normalRegs
+import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.SpecialRegName.*
-import utils.ERROR
-import utils.RESET
 import java.util.*
 
 /* RegisterAllocator takes a "raw" ARM program, generates a unification (virtual -> real), and
@@ -19,8 +19,6 @@ import java.util.*
 class RegisterAllocator(val program: ArmProgram) {
 
     private val debug = true
-
-    private val reservedRegs = (0..3).map(::Reg)
 
     fun run(): ArmProgram {
         return ArmProgram(program.stringConsts, program.blocks.map { it.rename() })
@@ -39,10 +37,9 @@ class RegisterAllocator(val program: ArmProgram) {
     *  "PUSHed" the other register, they must satisfy several rules to ensure no register collision (see method
     *  "LiveRangeMap.findVirtualToPush" in LiveRange.kt). */
     private fun InstructionBlock.rename(): InstructionBlock {
-        val availableRealRegs: TreeSet<Int> = (4..11).toCollection(TreeSet())
+        val availableRealRegs: TreeSet<Int> = normalRegs().map { it.id }.toCollection(TreeSet())
         val liveRangeMap = getLiveRangeMap()
-        println("In block <${this.label}>:")
-        liveRangeMap.dump()
+//        liveRangeMap.dump()
         /* index to list of regs to be freed at that instruction */
         val freeRegMap = mutableMapOf<Int, MutableList<Reg>>()
         liveRangeMap.forEach { (reg, liveRange) ->
@@ -63,7 +60,7 @@ class RegisterAllocator(val program: ArmProgram) {
         val deadVirtuals = mutableSetOf<Reg>()
         var spOffset = 0
         for ((index, instr) in instructions.withIndex()) {
-            val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs }
+            val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs() }
             /* For each un-unified register which has been defined in the current instruction,
             *  unify it with a given real Reg. */
             defs.filterNot { it in virtualToRealMap }.forEach { virtual ->
@@ -81,13 +78,7 @@ class RegisterAllocator(val program: ArmProgram) {
                             realToVirtualMap,
                             instructions
                     )
-                    if (debug) {
-                        System.err.println("$virtual: pushed $pushedVirtual, which unifies real ${virtualToRealMap.getValue(pushedVirtual)}")
-                    }
                     newInstructions += Push(mutableListOf(pushedVirtual))
-                            .also { if (debug) {
-                                System.err.println("$it     :: ${virtualToRealMap.getValue(pushedVirtual)} <- $virtual")
-                            } }
                     val currReal = virtualToRealMap.getValue(pushedVirtual)
                     virtualToRealMap[virtual] = currReal
                     realVirtualStackMap.getValue(currReal) += virtual
@@ -96,17 +87,11 @@ class RegisterAllocator(val program: ArmProgram) {
                     spOffset += 4
                 } else {
                     /* Otherwise, simply unifies the currently avaliable real reg with the virtual register */
-                    if (debug) {
-                        System.err.println("$virtual unifies with $real")
-                    }
                     virtualToRealMap[virtual] = real
                     realVirtualStackMap.getValue(real) += virtual
                 }
             }
-            if (virtualsStack.isNotEmpty()) {
-                System.err.println("[${virtualsStack.asReversed().joinToString(", ") { if (it in popedVirtuals) "$ERROR$it$RESET" else it.toString() }}]")
-            }
-            newInstructions += instr.adjustBySpOffset(spOffset).also { System.err.println(it) }
+            newInstructions += instr.adjustBySpOffset(spOffset)
             /* For each virtual register that should be dead by the end of this instruction, "kill" it.
             *  [INVARIANT]: each dying reg should not be on the stack (if it is on the stack, that means the virtual
             *     which pushed the current virtual is not yet killed, which contradicts with our live-range reg allocation
@@ -123,12 +108,10 @@ class RegisterAllocator(val program: ArmProgram) {
                 } else if (virtualsStack.isNotEmpty() && virtualsStack[0] == pushed) {
                     spOffset -= 4
                     newInstructions += Pop(pushed)
-                            .also { System.err.println("$it     :: $real <- $pushed") }
                     virtualsStack.removeAt(0)
                 } else if (pushed in virtualsStack) {
                     val offset = 4 * virtualsStack.indexOf(pushed)
                     newInstructions += Ldr(Condition.AL, dyingReg, Offset(SpecialReg(SP), offset))
-                            .also { System.err.println("$it     :: $real <- $pushed") }
                     popedVirtuals += pushed
                 }
                 realVirtualStackMap.getValue(real) -= dyingReg
@@ -158,8 +141,8 @@ class RegisterAllocator(val program: ArmProgram) {
     private fun InstructionBlock.getLiveRangeMap(): LiveRangeMap {
         val virtualLiveRangeMap = mutableMapOf<Reg, LiveRange>()
         for ((index, instr) in this.instructions.withIndex()) {
-            val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs }
-            val uses = instr.getUses().filterIsInstance<Reg>().filterNot { it in reservedRegs }
+            val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs() }
+            val uses = instr.getUses().filterIsInstance<Reg>().filterNot { it in reservedRegs() }
             defs.forEach { virtual ->
                 if (virtual in virtualLiveRangeMap) {
                     virtualLiveRangeMap[virtual]!!.defs += index
@@ -202,7 +185,7 @@ class RegisterAllocator(val program: ArmProgram) {
 
     private fun<T: Operand> T.unify(unification: Map<Reg, Reg>): T {
         return when(this) {
-            is Reg -> if (this in reservedRegs) this else unification[this] as T
+            is Reg -> if (this in reservedRegs()) this else unification[this] as T
             is Offset -> Offset(src.unify(unification), offset, wb) as T
             else -> this
         }

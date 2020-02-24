@@ -57,24 +57,24 @@ typealias LiveRangeMap = Map<Reg, LiveRange>
 *     are also unified with Rp in any instruction. */
 fun LiveRangeMap.findVirtualToPush(
         waitingVirtual: Reg,
-        virtualToRealMap: MutableMap<Reg, Reg>,
+        unificationMap: MutableMap<Reg, Reg>,
         pushedVirtuals: MutableList<Reg>,
         deadVirtuals: MutableSet<Reg>,
-        realToVirtualMap: Map<Reg, MutableSet<Reg>>,
+        realToVirtualsMap: Map<Reg, MutableSet<Reg>>,
         instructions: List<Instruction>
 ): Reg {
     val vwLiveRange = this[waitingVirtual]
             ?: throw IllegalArgumentException("Given register $waitingVirtual is not in the live range map")
-    virtualToRealMap.keys
+    unificationMap.keys
             .filterNot { it in pushedVirtuals || it in deadVirtuals } // find out not dead, not-on-stack virtuals
             .sortedBy { -it.id }
             .forEach { vp ->
         val vpLiveRange = this.getValue(vp)
         if (vpLiveRange.isNotUsedDuring(vwLiveRange)) {
-            if (vp in virtualToRealMap) {     // if vp has unified with a real reg
-                val rp = virtualToRealMap.getValue(vp)
+            if (vp in unificationMap) {     // if vp has unified with a real reg
+                val rp = unificationMap.getValue(vp)
                 val coexists = vwLiveRange.findAllCoexistingRegs(waitingVirtual, instructions)
-                if (coexists.all { it !in realToVirtualMap.getValue(rp) }) {
+                if (coexists.all { it !in realToVirtualsMap.getValue(rp) }) {
                     return vp
                 }
             } else {

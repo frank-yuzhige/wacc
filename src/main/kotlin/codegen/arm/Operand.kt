@@ -13,12 +13,20 @@ sealed class Operand {
     sealed class Register: Operand() {
         override fun getAllRegs(): List<Register> = listOf(this)
         data class Reg(val id: Int): Register() {
+            companion object {
+                fun reservedRegs(): List<Reg> = (0..3).map(::Reg)
+                fun normalRegs(): List<Reg> = (4..11).map(::Reg)
+            }
+
             fun next(offset: Int = 1): Reg = Reg(id + offset)
             fun prev(offset: Int = 1): Reg = Reg(id - offset)
             override fun toString(): String = "r$id"
         }
 
         data class SpecialReg(val name: SpecialRegName): Register() {
+            companion object {
+                fun sp(): SpecialReg = SpecialReg(SP)
+            }
             override fun toString(): String {
                 return name.toString().toLowerCase()
             }
@@ -53,10 +61,5 @@ sealed class Operand {
         override fun adjustBySpOffset(offset: Int) = if(src == Register.SpecialReg(SP)) shift(offset) else this
 
         fun shift(amount: Int): Operand = Offset(src, offset + amount, wb)
-    }
-
-    /** Reference to a named instruction **/
-    data class LocalReference(val name: Int) {
-        override fun toString(): String = "%$name"
     }
 }

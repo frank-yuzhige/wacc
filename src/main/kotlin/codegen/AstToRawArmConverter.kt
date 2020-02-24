@@ -2,13 +2,13 @@ package codegen
 
 import ast.*
 import ast.BinaryOperator.*
-import ast.BinaryOperator.DIV
 import ast.BinaryOperator.EQ
 import ast.BinaryOperator.GT
 import ast.BinaryOperator.LT
-import ast.BinaryOperator.MUL
 import ast.Expression.*
-import ast.Expression.PairElemFunction.*
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
+import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.ArrayType
@@ -65,25 +65,18 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     var currBlockLabel = Label("")
 
-    private fun sizeof(type: Type): Int = when(type) {
-        charType() -> 1
-        boolType() -> 1
-        else -> 4
-    }
-
-    fun export(): ArmProgram
-            = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
+    fun export(): ArmProgram = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
 
     fun translate(): AstToRawArmConverter = this.also { ast.toARM() }
 
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
         funcLabelMap += "main" to Label("main")
-        functions.map { funcLabelMap += it.name to getLabel(it.name) }
-        Function(Type.intType(),
-                "main",
-                mutableListOf(),
-                mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
+        functions.map { funcLabelMap += it.name to getLabel("f_${it.name}") }
+        Function(returnType = intType(),
+                name = "main",
+                args = mutableListOf(),
+                body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
         ).toARM()
         functions.map { it.toARM() }
         definePreludes()
@@ -115,7 +108,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun Statement.toARM() {
-        when(this) {
+        when (this) {
             is Skip -> Skip
             is Declaration -> {
                 scopeEnterDef(variable)
@@ -125,7 +118,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
             is Assignment -> {
                 val reg = rhs.toARM().toReg()
-                when(lhs) {
+                when (lhs) {
                     is Identifier -> {
                         val size = sizeof(lhs.getType(symbolTable))
                         store(reg, findVar(lhs), size)
@@ -148,7 +141,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is Read -> callScanf(target)
 
             is BuiltinFuncCall -> {
-                when(func) {
+                when (func) {
                     RETURN -> {
                         val reg = expr.toARM()
                         moveSP(spOffset, false)
@@ -158,7 +151,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     FREE -> {
                         val reg = expr.toARM().toReg()
                         mov(Reg(0), reg)
-                        when(expr.getType(symbolTable)) {
+                        when (expr.getType(symbolTable)) {
                             is ArrayType -> callPrelude(FREE_ARRAY)
                             is Type.PairType -> callPrelude(FREE_PAIR)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
@@ -177,7 +170,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is CondBranch -> {
                 val ifthen = getLabel("if_then")
                 val ifelse = getLabel("if_else")
-                val ifend  = getLabel("if_end")
+                val ifend = getLabel("if_end")
                 val cond = expr.toARM().toReg()
                 cmp(cond, immFalse())
                 branch(Condition.EQ, ifelse)
@@ -196,7 +189,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is WhileLoop -> {
                 val lCheck = getLabel("loop_check")
                 val lBody = getLabel("loop_body")
-                val lEnd  = getLabel("loop_end")
+                val lEnd = getLabel("loop_end")
                 branch(lCheck)
 
                 setBlock(lCheck)
@@ -218,8 +211,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun Expression.toARM(): Operand {
-        return when(this) {
-            NullLit   -> immNull()
+        return when (this) {
+            NullLit -> immNull()
             is IntLit -> {
                 if (x in 0..255) {
                     ImmNum(x)
@@ -237,13 +230,15 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val op2 = right.toARM()
                 binop(op, op1, op1, op2, op2Destructive = true, setFlag = true)
             }
-            is UnaryExpr -> when(op) {
+            is UnaryExpr -> when (op) {
                 ORD -> expr.toARM()
                 CHR -> expr.toARM()
                 LEN -> load(getReg(), Offset(expr.toARM().toReg(), 0, false))
                 NEG -> {
                     val reg = expr.toARM().toReg()
-                    rsbs(reg, reg, ImmNum(0)).also { callPrelude(OVERFLOW_ERROR, VS) }
+                    rsbs(reg, reg, ImmNum(0))
+                    callPrelude(OVERFLOW_ERROR, VS)
+                    reg
                 }
                 NOT -> not(expr.toARM().toReg())
             }
@@ -263,12 +258,14 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val temp = expr.toARM().toReg()
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                load(temp, Offset(temp, when(func){ FST -> 0; SND -> 4 }))
+                load(temp, Offset(temp, when (func) {
+                    FST -> 0; SND -> 4
+                }))
                 load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) }?:0
+                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) } ?: 0
                 val totalSize = elements.size * elemSize + 4
 
                 val baseAddressReg = mov(getReg(), callMalloc(totalSize))
@@ -287,7 +284,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is NewPair -> {
                 callMalloc(8)
                 val pairAddr = mov(getReg(), Reg(0))
-                val fst= first.toARM().toReg()
+                val fst = first.toARM().toReg()
                 callMalloc(sizeof(first.getType(symbolTable)))
                 store(fst, Offset(Reg(0)), sizeof(first.getType(symbolTable)))
                 store(Reg(0), Offset(pairAddr))
@@ -319,7 +316,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         if (variable.scopeId !in firstDefReachedScopes) {
             val defs = symbolTable.scopeDefs[variable.scopeId]!! - params.map { it.second.name }
             var offsetAcc = 0
-            defs.forEach { v->
+            defs.forEach { v ->
                 val pair = v to variable.scopeId
                 val size = sizeof(symbolTable.collect[pair]!!.type)
                 varOffsetMap[v to variable.scopeId] = spOffset + offsetAcc + size
@@ -426,13 +423,13 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     *  If the given operand is already a register, it would do nothing
     *  In other situations, it would automatically move its content to a reg using either MOV or LDR
     *  Return the register that stores the value of the operand. */
-    private fun Operand.toReg(dst: Register? = null): Register = when(this) {
+    private fun Operand.toReg(dst: Register? = null): Register = when (this) {
         is Register -> dst?.let { mov(dst, this) } ?: this
-        is ImmNum -> if (num in 0..255) mov(dst?:getReg(), this) else load(dst?:getReg(), this)
+        is ImmNum -> if (num in 0..255) mov(dst ?: getReg(), this) else load(dst ?: getReg(), this)
         is Label -> {
-            load(dst?:getReg(), this)
+            load(dst ?: getReg(), this)
         }
-        else -> mov(dst?:getReg(), this)
+        else -> mov(dst ?: getReg(), this)
     }
 
     /* This method allocates some space on stack for a variable,
@@ -466,7 +463,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /* Run the provided action in the context of a new scope.
     *  The original scope offset is recorded and sp is moved back to it
     *  after the action is finished. */
-    private fun inScopeDo(action: () -> Unit) {
+    private inline fun inScopeDo(action: () -> Unit) {
         val prevScopeOffset = currScopeOffset
         currScopeOffset = 0
         action()
@@ -570,7 +567,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                       dst: Register,
                       rn: Register,
                       op2: Operand,
-                      op2Destructive: Boolean = false,
+                      op2Destructive: Boolean = false,    // op2 can be used in a destructive way if it is a reg.
                       setFlag: Boolean = false): Register {
         var overflow = false
         // If the immediate value is greater than 1024, load it into a separate register first
@@ -626,8 +623,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     Cmp(rn, op2),
                     Mov(Condition.NE, dst, immTrue()),
                     Mov(Condition.EQ, dst, immFalse()))
-            AND ->  instructions += And(AL, dst, rn, op2)
-            OR ->   instructions += Orr(AL, dst, rn, op2)
+            AND -> instructions += And(AL, dst, rn, op2)
+            OR -> instructions += Orr(AL, dst, rn, op2)
         }
         if (setFlag && overflow) {
             callPrelude(OVERFLOW_ERROR, VS)
@@ -678,7 +675,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
         val exprType = expr.getType(symbolTable)
-        when(exprType) {
+        when (exprType) {
             boolType() -> {
                 cmp(operand, immFalse())
                 load(NE, Reg(1), defString("true"))
@@ -712,17 +709,18 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     /* Get the address of a lhs expression, returns an offset. */
-    private fun getLhsAddress(lhs: Expression): Offset = when(lhs) {
+    private fun getLhsAddress(lhs: Expression): Offset = when (lhs) {
         is Identifier -> findVar(lhs)
         is ArrayElem -> {
             var result = findVar(lhs.arrIdent)
             val arrReg = getReg()
-            val originalType = lhs.arrIdent.getType(symbolTable)
-            for ((i, expr) in lhs.indices.withIndex()) {
+            var currType = lhs.arrIdent.getType(symbolTable)
+            for (expr in lhs.indices) {
                 val indexReg = expr.toARM().toReg()
                 load(AL, arrReg, result)
                 callCheckArrBound(indexReg, arrReg)
-                binop(MUL, indexReg, indexReg, ImmNum(sizeof(originalType.unwrapArrayType(i + 1)!!)), op2Destructive = true)
+                currType = currType.unwrapArrayType()!!
+                binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
                 binop(ADD, indexReg, indexReg, ImmNum(4))
                 binop(ADD, arrReg, arrReg, indexReg)
                 result = Offset(arrReg)
@@ -733,7 +731,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             val pairAddr = lhs.expr.toARM().toReg()
             mov(Reg(0), pairAddr)
             callPrelude(CHECK_NULL_PTR)
-            Offset(pairAddr, when(lhs.func) { FST -> 0; SND -> 4})
+            Offset(pairAddr, when (lhs.func) {
+                FST -> 0; SND -> 4
+            })
         }
         else -> {
             throw IllegalArgumentException("Target has to be a left-hand-side expression")
@@ -741,17 +741,16 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun getFormatString(type: Type, newline: Boolean): String {
-        val format = when(type) {
-            is BaseType -> when(type.kind) {
+        val format = when (type) {
+            is BaseType -> when (type.kind) {
                 INT -> "%d"
                 CHAR -> "%c"
                 BOOL -> "%s"
                 STRING -> "%s"
                 else -> "%p"
             }
-            is ArrayType -> if (type.type == charType()) "%s" else "%p"
-            is Type.PairType -> "%p"
-            is Type.FuncType -> "%p"
+            ArrayType(charType()) -> "%s"
+            else -> "%p"
         }
         return format + if (newline) "\\n" else ""
     }
@@ -773,5 +772,10 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is NewPair -> Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
             is FunctionCall -> symbolTable.functions[ident]!!.type.retType
         }
+    }
+
+    private fun sizeof(type: Type): Int = when (type) {
+        charType(), boolType() -> 1
+        else -> 4
     }
 }

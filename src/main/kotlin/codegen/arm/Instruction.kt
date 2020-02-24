@@ -112,7 +112,7 @@ sealed class Instruction {
     data class Ldr(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "LDR$cond ${dest.inLDR()}, ${opr.inLDR()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
+        override fun getUses(): List<Register> = opr.getAllRegs()
         override fun adjustBySpOffset(offset: Int): Instruction {
             return Ldr(cond, dest, opr.adjustBySpOffset(offset))
         }
@@ -121,7 +121,7 @@ sealed class Instruction {
     data class Ldrsb(val cond: Condition, val dest: Register, val opr: Operand): Instruction() {
         override fun toString(): String = "LDRSB$cond ${dest.inLDR()}, ${opr.inLDR()}"
         override fun getDefs(): List<Register> = listOf(dest)
-        override fun getUses(): List<Register> = if (opr is Register) listOf(opr) else emptyList()
+        override fun getUses(): List<Register> = opr.getAllRegs()
         override fun adjustBySpOffset(offset: Int): Instruction {
             return Ldrsb(cond, dest, opr.adjustBySpOffset(offset))
         }
@@ -131,7 +131,7 @@ sealed class Instruction {
     data class Str(val cond: Condition, val src: Register, val dst: Operand): Instruction() {
         override fun toString(): String = "STR$cond ${src.inLDR()}, ${dst.inLDR()}"
         override fun getDefs(): List<Register> = emptyList()
-        override fun getUses(): List<Register> = listOf(src) + dst.getAllRegs()
+        override fun getUses(): List<Register> = src.getAllRegs() + dst.getAllRegs()
         override fun adjustBySpOffset(offset: Int): Instruction {
             return Str(cond, src, dst.adjustBySpOffset(offset))
         }
@@ -140,7 +140,7 @@ sealed class Instruction {
     data class Strb(val src: Register, val dst: Operand): Instruction() {
         override fun toString(): String = "STRB ${src.inLDR()}, ${dst.inLDR()}"
         override fun getDefs(): List<Register> = emptyList()
-        override fun getUses(): List<Register> = listOf(src) + dst.getAllRegs()
+        override fun getUses(): List<Register> = src.getAllRegs() + dst.getAllRegs()
         override fun adjustBySpOffset(offset: Int): Instruction {
             return Strb(src, dst.adjustBySpOffset(offset))
         }
