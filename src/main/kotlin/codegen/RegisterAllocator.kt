@@ -18,8 +18,6 @@ import java.util.*
 *  will also be corrected accordingly. */
 class RegisterAllocator(val program: ArmProgram) {
 
-    private val debug = true
-
     fun run(): ArmProgram {
         return ArmProgram(program.stringConsts, program.blocks.map { it.rename() })
     }
@@ -39,7 +37,6 @@ class RegisterAllocator(val program: ArmProgram) {
     private fun InstructionBlock.rename(): InstructionBlock {
         val availableRealRegs: TreeSet<Int> = normalRegs().map { it.id }.toCollection(TreeSet())
         val liveRangeMap = getLiveRangeMap()
-//        liveRangeMap.dump()
         /* index to list of regs to be freed at that instruction */
         val freeRegMap = mutableMapOf<Int, MutableList<Reg>>()
         liveRangeMap.forEach { (reg, liveRange) ->
@@ -50,15 +47,18 @@ class RegisterAllocator(val program: ArmProgram) {
                 freeRegMap[last] = mutableListOf(reg)
             }
         }
-        /* Dynamically construct a virtual register to real register unification */
-        val virtualToRealMap = mutableMapOf<Reg, Reg>()
-        val realVirtualStackMap = (4..11).map { Reg(it) to ArrayDeque<Reg>() }.toMap()
-        val realToVirtualMap = (4..11).map { Reg(it) to mutableSetOf<Reg>() }.toMap()
-        val newInstructions = mutableListOf<Instruction>()
-        val virtualsStack = mutableListOf<Reg>()
-        val popedVirtuals = mutableSetOf<Reg>()
+        /* Dynamically construct a virtual register to real register unification, while
+        *  doing necessary modifications to the original instructions. */
+        val newInstructions = mutableListOf<Instruction>() // collection of instructions.
+        val virtualToRealMap = mutableMapOf<Reg, Reg>() // The "unification map" we need to construct.
+        val realToVirtualMap // Records all virtual regs unifies with each real register.
+                = normalRegs().map { it to mutableSetOf<Reg>() }.toMap()
+        val realVirtualStackMap // Simulates the "virtual stack" for each real register.
+                = normalRegs().map { it to ArrayDeque<Reg>() }.toMap()
+        val virtualsStack = mutableListOf<Reg>()  // Simulates the stack. Shows which virtual has been pushed.
+        val popedVirtuals = mutableSetOf<Reg>()   // virtuals that are on the stack, yet no longer needed.
         val deadVirtuals = mutableSetOf<Reg>()
-        var spOffset = 0
+        var spOffset = 0 // additional sp offset adjustment.
         for ((index, instr) in instructions.withIndex()) {
             val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs() }
             /* For each un-unified register which has been defined in the current instruction,
@@ -67,9 +67,8 @@ class RegisterAllocator(val program: ArmProgram) {
                 val real = availableRealRegs.pollFirst()?.let(::Reg)
                 if (real == null) { // if we are running out of registers...
                     /* Find a already unified virtual register which will not be used at all during the live range of
-                    *  the current virtual register, push that virtual register, make the current virtual register to
-                    *  be unified with the actual register that the already pushed virtual register unifies to,
-                    *  and pop the pushed virtual back when the current register finishes its life. */
+                    *  the current virtual register, push that virtual register, and make the current virtual register
+                    *  to be unified with the actual register that the already pushed virtual register unifies to. */
                     val pushedVirtual = liveRangeMap.findVirtualToPush(
                             virtual,
                             virtualToRealMap,
@@ -109,7 +108,7 @@ class RegisterAllocator(val program: ArmProgram) {
                     spOffset -= 4
                     newInstructions += Pop(pushed)
                     virtualsStack.removeAt(0)
-                } else if (pushed in virtualsStack) {
+                } else {  // case 3
                     val offset = 4 * virtualsStack.indexOf(pushed)
                     newInstructions += Ldr(Condition.AL, dyingReg, Offset(SpecialReg(SP), offset))
                     popedVirtuals += pushed
@@ -183,6 +182,7 @@ class RegisterAllocator(val program: ArmProgram) {
         }
     }
 
+    @Suppress("UNCHECKED_CAST") // All casts here are guaranteed to be safe, yet kotlin complaint. Make it happy.
     private fun<T: Operand> T.unify(unification: Map<Reg, Reg>): T {
         return when(this) {
             is Reg -> if (this in reservedRegs()) this else unification[this] as T

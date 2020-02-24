@@ -19,6 +19,7 @@ sealed class Instruction {
             return this.also { opr = opr.adjustBySpOffset(offset) }
         }
     }
+
     data class Sub(val cond: Condition, val dest: Register, val rn: Register, var opr: Operand, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "SUB${if(setFlag) "S" else ""}$cond $dest, $rn, ${opr.inMOV()}"
         override fun getDefs(): List<Register> = listOf(dest)
@@ -27,7 +28,7 @@ sealed class Instruction {
             return this.also { opr = opr.adjustBySpOffset(offset) }
         }
     }
-    // Reference compiler did not use MUL, but uses SMULL instead, @TODO: Investigate this
+
     data class Mul(val cond: Condition, val dest: Register, val rm: Register, val rs: Register, val setFlag: Boolean = false): Instruction() {
         override fun toString(): String = "MUL${if(setFlag) "S" else ""}$cond $dest, $rm, $rs"
         override fun getDefs(): List<Register> = listOf(dest)
