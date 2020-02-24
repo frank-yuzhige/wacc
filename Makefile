@@ -35,6 +35,8 @@ compile:
 clean:
 	$(RM) rules $(OUTPUT_DIR)
 	./gradlew clean
+	$(RM) *.s
+	$(RM) ticTacToe
 
 .PHONY: all rules clean test
 

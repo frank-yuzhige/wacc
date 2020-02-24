@@ -2,6 +2,7 @@ package codegen
 import utils.CompilerEmulator
 import utils.EmulatorMode.*
 import java.io.*
+import java.nio.file.Path
 import java.util.concurrent.TimeoutException
 import kotlin.test.Test
 
@@ -13,6 +14,12 @@ class AssemblyBehaviourTest {
         TIMEOUT("Execution timeout"),
         EXECUTION_FAILURE("Execution failed")
     }
+
+    private val notApplicableCases = setOf(
+            "src/test/resources/valid/advanced/ticTacToe.wacc",
+            "src/test/resources/valid/mine/varvarvar.wacc",
+            "src/test/resources/valid/mine/kata.wacc"
+    )
 
     private fun getRefCompilerOutput(file: File, inputData: List<String>): RefCompilerOutput {
         val process = ProcessBuilder("./refCompile", "-x", file.absolutePath).start()
@@ -48,7 +55,7 @@ class AssemblyBehaviourTest {
         var correctCount = 0
         var totalCount = 0
         File("src/test/resources/valid/").walkTopDown().forEach { testFile ->
-            if (testFile.path.endsWith(".wacc")) {
+            if (testFile.path.endsWith(".wacc") && testFile.path !in notApplicableCases) {
                 println("Current file $testFile")
                 try {
                     val emulator = CompilerEmulator(testFile, EXECUTE)

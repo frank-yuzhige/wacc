@@ -1,4 +1,5 @@
-import codegen.ASTParserARM
+import codegen.AstToRawArmConverter
+import codegen.RegisterAllocator
 import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
@@ -57,9 +58,12 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
-    val arm = ASTParserARM(ast, sa.symbolTable).translate().printARM()
+    val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     println(arm)
+    println("=== Improved ARM ===")
+    val betterArm = RegisterAllocator(arm).run()
+    println(betterArm)
     val output = File(asmPath)
-    output.writeText(arm)
+    output.writeText(betterArm.toString())
     println("===========\n")
 }

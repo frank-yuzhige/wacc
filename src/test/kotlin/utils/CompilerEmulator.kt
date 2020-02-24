@@ -1,7 +1,8 @@
 package utils
 
 import ast.WaccAST
-import codegen.ASTParserARM
+import codegen.AstToRawArmConverter
+import codegen.RegisterAllocator
 import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
@@ -59,7 +60,8 @@ class CompilerEmulator(private val inputFile: File,
         /* If parse was successful and emulated execution is required */
         var programOutput: String = ""
         if (mode == EXECUTE && ast != null) {
-            val assembly = ASTParserARM(ast, sa.symbolTable).translate().printARM()
+            val raw = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
+            val assembly = RegisterAllocator(raw).run().toString()
             val temp = File("src/test/kotlin/utils/temp.s")
             if (!temp.exists()) {
                 temp.createNewFile()
