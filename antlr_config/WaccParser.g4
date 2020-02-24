@@ -4,16 +4,20 @@ options {
   tokenVocab=WaccLexer;
 }
 
-intsign: ADD | SUB;
-integer: intsign? INTEGER;
-ident  : IDENT;
-boolLit: TRUE | FALSE;
+intsign : ADD | SUB;
+integer : intsign? INTEGER;
+ident   : IDENT;
+capIdent: CAP_IDENT;
+boolLit : TRUE | FALSE;
 
-type        : arrayType | baseType | pairType;
+type        : arrayType | baseType | pairType | capIdent;
 arrayType   : (baseType | pairType) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
 pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
+
+member: type ident;
+newtype: NEWTYPE capIdent IS member (SEMICOLON member)* END;
 
 unaryOp: NOT
        | LEN
@@ -89,4 +93,4 @@ arrayElem: ident (LBRA expr RBRA)+;
 pairElem: pairElemFunc expr;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN func* stats? END EOF;
+prog: BEGIN newtype* func* stats? END EOF;

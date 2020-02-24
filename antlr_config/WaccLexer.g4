@@ -61,6 +61,7 @@ PRINTLN: 'println';
 CALL: 'call';
 PAIR: 'pair';
 VAR: 'var';
+NEWTYPE: 'newtype';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
@@ -80,10 +81,11 @@ ASSIGN: '=';
 COMMA: ',';
 
 // idents
-fragment IDENT_HEAD: 'A'..'Z' | 'a'..'z' | '_';
-fragment IDENT_TAIL: IDENT_HEAD | DIGIT;
+fragment IDENT_HEAD: 'a'..'z' | '_';
+fragment IDENT_TAIL: IDENT_HEAD | 'A' .. 'Z' | DIGIT;
 
 IDENT: IDENT_HEAD IDENT_TAIL*;
+CAP_IDENT: ('A'..'Z') IDENT_TAIL*;
 
 // comments
 COMMENT: '#' ~('\r' | '\n')* -> skip;

@@ -33,6 +33,7 @@ class RuleContextConverter() {
     fun ProgContext.toAST(): ProgramAST {
         stack.push(this)
         val programAST = ProgramAST(
+                newtype().map { it.toAST() },
                 func().map { it.toAST() },
                 stats()?.toMainProgramAST()
                         ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))
@@ -131,6 +132,14 @@ class RuleContextConverter() {
         return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
+    private fun NewtypeContext.toAST(): NewTypeDef {
+        return NewTypeDef(capIdent().text, member().map { it.toAST() })
+    }
+
+    private fun MemberContext.toAST(): Parameter {
+        return type().toAST() to ident().toAST()
+    }
+
     /** Statements **/
 
     private fun ParamListContext.toAST(): List<Parameter> = param().map { it.toAST() }
@@ -141,7 +150,7 @@ class RuleContextConverter() {
         return stat().map { it.toAST() }
     }
 
-    fun StatContext.toAST(): Statement {
+    private fun StatContext.toAST(): Statement {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
@@ -273,7 +282,3 @@ class RuleContextConverter() {
         }
     }
 }
-
-
-
-

@@ -4,6 +4,7 @@ import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
+import utils.Parameter
 
 sealed class Type {
 
@@ -49,6 +50,10 @@ sealed class Type {
             val t2 = when(secondElemType) { is PairType -> anyPairType(); else -> secondElemType }
             return PairType(t1, t2)
         }
+    }
+
+    data class NewType(val name: String) {
+        override fun toString(): String = name
     }
 
     data class FuncType(val retType: Type, val paramTypes: List<Type>) : Type() {

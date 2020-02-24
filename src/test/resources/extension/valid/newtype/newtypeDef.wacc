@@ -1,0 +1,10 @@
+begin
+
+newtype MyType is
+    int x;
+    char y
+end
+
+exit(0)
+
+end
