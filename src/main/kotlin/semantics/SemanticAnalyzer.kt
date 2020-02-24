@@ -9,6 +9,9 @@ import ast.Expression.PairElemFunction.SND
 import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
+import ast.Type.ArrayType
+import ast.Type.BaseType
+import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
@@ -120,9 +123,14 @@ class SemanticAnalyzer() {
         when (this) {
             Skip -> Skip
             is Declaration -> {
-                val prevAttr = symbolTable.defineVar(type, variable)
+                val defType = if (type == BaseType(ANY)) {
+                    rhs.getType(symbolTable).normalize()
+                } else {
+                    type
+                }
+                val prevAttr = symbolTable.defineVar(defType, variable)
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, type, symbolTable.lookupVar(variable)!!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, prevAttr.type, symbolTable.lookupVar(variable)!!.index)))
                 }
                 rhs.check(match(type))
             }
@@ -336,10 +344,10 @@ class SemanticAnalyzer() {
 
     fun Expression.getType(symbolTable: SymbolTable): Type = when (this) {
         is NullLit -> anyPairType()
-        is IntLit -> Type.BaseType(Type.BaseTypeKind.INT)
-        is BoolLit -> Type.BaseType(Type.BaseTypeKind.BOOL)
-        is CharLit -> Type.BaseType(Type.BaseTypeKind.CHAR)
-        is StringLit -> Type.BaseType(Type.BaseTypeKind.STRING)
+        is IntLit -> BaseType(Type.BaseTypeKind.INT)
+        is BoolLit -> BaseType(Type.BaseTypeKind.BOOL)
+        is CharLit -> BaseType(Type.BaseTypeKind.CHAR)
+        is StringLit -> BaseType(Type.BaseTypeKind.STRING)
         is Identifier -> symbolTable.lookupVar(this)?.type
                 ?: throw SemanticException.UndefinedVarException(name)
         is BinExpr -> op.retType
@@ -363,7 +371,7 @@ class SemanticAnalyzer() {
         }
         is ArrayLiteral -> {
             if (elements.isEmpty()) {
-                Type.ArrayType(Type.BaseType(Type.BaseTypeKind.ANY))
+                ArrayType(BaseType(ANY))
             } else {
                 val fstType = elements[0].getType(symbolTable)
                 for (expr in elements.drop(1)) {
@@ -372,7 +380,7 @@ class SemanticAnalyzer() {
                         throw SemanticException.TypeMismatchException(fstType, sndType)
                     }
                 }
-                fstType
+                ArrayType(fstType)
             }
         }
         is NewPair -> {

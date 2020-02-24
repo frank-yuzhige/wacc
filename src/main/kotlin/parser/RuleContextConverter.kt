@@ -6,6 +6,7 @@ import ast.Expression.*
 import ast.Function
 import ast.Statement.*
 import ast.Type.*
+import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
@@ -112,7 +113,7 @@ class RuleContextConverter() {
             pairType() != null -> pairType().toAST()
             else -> {
                 logError(UnsupportedArrayBaseTypeException(this.text))
-                BaseType(BaseTypeKind.ANY)
+                BaseType(ANY)
             }
         })
         for (i in 1 until dimension) {
@@ -144,7 +145,7 @@ class RuleContextConverter() {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
-            is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
+            is DeclarationContext -> Declaration(type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
             is ReadCallContext -> Read(assignLhs().toAST())
             is BuiltinFuncCallContext

@@ -20,6 +20,8 @@ sealed class Type {
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
 
+        fun anyType(): BaseType = BaseType(ANY)
+
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
         fun charType(): BaseType = BaseType(CHAR)
@@ -41,12 +43,23 @@ sealed class Type {
                 } else {
                     "pair"
                 }
+
+        override fun normalize(): Type {
+            val t1 = when(firstElemType) { is PairType -> anyPairType(); else -> firstElemType }
+            val t2 = when(secondElemType) { is PairType -> anyPairType(); else -> secondElemType }
+            return PairType(t1, t2)
+        }
     }
 
     data class FuncType(val retType: Type, val paramTypes: List<Type>) : Type() {
         override fun toString(): String =
                 "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
     }
+
+    open fun normalize(): Type {
+        return this
+    }
+
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
@@ -71,5 +84,6 @@ sealed class Type {
         }
         else -> null
     }
+
 }
 

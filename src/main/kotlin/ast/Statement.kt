@@ -21,7 +21,8 @@ sealed class Statement : WaccAST() {
     }
 
     data class Declaration(val type: Type, val variable: Identifier, val rhs: Expression) : Statement() {
-        override fun prettyPrint(): String = "$type ${variable.name} = ${rhs.prettyPrint()}"
+        override fun prettyPrint(): String
+                = "${if(type == Type.anyType()) "var" else "$type" } ${variable.name} = ${rhs.prettyPrint()}"
         override fun tellIdentity(): String = "a declaration statement"
     }
 

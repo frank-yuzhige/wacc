@@ -57,7 +57,7 @@ func: type ident LPAR paramList? RPAR IS stats END;
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
 stat: SKIP_STAT                          #skip
-    | type ident ASSIGN assignRhs        #declaration
+    | (type|VAR) ident ASSIGN assignRhs  #declaration
     | assignLhs ASSIGN assignRhs         #assignment
     | READ assignLhs                     #readCall
     | builtinFunc expr                   #builtinFuncCall

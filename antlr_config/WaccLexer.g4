@@ -60,6 +60,7 @@ PRINT: 'print';
 PRINTLN: 'println';
 CALL: 'call';
 PAIR: 'pair';
+VAR: 'var';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
