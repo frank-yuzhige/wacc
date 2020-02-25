@@ -1,45 +1,36 @@
 package ast
 
-import ast.Expression.PairElemFunction.FST
-import ast.Expression.PairElemFunction.SND
-import ast.Type.*
-import ast.Type.BaseTypeKind.*
-import ast.Type.Companion.anyPairType
-import ast.Type.Companion.intType
-import exceptions.SemanticException.*
 import utils.EscapeCharMap.Companion.fromEscape
-import utils.SymbolTable
 import utils.VarWithSID
 
+interface Literal
+
 sealed class Expression(var inParens: Boolean = false) : WaccAST() {
-
     override fun tellIdentity(): String = "an expression"
-
     enum class PairElemFunction(val value: String) {
         FST("fst"), SND("snd")
-
     }
 
-    object NullLit : Expression() {
+    object NullLit : Expression(), Literal {
         override fun prettyPrint(): String = "null"
     }
 
-    data class IntLit(val x: Int) : Expression() {
+    data class IntLit(val x: Int) : Expression(), Literal {
         override fun prettyPrint(): String = x.toString()
         override fun tellIdentity(): String = "an int literal"
     }
 
-    data class BoolLit(val b: Boolean) : Expression() {
+    data class BoolLit(val b: Boolean) : Expression(), Literal {
         override fun prettyPrint(): String = b.toString()
         override fun tellIdentity(): String = "a boolean literal"
     }
 
-    data class CharLit(val c: Char) : Expression() {
+    data class CharLit(val c: Char) : Expression(), Literal {
         override fun prettyPrint(): String = "'${fromEscape(c)}'"
         override fun tellIdentity(): String = "an char literal"
     }
 
-    data class StringLit(val string: String) : Expression() {
+    data class StringLit(val string: String) : Expression(), Literal {
         override fun prettyPrint(): String = "\"${fromEscape(string)}\""
         override fun tellIdentity(): String = "an string literal"
     }
@@ -73,12 +64,12 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun prettyPrint(): String = "${func.value} ${expr.prettyPrint()}"
     }
 
-    data class ArrayLiteral(val elements: List<Expression>) : Expression() {
+    data class ArrayLiteral(val elements: List<Expression>) : Expression(), Literal {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
         override fun tellIdentity(): String = "an array literal"
     }
 
-    data class NewPair(val first: Expression, val second: Expression) : Expression() {
+    data class NewPair(val first: Expression, val second: Expression) : Expression(), Literal {
         override fun prettyPrint(): String = "newpair(${first.prettyPrint()}, ${second.prettyPrint()})"
         override fun tellIdentity(): String = "a newpair declaration"
     }

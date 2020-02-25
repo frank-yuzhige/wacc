@@ -8,23 +8,56 @@ import ast.Statement.*
 import ast.UnaryOperator.*
 import utils.Statements
 
-class AstOptimizer(private val option: OptimizationOption) {
-    fun doOptimize(ast: ProgramAST): ProgramAST = ast.optimize()
+class AstOptimizer(option: OptimizationOption) {
+    private val optLevel = OptimizationOption.values().indexOf(option)
+    private val programState = ProgramState()
 
-    private fun ProgramAST.optimize(): ProgramAST  = ProgramAST(functions.map { it.optimize() }, mainProgram.optimize())
+    fun doOptimize(ast: ProgramAST): ProgramAST {
+        println(optLevel)
+        if (optLevel > 0) {
+            var currAst = ast
+            var preAst: ProgramAST
+            do {
+                preAst = currAst
+                currAst = currAst.optimize()
+            } while (preAst != currAst)
+            currAst.prettyPrint()
+            return currAst
+        }
+        return ast.optimize()
+    }
 
-    private fun Function.optimize(): Function = Function(returnType, name, args, body.map { it.optimize() })
+    private fun ProgramAST.optimize(): ProgramAST =
+        ProgramAST(functions.map { it.optimize() }, mainProgram.optimize())
 
-    private fun Statements.optimize(): Statements = this.map { it.optimize() }
+    private fun Function.optimize(): Function =
+            inScopeDo { Function(returnType, name, args, body.map { it.optimize() }) } as Function
+
+    private fun Statements.optimize(): Statements {
+        programState.enterScope()
+        val newStats = this.map { it.optimize() }
+        programState.exitScope()
+        return newStats
+    }
 
     private fun Statement.optimize(): Statement = when (this) {
         is Declaration -> Declaration(type, variable, rhs.optimize())
         is Assignment -> Assignment(lhs, rhs.optimize())
+        is BuiltinFuncCall -> BuiltinFuncCall(func, expr.optimize())
+        is CondBranch -> CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize())
+        is WhileLoop -> WhileLoop(expr.optimize(), body.optimize())
+        is Block -> Block(body.optimize())
         else -> this
     }
 
     private fun Expression.optimize(): Expression = when (this) {
-        is Identifier -> this // TODO
+        is Identifier -> {
+            if (optLevel > 0) {
+                programState.lookupVar(this)!! as Expression
+            } else {
+                this
+            }
+        }
         is BinExpr -> this.optimize()
         is UnaryExpr -> this.optimize()
         else -> this
@@ -117,5 +150,13 @@ class AstOptimizer(private val option: OptimizationOption) {
             }
         }
         return result
+    }
+
+
+    private inline fun inScopeDo(action: () -> WaccAST): WaccAST {
+        programState.enterScope()
+        val newAst = action()
+        programState.exitScope()
+        return newAst
     }
 }

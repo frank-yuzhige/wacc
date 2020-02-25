@@ -15,14 +15,13 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     var debug = false
-    var optimizationOption: OptimizationOption? = null
+    var optLevel: Int? = null
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
         when {
             flag.startsWith("-o") && flag.last().isDigit() -> {
-                val optLevel = flag.last().toString().toInt()
-                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel].label} **")
-                optimizationOption = OptimizationOption.values()[optLevel]
+                optLevel = flag.last().toString().toInt()
+                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel!!].label} **")
             }
             flag == "-d" -> {
                 println("** SYSTEM: DEBUG MODE ACTIVATED **")
@@ -65,8 +64,8 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
-    if (optimizationOption == OptimizationOption.CONSTANT_FOLDING) {
-        val astOptimizer = AstOptimizer(optimizationOption!!)
+    if (optLevel != null) {
+        val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel!!])
         ast = astOptimizer.doOptimize(ast)
     }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
