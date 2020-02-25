@@ -124,7 +124,7 @@ class SemanticAnalyzer() {
             Skip -> Skip
             is Declaration -> {
                 val defType = if (type == BaseType(ANY)) {
-                    rhs.getType(symbolTable).normalize()
+                    rhs.getType().normalize()
                 } else {
                     type
                 }
@@ -204,7 +204,7 @@ class SemanticAnalyzer() {
                     expr.check(matchPairByElem(func, tc)) { logAction(it); hasError = true }
                     if (!hasError) {
                         try {
-                            result = expr.getType(symbolTable).unwrapPairType(func)
+                            result = expr.getType().unwrapPairType(func)
                         } catch (sme: SemanticException) {
                             logAction(listOf(sme.msg))
                         }
@@ -255,7 +255,7 @@ class SemanticAnalyzer() {
                     EQ, NEQ -> {
                         logAction(tc.test(boolType()))
                         try {
-                            left.check(match(right.getType(symbolTable)))
+                            left.check(match(right.getType()))
                         } catch (sme: SemanticException) {
                             logAction(listOf(sme.msg))
                         }
@@ -316,7 +316,7 @@ class SemanticAnalyzer() {
                         temp.clear()
                     }
                     /* Check if all elements in the array are of the same type */
-                    val fstElemType = elements.first().getType(symbolTable)
+                    val fstElemType = elements.first().getType()
                     for ((index, element) in elements.drop(1).withIndex()) {
                         val checker = match(fstElemType)
                                 .forwardsError("    at the ${NumberFormatter.get(index + 1)} element in the array")
