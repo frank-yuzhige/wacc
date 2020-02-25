@@ -2,6 +2,8 @@ import codegen.AstToRawArmConverter
 import codegen.RegisterAllocator
 import exceptions.SemanticException
 import exceptions.SyntacticException
+import optimizers.AstOptimizer
+import optimizers.OptimizationOption
 import parser.Parser
 import semantics.SemanticAnalyzer
 import utils.ERROR
@@ -13,11 +15,16 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     var debug = false
-
+    var optimizationOption: OptimizationOption? = null
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
-        when (flag) {
-            "-d" -> {
+        when {
+            flag.startsWith("-o") && flag.last().isDigit() -> {
+                val optLevel = flag.last().toString().toInt()
+                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel].label} **")
+                optimizationOption = OptimizationOption.values()[optLevel]
+            }
+            flag == "-d" -> {
                 println("** SYSTEM: DEBUG MODE ACTIVATED **")
                 debug = true
             }
@@ -36,7 +43,7 @@ fun main(args: Array<String>) {
     }
 
     val sa = SemanticAnalyzer()
-    val ast = try {
+    var ast = try {
         Parser(inputStream).parseProgram()
                 .also { sa.suppressWarning().doCheck(it) }
     } catch (pe: SyntacticException) {
@@ -58,6 +65,10 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
+    if (optimizationOption == OptimizationOption.CONSTANT_FOLDING) {
+        val astOptimizer = AstOptimizer(optimizationOption!!)
+        ast = astOptimizer.doOptimize(ast)
+    }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     println(arm)
     println("=== Improved ARM ===")
