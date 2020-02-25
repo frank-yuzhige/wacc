@@ -5,6 +5,7 @@ import ast.BinaryOperator.*
 import ast.Expression.*
 import ast.Function
 import ast.Statement.*
+import ast.UnaryOperator.*
 import utils.Statements
 
 class AstOptimizer(private val option: OptimizationOption) {
@@ -25,9 +26,43 @@ class AstOptimizer(private val option: OptimizationOption) {
     private fun Expression.optimize(): Expression = when (this) {
         is Identifier -> this // TODO
         is BinExpr -> this.optimize()
-        is UnaryExpr -> TODO()
+        is UnaryExpr -> this.optimize()
         else -> this
     }
+
+    private fun UnaryExpr.optimize(): Expression {
+        val exprOptimized = expr.optimize()
+        var result: Expression = this
+        if (exprOptimized is BoolLit) {
+            result = when (op) {
+                NOT -> BoolLit(!exprOptimized.b)
+                else -> this
+            }
+        }
+        if (exprOptimized is IntLit) {
+            result = when (op) {
+                NEG -> IntLit(-exprOptimized.x)
+                CHR -> CharLit(exprOptimized.x.toChar())
+                else -> this
+            }
+        }
+
+        if (exprOptimized is ArrayLiteral) {
+            result = when (op) {
+                LEN -> IntLit(exprOptimized.elements.size)
+                else -> this
+            }
+        }
+
+        if (exprOptimized is CharLit) {
+            result = when (op) {
+                ORD -> IntLit(exprOptimized.c.toInt())
+                else -> this
+            }
+        }
+        return result
+    }
+
 
     private fun BinExpr.optimize(): Expression {
         val leftOptimized = left.optimize()
