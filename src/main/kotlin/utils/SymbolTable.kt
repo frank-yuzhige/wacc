@@ -1,7 +1,10 @@
 package utils
 
+import ast.Expression
 import ast.Expression.Identifier
 import ast.Type
+import ast.Type.Companion.anyArrayType
+import exceptions.SemanticException
 import exceptions.SemanticException.MultipleFuncDefException
 import java.util.*
 
@@ -86,6 +89,76 @@ class SymbolTable {
         return tp.print()
     }
 
+    fun getType(expr: Expression, accessType: AccessType): Type {
+        return when(expr) {
+            Expression.NullLit -> Type.anyPairType()
+            is Expression.IntLit -> Type.intType()
+            is Expression.BoolLit -> Type.boolType()
+            is Expression.CharLit -> Type.charType()
+            is Expression.StringLit -> Type.stringType()
+            is Identifier -> {
+                if (accessType == AccessType.IN_SEM_CHECK){
+                    lookupVar(expr)?.type?: throw SemanticException.UndefinedVarException(expr.name)
+                } else {
+                    collect[expr.getVarSID()]!!.type
+                }
+            }
+            is Expression.BinExpr -> expr.op.retType
+            is Expression.UnaryExpr -> expr.op.retType
+            is Expression.ArrayElem -> {
+                val arrType = if (accessType == AccessType.IN_SEM_CHECK) {
+                    lookupVar(expr.arrIdent)?.type
+                            ?: throw SemanticException.UndefinedVarException(expr.arrIdent.name)
+                } else {
+                    collect[expr.arrIdent.getVarSID()]!!.type
+                }
+                arrType.unwrapArrayType(expr.indices.size)
+                        ?: throw SemanticException.NotEnoughArrayRankException(expr.arrIdent.name)
+            }
+            is Expression.PairElem -> {
+                getType(expr.expr, accessType).let { exprType ->
+                    exprType.unwrapPairType(expr.func)
+                            ?: throw SemanticException.TypeMismatchException(Type.anyPairType(), exprType)
+                }
+            }
+            is Expression.ArrayLiteral -> {
+                if (expr.elements.isEmpty()) {
+                    anyArrayType()
+                } else {
+                    if (expr.elements.isEmpty()) {
+                        Type.ArrayType(Type.BaseType(Type.BaseTypeKind.ANY))
+                    } else {
+                        val fstType = getType(expr.elements[0], accessType)
+                        for (e in expr.elements.drop(1)) {
+                            val sndType = getType(e, accessType)
+                            if (sndType != fstType) {
+                                throw SemanticException.TypeMismatchException(fstType, sndType)
+                            }
+                        }
+                        Type.ArrayType(fstType)
+                    }
+                }
+            }
+            is Expression.NewPair -> {
+                getType(expr.first, accessType).let { t1 ->
+                    getType(expr.second, accessType).let { t2 ->
+                        Type.PairType(t1, t2)
+                    }
+                }
+            }
+            is Expression.FunctionCall -> {
+                if (accessType == AccessType.IN_SEM_CHECK) {
+                    lookupFunc(expr.ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(expr.ident)
+                } else {
+                    functions[expr.ident]!!.type.retType
+                }
+            }
+            is Expression.TypeMember -> TODO()
+            is Expression.EnumRange -> TODO()
+            is Expression.IfExpr -> TODO()
+        }
+    }
+
 
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
 
@@ -101,6 +174,9 @@ class SymbolTable {
     }
     data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
+    }
+    enum class AccessType {
+        IN_SEM_CHECK, IN_CODE_GEN
     }
 
 }

@@ -121,17 +121,17 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val reg = rhs.toARM().toReg()
                 when (lhs) {
                     is Identifier -> {
-                        val size = sizeof(lhs.getType(symbolTable))
+                        val size = sizeof(lhs.getType())
                         store(reg, findVar(lhs), size)
                     }
                     is ArrayElem -> {
                         val dstOffset = getLhsAddress(lhs)
-                        val size = sizeof(lhs.arrIdent.getType(symbolTable).unwrapArrayType()!!)
+                        val size = sizeof(lhs.arrIdent.getType().unwrapArrayType()!!)
                         store(reg, dstOffset, size)
                     }
                     is PairElem -> {
                         val offset = getLhsAddress(lhs)
-                        val size = sizeof(lhs.getType(symbolTable))
+                        val size = sizeof(lhs.getType())
                         val ptr = getReg()
                         load(ptr, offset)
                         store(reg, Offset(ptr), size)
@@ -152,7 +152,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     FREE -> {
                         val reg = expr.toARM().toReg()
                         mov(Reg(0), reg)
-                        when (expr.getType(symbolTable)) {
+                        when (expr.getType()) {
                             is ArrayType -> callPrelude(FREE_ARRAY)
                             is Type.PairType -> callPrelude(FREE_PAIR)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
@@ -242,7 +242,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is BoolLit -> if (b) immTrue() else immFalse()
             is CharLit -> ImmNum(c.toInt())
             is StringLit -> defString(fromEscape(string).toString(), false)
-            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType(symbolTable)) == 1)
+            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType()) == 1)
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
@@ -263,7 +263,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is ArrayElem -> {
                 var result = load(getReg(), findVar(arrIdent))
                 for (expr in indices) {
-                    val currType = arrIdent.getType(symbolTable).unwrapArrayType()!!
+                    val currType = arrIdent.getType().unwrapArrayType()!!
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
@@ -279,7 +279,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 load(temp, Offset(temp, when (func) {
                     FST -> 0; SND -> 4
                 }))
-                load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
+                load(temp, Offset(temp), sizeof(this.getType()) == 1)
             }
             is TypeMember -> {
                 TODO()
@@ -305,7 +305,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) } ?: 0
+                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType()) } ?: 0
                 val totalSize = elements.size * elemSize + 4
 
                 val baseAddressReg = mov(getReg(), callMalloc(totalSize))
@@ -325,12 +325,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 callMalloc(8)
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst = first.toARM().toReg()
-                callMalloc(sizeof(first.getType(symbolTable)))
-                store(fst, Offset(Reg(0)), sizeof(first.getType(symbolTable)))
+                callMalloc(sizeof(first.getType()))
+                store(fst, Offset(Reg(0)), sizeof(first.getType()))
                 store(Reg(0), Offset(pairAddr))
                 val snd = second.toARM().toReg()
-                callMalloc(sizeof(second.getType(symbolTable)))
-                store(snd, Offset(Reg(0)), sizeof(second.getType(symbolTable)))
+                callMalloc(sizeof(second.getType()))
+                store(snd, Offset(Reg(0)), sizeof(second.getType()))
                 store(Reg(0), Offset(pairAddr, 4))
                 pairAddr
             }
@@ -338,7 +338,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val oldSPOffset = spOffset
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
-                    val size = sizeof(arg.getType(symbolTable))
+                    val size = sizeof(arg.getType())
                     store(reg, Offset(SpecialReg(SP), -size, true), size)
                     spOffset += size
                 }
@@ -704,7 +704,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun callScanf(expr: Expression) {
         val exprOffset: Offset = getLhsAddress(expr)
         binop(ADD, Reg(1), exprOffset.src, ImmNum(exprOffset.offset))
-        val type = expr.getType(symbolTable)
+        val type = expr.getType()
         val fmtStr = (if (type == charType()) " " else "") +
                 getFormatString(type, false)
         load(Reg(0), defString(fmtStr, true))
@@ -715,7 +715,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
-        val exprType = expr.getType(symbolTable)
+        val exprType = expr.getType()
         when (exprType) {
             boolType() -> {
                 cmp(operand, immFalse())
@@ -755,7 +755,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         is ArrayElem -> {
             var result = findVar(lhs.arrIdent)
             val arrReg = getReg()
-            var currType = lhs.arrIdent.getType(symbolTable)
+            var currType = lhs.arrIdent.getType()
             for (expr in lhs.indices) {
                 val indexReg = expr.toARM().toReg()
                 load(AL, arrReg, result)
@@ -796,27 +796,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         return format + if (newline) "\\n" else ""
     }
 
-    private fun Expression.getType(symbolTable: SymbolTable): Type {
-        val map = symbolTable.collect
-        return when (this) {
-            NullLit -> anyPairType()
-            is IntLit -> intType()
-            is BoolLit -> boolType()
-            is CharLit -> charType()
-            is StringLit -> stringType()
-            is Identifier -> map[getVarSID()]!!.type
-            is BinExpr -> op.retType
-            is UnaryExpr -> op.retType
-            is ArrayElem -> map[arrIdent.getVarSID()]!!.type.unwrapArrayType(indices.size)!!
-            is PairElem -> expr.getType(symbolTable).unwrapPairType(func)!!
-            is ArrayLiteral -> elements.first().getType(symbolTable)
-            is NewPair -> Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
-            is FunctionCall -> symbolTable.functions[ident]!!.type.retType
-            is TypeMember -> TODO()
-            is EnumRange -> rangeTypeOf(from.getType(symbolTable))
-            is IfExpr -> elseExpr.getType(symbolTable)
-        }
-    }
+    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_CODE_GEN)
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1

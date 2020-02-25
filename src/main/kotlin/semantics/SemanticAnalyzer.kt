@@ -361,57 +361,6 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
-    fun Expression.getType(): Type = when (this) {
-        is NullLit -> anyPairType()
-        is IntLit -> BaseType(Type.BaseTypeKind.INT)
-        is BoolLit -> BaseType(Type.BaseTypeKind.BOOL)
-        is CharLit -> BaseType(Type.BaseTypeKind.CHAR)
-        is StringLit -> BaseType(Type.BaseTypeKind.STRING)
-        is Identifier -> symbolTable.lookupVar(this)?.type
-                ?: throw SemanticException.UndefinedVarException(name)
-        is BinExpr -> op.retType
-        is UnaryExpr -> op.retType
-        is ArrayElem -> {
-            val type= symbolTable.lookupVar(arrIdent)?.type
-                    ?: throw SemanticException.UndefinedVarException(arrIdent.name)
-
-            type.unwrapArrayType(indices.size)
-                    ?: throw SemanticException.NotEnoughArrayRankException(arrIdent.name)
-        }
-        is PairElem -> {
-            val exprType = expr.getType()
-            when (exprType) {
-                is Type.PairType -> when (func) {
-                    FST -> exprType.firstElemType
-                    SND -> exprType.secondElemType
-                }
-                else -> throw SemanticException.TypeMismatchException(anyPairType(), exprType)
-            }
-        }
-        is ArrayLiteral -> {
-            if (elements.isEmpty()) {
-                ArrayType(BaseType(ANY))
-            } else {
-                val fstType = elements[0].getType()
-                for (expr in elements.drop(1)) {
-                    val sndType = expr.getType()
-                    if (sndType != fstType) {
-                        throw SemanticException.TypeMismatchException(fstType, sndType)
-                    }
-                }
-                ArrayType(fstType)
-            }
-        }
-        is NewPair -> {
-            Type.PairType(first.getType(), second.getType())
-        }
-        is FunctionCall -> {
-            symbolTable.lookupFunc(ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(ident)
-        }
-        is TypeMember -> TODO()
-        is EnumRange -> rangeTypeOf(from.getType())
-        is IfExpr -> elseExpr.getType()
-    }
-
+    fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_SEM_CHECK)
 }
 
