@@ -27,6 +27,7 @@ sealed class Type {
         fun boolType(): BaseType = BaseType(BOOL)
         fun charType(): BaseType = BaseType(CHAR)
         fun stringType(): BaseType = BaseType(STRING)
+        fun rangeTypeOf(type: Type) = NewType("Range", type)
     }
 
     data class BaseType(val kind: BaseTypeKind) : Type() {
@@ -52,7 +53,14 @@ sealed class Type {
         }
     }
 
-    data class NewType(val name: String) {
+    data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
+        constructor(name: String, vararg generics: Type): this(name, generics.asList())
+        override fun toString(): String {
+            return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
+        }
+    }
+
+    data class TypeVar(val name: String): Type() {
         override fun toString(): String = name
     }
 

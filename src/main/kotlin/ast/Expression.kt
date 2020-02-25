@@ -1,16 +1,7 @@
 package ast
 
-import ast.Expression.PairElemFunction.FST
-import ast.Expression.PairElemFunction.SND
-import ast.Type.*
-import ast.Type.BaseTypeKind.*
-import ast.Type.Companion.anyPairType
-import ast.Type.Companion.intType
-import exceptions.SemanticException.*
 import utils.EscapeCharMap.Companion.fromEscape
-import utils.SymbolTable
 import utils.VarWithSID
-import utils.prettyPrint
 
 sealed class Expression(var inParens: Boolean = false) : WaccAST() {
 
@@ -102,14 +93,14 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         }
     }
 
-    data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseBody: Expression) : Expression() {
+    data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseExpr: Expression) : Expression() {
         override fun tellIdentity(): String = "an if-expression"
         override fun prettyPrint(): String {
             return condStatsList.joinToString { (cond, expr) ->
                 "if ${cond.prettyPrint()} then\n" +
                         "${expr.prettyPrint().prependIndent()}\n" +
                         "else"
-            } + "\n" + elseBody.prettyPrint().prependIndent() + "\nfi"
+            } + "\n" + elseExpr.prettyPrint().prependIndent() + "\nfi"
         }
     }
 

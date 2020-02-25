@@ -17,6 +17,7 @@ import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
+import ast.Type.Companion.rangeTypeOf
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import semantics.TypeChecker.Companion.match
@@ -26,7 +27,6 @@ import semantics.TypeChecker.Companion.unwrapArray
 import semantics.TypeChecker.Companion.unwrapPair
 import utils.*
 import java.util.*
-import kotlin.math.ceil
 
 class SemanticAnalyzer() {
     val symbolTable = SymbolTable()
@@ -295,6 +295,13 @@ class SemanticAnalyzer() {
                     }
                 }
             }
+            is IfExpr -> {
+                condStatsList.forEach { (cond, expr) ->
+                    cond.check(match(boolType()))
+                    expr.check(tc)
+                }
+                elseExpr.check(tc)
+            }
             is ArrayLiteral -> {
                 if (elements.isEmpty()) {
                     logAction(tc.test(anyArrayType()))
@@ -330,6 +337,9 @@ class SemanticAnalyzer() {
                 val retType = entry.second
                 tc.test(retType) + expr.check(checker)
             }
+            is EnumRange -> {
+
+            }
             is FunctionCall -> {
                 val funcEntry = symbolTable.lookupFunc(ident)
                 if (funcEntry == null) {
@@ -351,7 +361,7 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
-    fun Expression.getType(symbolTable: SymbolTable): Type = when (this) {
+    fun Expression.getType(): Type = when (this) {
         is NullLit -> anyPairType()
         is IntLit -> BaseType(Type.BaseTypeKind.INT)
         is BoolLit -> BaseType(Type.BaseTypeKind.BOOL)
@@ -369,7 +379,7 @@ class SemanticAnalyzer() {
                     ?: throw SemanticException.NotEnoughArrayRankException(arrIdent.name)
         }
         is PairElem -> {
-            val exprType = expr.getType(symbolTable)
+            val exprType = expr.getType()
             when (exprType) {
                 is Type.PairType -> when (func) {
                     FST -> exprType.firstElemType
@@ -382,9 +392,9 @@ class SemanticAnalyzer() {
             if (elements.isEmpty()) {
                 ArrayType(BaseType(ANY))
             } else {
-                val fstType = elements[0].getType(symbolTable)
+                val fstType = elements[0].getType()
                 for (expr in elements.drop(1)) {
-                    val sndType = expr.getType(symbolTable)
+                    val sndType = expr.getType()
                     if (sndType != fstType) {
                         throw SemanticException.TypeMismatchException(fstType, sndType)
                     }
@@ -393,14 +403,14 @@ class SemanticAnalyzer() {
             }
         }
         is NewPair -> {
-            Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
+            Type.PairType(first.getType(), second.getType())
         }
         is FunctionCall -> {
             symbolTable.lookupFunc(ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(ident)
         }
         is TypeMember -> TODO()
-        is EnumRange -> TODO()
-        is IfExpr -> TODO()
+        is EnumRange -> rangeTypeOf(from.getType())
+        is IfExpr -> elseExpr.getType()
     }
 
 }

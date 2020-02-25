@@ -37,6 +37,7 @@ class RegisterAllocator(val program: ArmProgram) {
     private fun InstructionBlock.rename(): InstructionBlock {
         val availableRealRegs: TreeSet<Int> = normalRegs().map { it.id }.toCollection(TreeSet())
         val liveRangeMap = getLiveRangeMap()
+        liveRangeMap.dump()
         /* index to list of regs to be freed at that instruction */
         val freeRegMap = mutableMapOf<Int, MutableList<Reg>>()
         liveRangeMap.forEach { (reg, liveRange) ->

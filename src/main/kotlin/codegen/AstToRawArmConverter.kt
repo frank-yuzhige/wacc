@@ -18,6 +18,7 @@ import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
+import ast.Type.Companion.rangeTypeOf
 import ast.Type.Companion.stringType
 import ast.UnaryOperator.*
 import codegen.PreludeFunc.*
@@ -181,24 +182,27 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
             is CondBranch -> {
                 val ifend = getLabel("if_end")
-                var nextElse = getLabel("if_else")
+                var nextCase = getLabel("if_case")
                 packBlock()
                 condStatsList.forEach { (expr, stats) ->
-                    setBlock(getLabel("if_check"))
+                    setBlock(nextCase)
+                    nextCase = getLabel("if_case")
                     val cond = expr.toARM().toReg()
                     cmp(cond, immFalse())
-                    branch(Condition.EQ, nextElse)
+                    branch(Condition.EQ, nextCase)
 
                     inScopeDo { stats.map { it.toARM() } }
                     branch(ifend)
-
-                    setBlock(nextElse)
-                    nextElse = getLabel("if_else")
                 }
-                inScopeDo { elseBody!!.map { it.toARM() } }
+                setBlock(nextCase)
+                inScopeDo { elseBody.map { it.toARM() } }
                 branch(ifend)
                 setBlock(ifend)
             }
+//
+//            is ForLoop -> {
+//                if ()
+//            }
 
             is WhileLoop -> {
                 val lCheck = getLabel("loop_check")
@@ -280,6 +284,25 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is TypeMember -> {
                 TODO()
             }
+            is IfExpr -> {
+                val resultReg = getReg()
+                val ifend = getLabel("if_end")
+                var nextCase = getLabel("if_case")
+                packBlock()
+                condStatsList.forEach { (cond, expr) ->
+                    setBlock(nextCase)
+                    nextCase = getLabel("if")
+                    cmp(cond.toARM().toReg(), immFalse())
+                    branch(Condition.EQ, nextCase)
+                    expr.toARM().toReg(resultReg)
+                    branch(ifend)
+                }
+                setBlock(nextCase)
+                elseExpr.toARM().toReg(resultReg)
+                branch(ifend)
+                setBlock(ifend)
+                resultReg
+            }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
                 val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) } ?: 0
@@ -324,7 +347,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 mov(getReg(), Reg(0))
             }
             is EnumRange -> TODO()
-            is IfExpr -> TODO()
         }
     }
 
@@ -791,8 +813,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is NewPair -> Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
             is FunctionCall -> symbolTable.functions[ident]!!.type.retType
             is TypeMember -> TODO()
-            is EnumRange -> TODO()
-            is IfExpr -> TODO()
+            is EnumRange -> rangeTypeOf(from.getType(symbolTable))
+            is IfExpr -> elseExpr.getType(symbolTable)
         }
     }
 

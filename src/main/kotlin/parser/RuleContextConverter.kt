@@ -97,6 +97,7 @@ class RuleContextConverter() {
         baseType() != null -> baseType().toAST()
         arrayType() != null -> arrayType().toAST()
         pairType() != null -> pairType().toAST()
+        capIdent() != null -> NewType(capIdent().text)
         else -> throw IllegalArgumentException("Unrecognized type: $text")
     }
 
