@@ -2,7 +2,7 @@ begin
 
 char f(int p, int q) is
     var c = chr p;
-    return c
+    return c;
 end
 
 var x = 1;
@@ -13,6 +13,6 @@ var p = newpair(x, u);
 var pp = newpair(p, ss);
 var arr = [pp];
 var c = call f(k, x);
-println c
+println c;
 
 end

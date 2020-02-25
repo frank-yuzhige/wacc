@@ -149,10 +149,19 @@ class SemanticAnalyzer() {
                 EXIT -> expr.check(match(intType()))
                 RETURN -> expr.check(retCheck)
             }
-            is CondBranch -> {
+            is IfThen -> {
                 expr.check(match(boolType()))
-                trueBranch.checkBlock(retCheck)
-                falseBranch.checkBlock(retCheck)
+                thenBody.checkBlock(retCheck)
+            }
+            is CondBranch -> {
+                condStatsList.forEach { (expr, stats) ->
+                    expr.check(match(boolType()))
+                    stats.checkBlock(retCheck)
+                }
+                elseBody.checkBlock(retCheck)
+            }
+            is ForLoop -> {
+                TODO()
             }
             is WhileLoop -> {
                 expr.check(match(boolType()))
@@ -389,6 +398,9 @@ class SemanticAnalyzer() {
         is FunctionCall -> {
             symbolTable.lookupFunc(ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(ident)
         }
+        is TypeMember -> TODO()
+        is EnumRange -> TODO()
+        is IfExpr -> TODO()
     }
 
 }

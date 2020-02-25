@@ -4,8 +4,7 @@ import ast.BinaryOperator
 import ast.Expression
 import exceptions.SyntacticException
 import utils.CompilerEmulator
-import utils.EmulatorMode
-import utils.EmulatorMode.PARSE_ONLY
+import CompilerMode.PARSE_ONLY
 import utils.NullOutputStream
 import java.io.File
 import java.io.PrintStream

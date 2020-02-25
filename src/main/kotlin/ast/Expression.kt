@@ -10,6 +10,7 @@ import exceptions.SemanticException.*
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.SymbolTable
 import utils.VarWithSID
+import utils.prettyPrint
 
 sealed class Expression(var inParens: Boolean = false) : WaccAST() {
 
@@ -73,6 +74,10 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun prettyPrint(): String = "${func.value} ${expr.prettyPrint()}"
     }
 
+    data class TypeMember(val expr: Expression, val memberName: String): Expression() {
+        override fun prettyPrint(): String = "${expr.prettyPrint()}.$memberName"
+    }
+
     data class ArrayLiteral(val elements: List<Expression>) : Expression() {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
         override fun tellIdentity(): String = "an array literal"
@@ -81,6 +86,31 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     data class NewPair(val first: Expression, val second: Expression) : Expression() {
         override fun prettyPrint(): String = "newpair(${first.prettyPrint()}, ${second.prettyPrint()})"
         override fun tellIdentity(): String = "a newpair declaration"
+    }
+
+    data class EnumRange(val from: Expression, val then: Expression?, val to: Expression): Expression() {
+        constructor(from: Expression, to: Expression): this(from, null, to)
+        override fun prettyPrint(): String {
+            return if (then != null) {
+                "${from.prettyPrint()}, ${then.prettyPrint()}..${to.prettyPrint()}"
+            } else {
+                "${from.prettyPrint()}..${to.prettyPrint()}"
+            }
+        }
+        override fun tellIdentity(): String {
+            return super.tellIdentity()
+        }
+    }
+
+    data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseBody: Expression) : Expression() {
+        override fun tellIdentity(): String = "an if-expression"
+        override fun prettyPrint(): String {
+            return condStatsList.joinToString { (cond, expr) ->
+                "if ${cond.prettyPrint()} then\n" +
+                        "${expr.prettyPrint().prependIndent()}\n" +
+                        "else"
+            } + "\n" + elseBody.prettyPrint().prependIndent() + "\nfi"
+        }
     }
 
     data class FunctionCall(val ident: String, val args: List<Expression>) : Expression() {

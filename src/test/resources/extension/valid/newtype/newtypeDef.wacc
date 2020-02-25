@@ -5,6 +5,9 @@ newtype MyType is
     char y
 end
 
-exit(0)
+MyType a = MyType(2, 'k');
+MyType b = MyType(1, 'f');
+
+exit(0);
 
 end

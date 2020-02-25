@@ -1,8 +1,7 @@
 package codegen
 import utils.CompilerEmulator
-import utils.EmulatorMode.*
+import CompilerMode.*
 import java.io.*
-import java.nio.file.Path
 import java.util.concurrent.TimeoutException
 import kotlin.test.Test
 

@@ -13,10 +13,19 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     var debug = false
+    var mode: CompilerMode = CompilerMode.EMIT
 
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
         when (flag) {
+            "-p" -> {
+                println("** PARSE ONLY **")
+                mode = CompilerMode.PARSE_ONLY
+            }
+            "-s" ->{
+                println("** SEM CHECK ONLY **")
+                mode = CompilerMode.SEM_CHECK
+            }
             "-d" -> {
                 println("** SYSTEM: DEBUG MODE ACTIVATED **")
                 debug = true
@@ -37,8 +46,17 @@ fun main(args: Array<String>) {
 
     val sa = SemanticAnalyzer()
     val ast = try {
-        Parser(inputStream).parseProgram()
-                .also { sa.suppressWarning().doCheck(it) }
+        val parseOnlyAst = Parser(inputStream).parseProgram()
+        if (mode == CompilerMode.PARSE_ONLY) {
+            println(parseOnlyAst.prettyPrint())
+            exitProcess(0)
+        }
+        sa.suppressWarning().doCheck(parseOnlyAst)
+        if (mode == CompilerMode.SEM_CHECK) {
+            println(parseOnlyAst.prettyPrint())
+            exitProcess(0)
+        }
+        parseOnlyAst
     } catch (pe: SyntacticException) {
         System.err.println("${ERROR}PARSE ERROR:")
         System.err.println("${pe.msg}$RESET")
@@ -48,6 +66,7 @@ fun main(args: Array<String>) {
         System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
+
     val asmPath = if (debug) {
         "src/test/resources/valid/mine/gen.s"
     } else {

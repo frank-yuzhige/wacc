@@ -1,7 +1,7 @@
 package semantics
 
 import utils.CompilerEmulator
-import utils.EmulatorMode
+import CompilerMode
 import utils.NullOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -13,7 +13,7 @@ class SemanticEmulateTest {
     fun batchSemanticCheckTest() {
         File("src/test/resources/").walkTopDown().forEach {
             if (it.path.endsWith(".wacc")) {
-                val result = CompilerEmulator(it, EmulatorMode.SEM_CHECK , PrintStream(NullOutputStream())).run()
+                val result = CompilerEmulator(it, CompilerMode.SEM_CHECK , PrintStream(NullOutputStream())).run()
                 val exitCode = result.exitCode
                 when {
                     it.path.contains("syntaxErr") -> assertTrue(exitCode == 100)

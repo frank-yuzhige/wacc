@@ -8,6 +8,7 @@ import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
+import ast.Type.Companion.anyType
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
@@ -159,7 +160,22 @@ class RuleContextConverter() {
             is ReadCallContext -> Read(assignLhs().toAST())
             is BuiltinFuncCallContext
             -> BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
-            is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
+            is CondBranchContext -> {
+                if (ELSE() == null) {
+                    IfThen(expr(0).toAST(), stats(0).toAST())
+                } else {
+                    val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                    CondBranch(list, stats().last().toAST())
+                }
+            }
+            is ForLoopContext -> {
+                val defType = if (type() == null && VAR() == null) {
+                    null
+                } else {
+                    type()?.toAST()?: anyType()
+                }
+                ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
+            }
             is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
@@ -179,6 +195,8 @@ class RuleContextConverter() {
         is RhsExprContext -> expr().toAST()
         is RhsArrayLiterContext -> arrayLiter().toAST()
         is RhsPairElemContext -> pairElem().toAST()
+        is RhsTypeMemberContext -> typeMember().toAST()
+        is RhsTypeConstructorContext -> typeConstructor().toAST()
         is RhsNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
         is RhsFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
         else -> throw IllegalArgumentException("Unknown right value")
@@ -198,6 +216,7 @@ class RuleContextConverter() {
             is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
             is ExprBinopContext -> BinExpr(left.toAST(), getBinOp(), right.toAST())
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
+            is ExprIfContext -> IfExpr(listOf(cond.toAST() to tr.toAST()), fl.toAST())
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit
@@ -214,6 +233,10 @@ class RuleContextConverter() {
     private fun PairElemContext.toAST(): Expression =
             PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase()), expr().toAST())
 
+    private fun TypeMemberContext.toAST(): Expression = TypeMember(expr().toAST(), ident().text)
+
+    private fun TypeConstructorContext.toAST(): Expression = FunctionCall(capIdent().text, argList().toAST())
+
     private fun ArrayElemContext.toAST(): Expression =
             ArrayElem(ident().toAST(), expr().map { it.toAST() })
 
@@ -224,6 +247,12 @@ class RuleContextConverter() {
     } catch (e: NumberFormatException) {
         logError(IntegerSyntacticException(this.text))
         NullLit
+    }
+
+    private fun EnumRangeContext.toAST(): EnumRange = when(this) {
+        is RangeFromToContext -> EnumRange(from.toAST(), to.toAST())
+        is RangeFromThenToContext -> EnumRange(from.toAST(), then.toAST(), to.toAST())
+        else -> throw IllegalArgumentException("Unknown enum type")
     }
 
     private fun ExprBinopContext.getBinOp(): BinaryOperator {

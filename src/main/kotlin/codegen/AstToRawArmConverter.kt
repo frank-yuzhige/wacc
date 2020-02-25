@@ -167,22 +167,36 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 }
             }
 
-            is CondBranch -> {
-                val ifthen = getLabel("if_then")
-                val ifelse = getLabel("if_else")
-                val ifend = getLabel("if_end")
+            is IfThen -> {
+                val ifThen = getLabel("if_then")
+                val ifEnd = getLabel("if_end")
                 val cond = expr.toARM().toReg()
                 cmp(cond, immFalse())
-                branch(Condition.EQ, ifelse)
+                branch(Condition.EQ, ifEnd)
+                setBlock(ifThen)
+                inScopeDo { thenBody.map { it.toARM() } }
+                branch(ifEnd)
+                setBlock(ifEnd)
+            }
 
-                setBlock(ifthen)
-                inScopeDo { trueBranch.map { it.toARM() } }
+            is CondBranch -> {
+                val ifend = getLabel("if_end")
+                var nextElse = getLabel("if_else")
+                packBlock()
+                condStatsList.forEach { (expr, stats) ->
+                    setBlock(getLabel("if_check"))
+                    val cond = expr.toARM().toReg()
+                    cmp(cond, immFalse())
+                    branch(Condition.EQ, nextElse)
+
+                    inScopeDo { stats.map { it.toARM() } }
+                    branch(ifend)
+
+                    setBlock(nextElse)
+                    nextElse = getLabel("if_else")
+                }
+                inScopeDo { elseBody!!.map { it.toARM() } }
                 branch(ifend)
-
-                setBlock(ifelse)
-                inScopeDo { falseBranch.map { it.toARM() } }
-                branch(ifend)
-
                 setBlock(ifend)
             }
 
@@ -263,6 +277,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 }))
                 load(temp, Offset(temp), sizeof(this.getType(symbolTable)) == 1)
             }
+            is TypeMember -> {
+                TODO()
+            }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
                 val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType(symbolTable)) } ?: 0
@@ -306,6 +323,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 moveSP(spOffset - oldSPOffset)
                 mov(getReg(), Reg(0))
             }
+            is EnumRange -> TODO()
+            is IfExpr -> TODO()
         }
     }
 
@@ -771,6 +790,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is ArrayLiteral -> elements.first().getType(symbolTable)
             is NewPair -> Type.PairType(first.getType(symbolTable), second.getType(symbolTable))
             is FunctionCall -> symbolTable.functions[ident]!!.type.retType
+            is TypeMember -> TODO()
+            is EnumRange -> TODO()
+            is IfExpr -> TODO()
         }
     }
 

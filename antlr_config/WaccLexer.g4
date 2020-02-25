@@ -1,5 +1,10 @@
 lexer grammar WaccLexer;
 
+// reserved operators
+ARROW       : '->';
+DOUBLE_ARROW: '=>';
+DOT         : '.';
+
 // binary operators
 ADD: '+' ;
 SUB: '-' ;
@@ -14,6 +19,7 @@ EQ : '==';
 NEQ: '!=';
 AND: '&&';
 OR : '||';
+DOTDOT : '..';
 
 // unary operators
 NOT: '!';
@@ -49,6 +55,8 @@ THEN: 'then';
 ELSE: 'else';
 FI: 'fi';
 WHILE: 'while';
+FOR: 'for';
+IN: 'in';
 DO: 'do';
 DONE: 'done';
 NEWPAIR: 'newpair';

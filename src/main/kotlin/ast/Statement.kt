@@ -1,5 +1,6 @@
 package ast
 
+import ast.Expression.EnumRange
 import ast.Expression.Identifier
 import utils.Statements
 import utils.prettyPrint
@@ -39,14 +40,21 @@ sealed class Statement : WaccAST() {
         override fun prettyPrint(): String = "${func.functionName} ${expr.prettyPrint()}"
     }
 
-    data class CondBranch(val expr: Expression, val trueBranch: Statements, val falseBranch: Statements) : Statement() {
-        override fun tellIdentity(): String = "an if-then-else statement"
-        override fun prettyPrint(): String {
-            return "if ${expr.prettyPrint()} then\n" +
-                    "${trueBranch.prettyPrint().prependIndent()}\n" +
-                    "else\n" +
-                    "${falseBranch.prettyPrint().prependIndent()}\n" +
+    data class IfThen(val expr: Expression, val thenBody: Statements): Statement() {
+        override fun tellIdentity(): String = "an if-statement"
+        override fun prettyPrint(): String = "if ${expr.prettyPrint()} then\n" +
+                    "${thenBody.prettyPrint().prependIndent()}\n" +
                     "fi"
+    }
+
+    data class CondBranch(val condStatsList: List<Pair<Expression, Statements>>, val elseBody: Statements) : Statement() {
+        override fun tellIdentity(): String = "an if-statement"
+        override fun prettyPrint(): String {
+            return condStatsList.joinToString { (expr, stmt) ->
+                "if ${expr.prettyPrint()} then\n" +
+                        "${stmt.prettyPrint().prependIndent()}\n" +
+                        "else"
+            } + "\n" + elseBody.prettyPrint().prependIndent() + "\nfi"
         }
     }
 
@@ -54,6 +62,16 @@ sealed class Statement : WaccAST() {
         override fun tellIdentity(): String = "a while loop"
         override fun prettyPrint(): String {
             return "while ${expr.prettyPrint()} do\n" +
+                    "${body.prettyPrint().prependIndent()}\n" +
+                    "done"
+        }
+    }
+
+    data class ForLoop(val defType: Type?, val loopVar: Identifier, val range: EnumRange, val body: Statements): Statement() {
+        override fun tellIdentity(): String = "a for loop"
+        override fun prettyPrint(): String {
+            val def= defType?.let { if (defType == Type.anyType()) "var " else "$defType " }?:""
+            return "for ${def}${loopVar.prettyPrint()} in ${range.prettyPrint()} do\n" +
                     "${body.prettyPrint().prependIndent()}\n" +
                     "done"
         }
