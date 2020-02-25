@@ -1,6 +1,6 @@
 package codegen
 
-import codegen.arm.Instruction
+import codegen.arm.ArmProgram
 import codegen.arm.Operand.Register.Reg
 
 class LiveRange(firstDef: Int) {
@@ -30,10 +30,10 @@ class LiveRange(firstDef: Int) {
         return pairs.sortedWith(compareBy { pair: Pair<String, Int> -> pair.second } then compareBy { it.first })
     }
 
-    fun findAllCoexistingRegs(self: Reg, instructions: List<Instruction>): Set<Reg> {
+    fun findAllCoexistingRegs(self: Reg, program: ArmProgram): Set<Reg> {
         val appearance = defs + uses
         val result = mutableSetOf<Reg>()
-        appearance.map { instructions[it] }.forEach { instr ->
+        appearance.map { program.findInstrAt(it) }.forEach { instr ->
             result += instr.getDefs().filterIsInstance<Reg>()
             result += instr.getUses().filterIsInstance<Reg>()
         }
@@ -61,7 +61,7 @@ fun LiveRangeMap.findVirtualToPush(
         pushedVirtuals: MutableList<Reg>,
         deadVirtuals: MutableSet<Reg>,
         realToVirtualsMap: Map<Reg, MutableSet<Reg>>,
-        instructions: List<Instruction>
+        oldProgram: ArmProgram
 ): Reg {
     val vwLiveRange = this[waitingVirtual]
             ?: throw IllegalArgumentException("Given register $waitingVirtual is not in the live range map")
@@ -73,7 +73,7 @@ fun LiveRangeMap.findVirtualToPush(
         if (vpLiveRange.isNotUsedDuring(vwLiveRange)) {
             if (vp in unificationMap) {     // if vp has unified with a real reg
                 val rp = unificationMap.getValue(vp)
-                val coexists = vwLiveRange.findAllCoexistingRegs(waitingVirtual, instructions)
+                val coexists = vwLiveRange.findAllCoexistingRegs(waitingVirtual, oldProgram)
                 if (coexists.all { it !in realToVirtualsMap.getValue(rp) }) {
                     return vp
                 }

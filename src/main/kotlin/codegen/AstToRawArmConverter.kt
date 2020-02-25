@@ -286,12 +286,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is IfExpr -> {
                 val resultReg = getReg()
-                val ifend = getLabel("if_end")
-                var nextCase = getLabel("if_case")
+                val ifend = getLabel("if_expr_end")
+                var nextCase = getLabel("if_expr")
                 packBlock()
                 condStatsList.forEach { (cond, expr) ->
                     setBlock(nextCase)
-                    nextCase = getLabel("if")
+                    nextCase = getLabel("if_expr")
                     cmp(cond.toARM().toReg(), immFalse())
                     branch(Condition.EQ, nextCase)
                     expr.toARM().toReg(resultReg)
