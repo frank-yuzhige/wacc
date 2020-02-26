@@ -70,6 +70,8 @@ CALL: 'call';
 PAIR: 'pair';
 VAR: 'var';
 NEWTYPE: 'newtype';
+UNION: 'union';
+OF: 'of';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 

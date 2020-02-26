@@ -11,8 +11,7 @@ import ast.Expression.PairElemFunction.SND
 import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
-import ast.Type.ArrayType
-import ast.Type.BaseType
+import ast.Type.*
 import ast.Type.BaseTypeKind.*
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
@@ -40,6 +39,7 @@ import utils.Parameter
 import utils.SymbolTable
 import utils.VarWithSID
 import java.util.*
+import kotlin.math.cos
 
 /* AstToRawArmConverter takes the program AST and the generated symbol table, returns a "raw" ARM program.
 *  The converter will generate a 'sort-of-functional' ARM program (meets ARM's syntax), except that it does
@@ -82,17 +82,33 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         functions.map { it.toARM() }
         definePreludes()
     }
-    private fun NewTypeDef.toARM() {
-        funcLabelMap += name() to getLabel("constructor_${name()}")
 
-        virtualRegIdAcc = 4
-        val originalOffset = spOffset
-        spOffset = 0
-        currScopeOffset = 0
-        setBlock(funcLabelMap.getValue(name()))
+    private fun NewTypeDef.toARM() {
+        when(this) {
+            is NewTypeDef.StructTypeDef -> {
+                defineConstructor(type.name, members, isTaggedUnion = false)
+            }
+            is NewTypeDef.UnionTypeDef -> {
+                memberMap.forEach { (constructor, members) ->
+                    defineConstructor(constructor, members, isTaggedUnion = true)
+                }
+            }
+        }
+    }
+
+    private fun defineConstructor(name: String, members: List<Parameter>, isTaggedUnion: Boolean) {
+        funcLabelMap += name to getLabel("constructor_$name")
+
+        setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
-        callMalloc(symbolTable.mallocSize(type))
+        callMalloc(symbolTable.mallocSize(name, isTaggedUnion))
+
         var offsetAcc = 0
+        if (isTaggedUnion) {
+            load(Reg(1), ImmNum(symbolTable.unionIdMap.getValue(name)))
+            store(Reg(1), Offset(Reg(0)))
+            offsetAcc += 4
+        }
         members.forEach { (t, _) ->
             val size = sizeof(t)
             load(Reg(1), Offset(sp(), offsetAcc + 4), size == 1)
@@ -101,7 +117,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         }
         packBlock(PopPC)
         addDirective(LTORG)
-        spOffset = originalOffset
     }
 
     private fun ast.Function.toARM() {

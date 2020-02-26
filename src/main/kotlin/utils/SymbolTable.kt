@@ -2,6 +2,7 @@ package utils
 
 import ast.Expression
 import ast.Expression.Identifier
+import ast.Function
 import ast.NewTypeDef
 import ast.Type
 import ast.Type.Companion.anyArrayType
@@ -12,11 +13,11 @@ import ast.Type.NewType
 import exceptions.SemanticException
 import exceptions.SemanticException.MultipleFuncDefException
 import java.util.*
-
 class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
     val typedefs: MutableMap<NewType, TypeAttributes> = mutableMapOf()
+    val unionIdMap: MutableMap<String, Int> = mutableMapOf()
     val functions: MutableMap<String, FuncAttributes> = hashMapOf()
     val collect: MutableMap<VarWithSID, VarAttributes> = hashMapOf()
     val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
@@ -35,21 +36,44 @@ class SymbolTable {
         return null
     }
 
-    fun defineFunc(ident: String, funcType: Type.FuncType, index: Index) {
-        val entry = functions[ident]
+    fun defineFunc(func: Function) {
+        val entry = functions[func.name]
         if (entry != null) {
-            throw MultipleFuncDefException(ident, entry.type, entry.index)
+            throw MultipleFuncDefException(func.name, entry.type, entry.index)
         }
-        functions[ident] = FuncAttributes(funcType, index)
+        functions[func.name] = FuncAttributes(func.getFuncType(), func.args, func.startIndex)
     }
 
     fun defineType(def: NewTypeDef) {
-        val entry = functions[def.name()]
-        if (entry != null) {
-            throw MultipleFuncDefException(def.name(), entry.type, entry.index)
+        when (def) {
+            is NewTypeDef.StructTypeDef -> {
+                val entry = functions[def.name()]
+                if (entry != null) {
+                    throw MultipleFuncDefException(def.name(), entry.type, entry.index)
+                }
+                typedefs[def.type] = TypeAttributes(def.startIndex)
+                functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, def.startIndex)
+            }
+
+            is NewTypeDef.UnionTypeDef -> {
+                val entry = typedefs[def.type]
+                if (entry != null) {
+                    throw MultipleFuncDefException("def.name()", def.type, entry.index)
+                }
+                typedefs[def.type] = TypeAttributes(def.startIndex)
+                var unionId = 0
+                def.memberMap.forEach { (constructor, params) ->
+                    val fentry = functions[constructor]
+                    if (fentry != null) {
+                        throw MultipleFuncDefException(constructor, fentry.type, fentry.index)
+                    }
+                    val funType = Type.FuncType(def.type, params.map { it.first })
+                    functions[constructor] = FuncAttributes(funType, params, def.startIndex)
+                    unionIdMap[constructor] = unionId++
+                }
+            }
         }
-        typedefs[def.type] = TypeAttributes(def.members, def.startIndex)
-        functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.startIndex)
+
     }
 
     fun pushScope() {
@@ -170,7 +194,7 @@ class SymbolTable {
             is Expression.TypeMember -> {
                 val newType = getType(expr.expr, accessType)
                 if (newType is NewType) {
-                    return typedefs[newType]?.members?.find { it.second.name == expr.memberName }?.first
+                    return functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
                             ?: throw SemanticException.UndefinedFuncException(newType.toString())
                 }
                 throw SemanticException.UndefinedFuncException(newType.toString())
@@ -202,14 +226,18 @@ class SymbolTable {
         }
     }
 
-    fun mallocSize(type: NewType): Int = typedefs[type]?.members?.sumBy { sizeof(it.first) }
-            ?: throw SemanticException.UndefinedFuncException(type.name)
+    fun mallocSize(constructor: String, isTaggedUnion: Boolean = false): Int {
+        val s = functions[constructor]?.members?.sumBy { sizeof(it.first) }
+                ?: throw SemanticException.UndefinedFuncException(constructor)
+        return s + if (isTaggedUnion) 4 else 0
+    }
+
 
 
     fun getMemberOffset(name: String, type: Type): Int {
         if (type is NewType) {
             var acc = 0
-            for (member in typedefs.getValue(type).members) {
+            for (member in functions.getValue(type.name).members) {
                 if (member.second.name == name) {
                     return acc
                 }
@@ -228,13 +256,13 @@ class SymbolTable {
         scopeDefs[prevId] = prev.keys
     }
 
-    data class FuncAttributes(val type: Type.FuncType, val index: Index, var occurrences: Int = 1) {
+    data class FuncAttributes(val type: Type.FuncType, val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): FuncAttributes = this.also { occurrences++ }
     }
     data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
-    data class TypeAttributes(val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
+    data class TypeAttributes(val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
     enum class AccessType {
@@ -242,3 +270,4 @@ class SymbolTable {
     }
 
 }
+

@@ -1,4 +1,0 @@
-src/main/java/antlr/WaccLexer.java
-src/main/java/antlr/WaccParser.java
-src/main/java/antlr/WaccParserVisitor.java
-src/main/java/antlr/WaccParserBaseVisitor.java

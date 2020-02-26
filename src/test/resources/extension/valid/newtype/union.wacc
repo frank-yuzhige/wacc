@@ -1,0 +1,11 @@
+begin
+
+newtype MaybeInt is union
+    Nothing;
+    Just of (int x);
+end
+
+var a = Nothing();
+var b = Just(4);
+
+end

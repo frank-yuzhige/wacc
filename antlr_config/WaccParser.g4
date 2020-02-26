@@ -17,7 +17,11 @@ baseType    : BASE_TYPE;
 pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
 
 member: type ident;
-newtype: NEWTYPE capIdent IS member (SEMICOLON member)* END;
+newtype: structType | taggedUnion;
+structType: NEWTYPE capIdent IS (member SEMICOLON)* END;
+
+unionEntry: capIdent (OF LPAR member (COMMA member)* RPAR)?;
+taggedUnion: NEWTYPE capIdent IS UNION (unionEntry SEMICOLON)* END;
 
 enumRange: from=expr DOTDOT to=expr                 #rangeFromTo
          | from=expr COMMA then=expr DOTDOT to=expr #rangeFromThenTo

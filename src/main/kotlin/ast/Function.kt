@@ -20,4 +20,8 @@ data class Function(
     fun showHeader(): String = "$returnType $name(${args.joinToString(", ") { it.prettyPrint() }})"
 
     override fun getTraceLog(): String = "In a function defined at ${startIndex}: ${showHeader()}"
+
+    fun getFuncType(): Type.FuncType {
+        return Type.FuncType(returnType, args.map { it.first })
+    }
 }

@@ -9,7 +9,6 @@ import ast.Expression.PairElemFunction.SND
 import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
-import ast.Type.ArrayType
 import ast.Type.BaseType
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyArrayType
@@ -17,7 +16,6 @@ import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
-import ast.Type.Companion.rangeTypeOf
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import semantics.TypeChecker.Companion.match
@@ -97,9 +95,7 @@ class SemanticAnalyzer() {
         functions.map {
             treeStack.push(it)
             try {
-                symbolTable.defineFunc(it.name,
-                        Type.FuncType(it.returnType, it.args.map { a -> a.first }),
-                        it.startIndex)
+                symbolTable.defineFunc(it)
             } catch (sme: SemanticException) {
                 logError(sme.msg)
             }

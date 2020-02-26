@@ -4,6 +4,7 @@ import antlr.WaccParser.*
 import ast.*
 import ast.Expression.*
 import ast.Function
+import ast.NewTypeDef.*
 import ast.Statement.*
 import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
@@ -135,7 +136,27 @@ class RuleContextConverter() {
     }
 
     private fun NewtypeContext.toAST(): NewTypeDef {
-        return NewTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
+        return when {
+            structType() != null -> structType().toAST()
+            taggedUnion() != null -> taggedUnion().toAST()
+            else -> throw IllegalArgumentException("Unknown new type def")
+        }
+    }
+
+    private fun TaggedUnionContext.toAST(): NewTypeDef {
+        return if (unionEntry() == null || unionEntry().isEmpty()) {
+            UnionTypeDef(this.capIdent().text)
+        } else {
+            UnionTypeDef(this.capIdent().text, this.unionEntry().map { it.toAST() }.toMap())
+        }
+    }
+
+    private fun UnionEntryContext.toAST(): Pair<String, List<Parameter>> {
+        return capIdent().text to member().map { it.toAST() }
+    }
+
+    private fun StructTypeContext.toAST(): NewTypeDef {
+        return StructTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
     }
 
     private fun MemberContext.toAST(): Parameter {
@@ -237,7 +258,7 @@ class RuleContextConverter() {
 
     private fun TypeMemberContext.toAST(): Expression = TypeMember(expr().toAST(), ident().text)
 
-    private fun TypeConstructorContext.toAST(): Expression = FunctionCall(capIdent().text, argList().toAST())
+    private fun TypeConstructorContext.toAST(): Expression = FunctionCall(capIdent().text, argList()?.toAST()?: emptyList())
 
     private fun ArrayElemContext.toAST(): Expression =
             ArrayElem(ident().toAST(), expr().map { it.toAST() })
@@ -313,3 +334,4 @@ class RuleContextConverter() {
         }
     }
 }
+
