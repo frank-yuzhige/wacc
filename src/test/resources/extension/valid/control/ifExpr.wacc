@@ -1,7 +1,11 @@
 begin
 
 int x = 0;
-int y = if x == 1 then 0 else 1 fi;
-exit y;
+x = 1;
+string str = if x == 1 then "x is 1" else "nah" fi;
+
+
+
+println str;
 
 end
