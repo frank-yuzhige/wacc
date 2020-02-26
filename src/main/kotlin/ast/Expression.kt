@@ -60,7 +60,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
                 "${arrIdent.prettyPrint()}${indices.joinToString("") { "[${it.prettyPrint()}]" }}"
     }
 
-    data class PairElem(val func: PairElemFunction, val expr: Expression) : Expression() {
+    data class PairElem(val func: PairElemFunction, val expr: Expression) : Expression(), Literal {
         override fun prettyPrint(): String = "${func.value} ${expr.prettyPrint()}"
     }
 

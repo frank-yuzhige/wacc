@@ -3,25 +3,27 @@ package optimizers
 import ast.*
 import ast.BinaryOperator.*
 import ast.Expression.*
+import ast.Expression.PairElemFunction.*
 import ast.Function
 import ast.Statement.*
 import ast.UnaryOperator.*
 import utils.Statements
+import java.lang.IllegalArgumentException
+import java.util.*
 
 class AstOptimizer(option: OptimizationOption) {
     private val optLevel = OptimizationOption.values().indexOf(option)
     private val programState = ProgramState()
 
     fun doOptimize(ast: ProgramAST): ProgramAST {
-        println(optLevel)
         if (optLevel > 0) {
             var currAst = ast
             var preAst: ProgramAST
             do {
                 preAst = currAst
                 currAst = currAst.optimize()
+                println(currAst.prettyPrint())
             } while (preAst != currAst)
-            currAst.prettyPrint()
             return currAst
         }
         return ast.optimize()
@@ -41,19 +43,103 @@ class AstOptimizer(option: OptimizationOption) {
     }
 
     private fun Statement.optimize(): Statement = when (this) {
-        is Declaration -> Declaration(type, variable, rhs.optimize())
-        is Assignment -> Assignment(lhs, rhs.optimize())
-        is BuiltinFuncCall -> BuiltinFuncCall(func, expr.optimize())
-        is CondBranch -> CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize())
+        Skip -> Skip
+        is Declaration -> {
+            val rhsOptimized = rhs.optimize()
+            if (optLevel > 0 && rhsOptimized is Literal) {
+                programState.defineVar(variable, rhsOptimized)
+                if (rhsOptimized.isPrimitiveLiteral()) {
+                    Declaration(type, variable, rhsOptimized)
+                } else {
+                    this
+                }
+            } else {
+                this
+            }
+        }
+        is Assignment -> {
+            val lhsIdent = lhs.getIdentifier()
+            val rhsOptimized = rhs.optimize()
+            if (optLevel > 0) {
+                if (rhsOptimized is Literal) {
+                    programState.defineVar(lhsIdent, rhsOptimized)
+                } else {
+                    programState.removeVar(lhsIdent)
+                }
+            }
+            Assignment(lhs, rhsOptimized)
+        }
+        is BuiltinFuncCall -> {
+            val exprOptimized = expr.optimize()
+            if (exprOptimized.isPrimitiveLiteral()) {
+                BuiltinFuncCall(func, exprOptimized)
+            } else {
+                this
+            }
+        }
+        is CondBranch -> {
+            val exprOptimized = expr.optimize()
+            if (exprOptimized is BoolLit && optLevel > 0) {
+                if (exprOptimized.b) { Block(trueBranch.optimize()) } else { Block(falseBranch.optimize()) }
+            } else {
+                CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize())
+            }
+        }
         is WhileLoop -> WhileLoop(expr.optimize(), body.optimize())
         is Block -> Block(body.optimize())
-        else -> this
+        is Read -> {
+            val targetIdent = target.getIdentifier()
+            if (optLevel > 0) {
+                programState.removeVar(targetIdent)
+            }
+            this
+        }
     }
 
     private fun Expression.optimize(): Expression = when (this) {
         is Identifier -> {
+            val varLiteral = programState.lookupVar(this)
+            if (optLevel > 0 && varLiteral != null) {
+                varLiteral as Expression
+            } else {
+                this
+            }
+        }
+        is ArrayElem -> {
             if (optLevel > 0) {
-                programState.lookupVar(this)!! as Expression
+                val elements= ((programState.lookupVar(arrIdent) as Expression).optimize() as ArrayLiteral).elements.map { it.optimize() }
+                val indicesOptimized = indices.map { it.optimize() }
+                var currentArray = elements
+                var currentElem: Expression = this
+                for (expr in indicesOptimized) {
+                    if (expr is IntLit) {
+                        if (expr.x < currentArray.size) {
+                            currentElem = currentArray[expr.x]
+                        } else { this }
+                        if (currentElem is ArrayLiteral) {
+                            currentArray = currentElem.elements
+                        }
+                    } else { this }
+                }
+                currentElem
+            } else {
+                this
+            }
+        }
+        is ArrayLiteral -> ArrayLiteral(elements.map {
+            val exprOptimized = it.optimize()
+            if (exprOptimized.isPrimitiveLiteral()) { exprOptimized } else { it }
+        })
+        is NewPair -> NewPair(
+                (first.optimize()).let { if (it.isPrimitiveLiteral()) it else first },
+                (second.optimize()).let { if (it.isPrimitiveLiteral()) it else second })
+        is PairElem -> {
+            val pair = programState.lookupVar(expr.getIdentifier()) as NewPair
+            if (optLevel > 0) {
+                when (func) {
+                    FST -> pair.first.optimize()
+                    SND -> pair.second.optimize()
+                }
             } else {
                 this
             }
@@ -152,6 +238,19 @@ class AstOptimizer(option: OptimizationOption) {
         return result
     }
 
+    /**
+     * Get the identifier from an expression assuming is expression has the
+     * type assign-lhs
+     */
+    private fun Expression.getIdentifier(): Identifier = when(this) {
+        is Identifier -> this
+        is PairElem -> expr.getIdentifier()
+        is ArrayElem -> arrIdent
+        else -> throw IllegalArgumentException("Something went horribly wrong, this error should never occur!")
+    }
+
+    private fun Expression.isPrimitiveLiteral(): Boolean =
+            this is Literal && this !is ArrayLiteral && this !is NewPair && this !is PairElem
 
     private inline fun inScopeDo(action: () -> WaccAST): WaccAST {
         programState.enterScope()

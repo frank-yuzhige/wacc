@@ -2,6 +2,7 @@ package optimizers
 
 import ast.Expression.*
 import ast.Literal
+import java.lang.IllegalArgumentException
 import java.util.*
 
 class ProgramState {
@@ -10,12 +11,24 @@ class ProgramState {
     fun exitScope(): Unit {
         currentState.pop()
     }
-    fun defineVarInCurrentScope(ident: Identifier, lit: Literal) {
-        currentState.first[ident.name] = lit
+
+    private fun getNearestScope(ident: Identifier): MutableMap<String, Literal>? {
+        currentState.forEach {
+            if (it[ident.name] != null) {
+                return it
+            }
+        }
+        return null
     }
-    fun removeVarFromCurrentScope(ident: Identifier) {
-        currentState.first.remove(ident.name)
+
+    fun defineVar(ident: Identifier, lit: Literal) {
+        getNearestScope(ident)?.also { it[ident.name] = lit } ?: also { currentState.first[ident.name] = lit }
     }
+
+    fun removeVar(ident: Identifier) {
+        getNearestScope(ident)?.remove(ident.name) ?: also { throw IllegalArgumentException("Should never be here!") }
+    }
+
     fun lookupVar(ident: Identifier): Literal? =
             currentState.mapNotNull { it[ident.name] }.firstOrNull()
 }
