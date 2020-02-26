@@ -37,7 +37,7 @@ fun main(args: Array<String>) {
         FileInputStream(filePath)
     } catch (fnfe: FileNotFoundException) {
         println("File not found!")
-        println("Unable to locate file at ${args[0]}")
+        println("Unable to locate file at $filePath")
         exitProcess(1)
     }
 

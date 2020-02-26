@@ -63,11 +63,15 @@ class AstOptimizer(option: OptimizationOption) {
             if (optLevel > 0) {
                 if (rhsOptimized is Literal) {
                     programState.defineVar(lhsIdent, rhsOptimized)
-                } else {
+                } else if (programState.lookupVar(lhsIdent) != null) {
                     programState.removeVar(lhsIdent)
                 }
             }
-            Assignment(lhs, rhsOptimized)
+            if (rhsOptimized.isPrimitiveLiteral()) {
+                Assignment(lhs, rhsOptimized)
+            } else {
+                this
+            }
         }
         is BuiltinFuncCall -> {
             val exprOptimized = expr.optimize()
@@ -134,14 +138,18 @@ class AstOptimizer(option: OptimizationOption) {
                 (first.optimize()).let { if (it.isPrimitiveLiteral()) it else first },
                 (second.optimize()).let { if (it.isPrimitiveLiteral()) it else second })
         is PairElem -> {
-            val pair = programState.lookupVar(expr.getIdentifier()) as NewPair
-            if (optLevel > 0) {
-                when (func) {
-                    FST -> pair.first.optimize()
-                    SND -> pair.second.optimize()
-                }
-            } else {
+            val pair: NewPair? = programState.lookupVar(expr.getIdentifier())?.let { it as NewPair }
+            if (pair == null) {
                 this
+            } else {
+                if (optLevel > 0) {
+                    when (func) {
+                        FST -> pair.first.optimize()
+                        SND -> pair.second.optimize()
+                    }
+                } else {
+                    this
+                }
             }
         }
         is BinExpr -> this.optimize()
@@ -250,7 +258,7 @@ class AstOptimizer(option: OptimizationOption) {
     }
 
     private fun Expression.isPrimitiveLiteral(): Boolean =
-            this is Literal && this !is ArrayLiteral && this !is NewPair && this !is PairElem
+            this is Literal && this !is ArrayLiteral && this !is NewPair
 
     private inline fun inScopeDo(action: () -> WaccAST): WaccAST {
         programState.enterScope()
