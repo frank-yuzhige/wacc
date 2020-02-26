@@ -2,8 +2,13 @@ package utils
 
 import ast.Expression
 import ast.Expression.Identifier
+import ast.NewTypeDef
 import ast.Type
 import ast.Type.Companion.anyArrayType
+import ast.Type.Companion.boolType
+import ast.Type.Companion.charType
+import ast.Type.Companion.rangeTypeOf
+import ast.Type.NewType
 import exceptions.SemanticException
 import exceptions.SemanticException.MultipleFuncDefException
 import java.util.*
@@ -11,6 +16,7 @@ import java.util.*
 class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
+    val typedefs: MutableMap<NewType, TypeAttributes> = mutableMapOf()
     val functions: MutableMap<String, FuncAttributes> = hashMapOf()
     val collect: MutableMap<VarWithSID, VarAttributes> = hashMapOf()
     val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
@@ -37,6 +43,15 @@ class SymbolTable {
         functions[ident] = FuncAttributes(funcType, index)
     }
 
+    fun defineType(def: NewTypeDef) {
+        val entry = functions[def.name()]
+        if (entry != null) {
+            throw MultipleFuncDefException(def.name(), entry.type, entry.index)
+        }
+        typedefs[def.type] = TypeAttributes(def.members, def.startIndex)
+        functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.startIndex)
+    }
+
     fun pushScope() {
         scopeStack.addFirst(hashMapOf())
         scopeIdStack.addFirst(scopeIdGen++)
@@ -52,7 +67,6 @@ class SymbolTable {
                 }
 
     }
-
 
     fun lookupVar(ident: Identifier): VarAttributes? = scopeStack
             .mapNotNull { it[ident.name] }
@@ -153,12 +167,57 @@ class SymbolTable {
                     functions[expr.ident]!!.type.retType
                 }
             }
-            is Expression.TypeMember -> TODO()
-            is Expression.EnumRange -> TODO()
-            is Expression.IfExpr -> TODO()
+            is Expression.TypeMember -> {
+                val newType = getType(expr.expr, accessType)
+                if (newType is NewType) {
+                    return typedefs[newType]?.members?.find { it.second.name == expr.memberName }?.first
+                            ?: throw SemanticException.UndefinedFuncException(newType.toString())
+                }
+                throw SemanticException.UndefinedFuncException(newType.toString())
+            }
+            is Expression.EnumRange -> {
+                if (accessType == AccessType.IN_SEM_CHECK) {
+                    val fromT = getType(expr.from, accessType)
+                    val toT = getType(expr.to, accessType)
+                    val thenT = expr.then?.let { getType(it, accessType) }?:fromT
+                    when {
+                        fromT != toT -> throw SemanticException.TypeMismatchException(fromT, toT)
+                        fromT != thenT -> throw SemanticException.TypeMismatchException(fromT, thenT)
+                        else -> rangeTypeOf(fromT)
+                    }
+                } else {
+                    rangeTypeOf(getType(expr.from, accessType))
+                }
+            }
+            is Expression.IfExpr -> {
+                getType(expr.elseExpr, accessType)
+            }
         }
     }
 
+    fun sizeof(type: Type): Int {
+        return when(type) {
+            boolType(), charType() -> 1
+            else -> 4
+        }
+    }
+
+    fun mallocSize(type: NewType): Int = typedefs[type]?.members?.sumBy { sizeof(it.first) }
+            ?: throw SemanticException.UndefinedFuncException(type.name)
+
+
+    fun getMemberOffset(name: String, type: Type): Int {
+        if (type is NewType) {
+            var acc = 0
+            for (member in typedefs.getValue(type).members) {
+                if (member.second.name == name) {
+                    return acc
+                }
+                acc += sizeof(member.first)
+            }
+        }
+        throw SemanticException.UndefinedFuncException(type.toString())
+    }
 
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
 
@@ -174,6 +233,9 @@ class SymbolTable {
     }
     data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
+    }
+    data class TypeAttributes(val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
+        fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
     enum class AccessType {
         IN_SEM_CHECK, IN_CODE_GEN

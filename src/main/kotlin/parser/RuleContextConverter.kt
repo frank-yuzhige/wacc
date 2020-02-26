@@ -135,7 +135,7 @@ class RuleContextConverter() {
     }
 
     private fun NewtypeContext.toAST(): NewTypeDef {
-        return NewTypeDef(capIdent().text, member().map { it.toAST() })
+        return NewTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
     }
 
     private fun MemberContext.toAST(): Parameter {
@@ -189,6 +189,7 @@ class RuleContextConverter() {
         ident() != null -> ident().toAST()
         arrayElem() != null -> arrayElem().toAST()
         pairElem() != null -> pairElem().toAST()
+        typeMember() != null -> typeMember().toAST()
         else -> throw IllegalArgumentException("Unknown left value")
     }.records(start(), end())
 

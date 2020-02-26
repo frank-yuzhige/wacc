@@ -14,11 +14,9 @@ import ast.Statement.BuiltinFunc.*
 import ast.Type.ArrayType
 import ast.Type.BaseType
 import ast.Type.BaseTypeKind.*
-import ast.Type.Companion.anyPairType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
-import ast.Type.Companion.rangeTypeOf
 import ast.Type.Companion.stringType
 import ast.UnaryOperator.*
 import codegen.PreludeFunc.*
@@ -34,6 +32,7 @@ import codegen.arm.Operand.ImmNum.Companion.immNull
 import codegen.arm.Operand.ImmNum.Companion.immTrue
 import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
+import codegen.arm.Operand.Register.SpecialReg.Companion.sp
 import codegen.arm.SpecialRegName.*
 import utils.EscapeCharMap.Companion.fromEscape
 import utils.LabelNameTable
@@ -73,6 +72,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
         funcLabelMap += "main" to Label("main")
+        newTypes.map { it.toARM() }
         functions.map { funcLabelMap += it.name to getLabel("f_${it.name}") }
         Function(returnType = intType(),
                 name = "main",
@@ -82,9 +82,30 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         functions.map { it.toARM() }
         definePreludes()
     }
+    private fun NewTypeDef.toARM() {
+        funcLabelMap += name() to getLabel("constructor_${name()}")
+
+        virtualRegIdAcc = 4
+        val originalOffset = spOffset
+        spOffset = 0
+        currScopeOffset = 0
+        setBlock(funcLabelMap.getValue(name()))
+        push(SpecialReg(LR))
+        callMalloc(symbolTable.mallocSize(type))
+        var offsetAcc = 0
+        members.forEach { (t, _) ->
+            val size = sizeof(t)
+            load(Reg(1), Offset(sp(), offsetAcc + 4), size == 1)
+            store(Reg(1), Offset(Reg(0), offsetAcc), size)
+            offsetAcc += sizeof(t)
+        }
+        packBlock(PopPC)
+        addDirective(LTORG)
+        spOffset = originalOffset
+    }
 
     private fun ast.Function.toARM() {
-        virtualRegIdAcc = 4
+//        virtualRegIdAcc = 4
         val originalOffset = spOffset
         spOffset = 0
         currScopeOffset = 0
@@ -135,6 +156,11 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                         val ptr = getReg()
                         load(ptr, offset)
                         store(reg, Offset(ptr), size)
+                    }
+                    is TypeMember -> {
+                        val offset = getLhsAddress(lhs)
+                        val size = sizeof(lhs.getType())
+                        store(reg, offset, size)
                     }
                 }
             }
@@ -201,7 +227,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
 //
 //            is ForLoop -> {
-//                if ()
+//                if (range.getType() == intType() || range.getType() == charType()) {
+//
+//                }
 //            }
 
             is WhileLoop -> {
@@ -282,7 +310,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 load(temp, Offset(temp), sizeof(this.getType()) == 1)
             }
             is TypeMember -> {
-                TODO()
+                val reg = expr.toARM().toReg()
+                mov(Reg(0), reg)
+                callPrelude(CHECK_NULL_PTR)
+                val shift = symbolTable.getMemberOffset(memberName, expr.getType())
+                val offset = Offset(reg, shift)
+                load(reg, offset, sizeof(getType()) == 1)
             }
             is IfExpr -> {
                 val resultReg = getReg()
@@ -372,7 +405,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /* Define all prelude functions that are used in this code. */
     private fun definePreludes() {
         for (func in requiredPreludeFuncs) {
-            virtualRegIdAcc = 4
+//            virtualRegIdAcc = 4
             setBlock(func.getLabel())
             when (func) {
                 RUNTIME_ERROR -> {
@@ -775,6 +808,13 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             Offset(pairAddr, when (lhs.func) {
                 FST -> 0; SND -> 4
             })
+        }
+        is TypeMember -> {
+            val addr = lhs.expr.toARM().toReg()
+            mov(Reg(0), addr)
+            callPrelude(CHECK_NULL_PTR)
+            val offset = symbolTable.getMemberOffset(lhs.memberName, lhs.expr.getType())
+            Offset(addr, offset)
         }
         else -> {
             throw IllegalArgumentException("Target has to be a left-hand-side expression")

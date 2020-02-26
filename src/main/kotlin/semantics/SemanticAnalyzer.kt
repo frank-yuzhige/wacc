@@ -85,6 +85,15 @@ class SemanticAnalyzer() {
     }
 
     private fun ProgramAST.check() {
+        newTypes.map {
+            treeStack.push(it)
+            try {
+                symbolTable.defineType(it)
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
+        }
         functions.map {
             treeStack.push(it)
             try {
@@ -232,6 +241,17 @@ class SemanticAnalyzer() {
                     } ?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
                 } ?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
             }
+            is TypeMember -> {
+                var hasError = false
+                expr.check(pass()) { logAction(it); hasError = true }
+                if (!hasError) {
+                    try {
+                        result = getType()
+                    } catch (sme: SemanticException) {
+                        logAction(listOf(sme.msg))
+                    }
+                }
+            }
             else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
         }
         if (isPush) {
@@ -249,7 +269,7 @@ class SemanticAnalyzer() {
             is BoolLit -> logAction(tc.test(boolType()))
             is CharLit -> logAction(tc.test(charType()))
             is StringLit -> logAction(tc.test(stringType()))
-            is Identifier, is PairElem, is ArrayElem -> checkLhs(tc, false, logAction)
+            is Identifier, is PairElem, is ArrayElem, is TypeMember -> checkLhs(tc, false, logAction)
             is BinExpr -> {
                 when (op) {
                     EQ, NEQ -> {
