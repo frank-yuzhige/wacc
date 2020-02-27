@@ -54,16 +54,23 @@ fun main(args: Array<String>) {
         File(filePath).nameWithoutExtension + ".s"
     }
 
-    println("===========")
-    println(ast.prettyPrint())
-    sa.symbolTable.dump()
-    println("===========")
+    if (debug) {
+        println("===========")
+        println(ast.prettyPrint())
+        sa.symbolTable.dump()
+        println("===========")
+    }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
-    println(arm)
-    println("=== Improved ARM ===")
+    if (debug) {
+        println(arm)
+    }
     val betterArm = RegisterAllocator(arm).run()
-    println(betterArm)
+    if (debug) {
+        println("=== Improved ARM ===")
+        println(betterArm)
+    }
     val output = File(asmPath)
     output.writeText(betterArm.toString())
-    println("===========\n")
+
+    println("Compilation Finished!")
 }
