@@ -10,7 +10,7 @@ build:
     - make
     - ./gradlew build -x test
   tags:
-    - shell
+    - wacc
 
 front_end_test:
   stage: front_end_test
@@ -18,7 +18,7 @@ front_end_test:
     - ./gradlew test -i --tests parser.*
     - ./gradlew test -i --tests semantics.*
   tags:
-    - shell
+    - wacc
 
 
 back_end_test:
@@ -26,5 +26,5 @@ back_end_test:
   script:
     - ./gradlew test -i --tests codegen.*
   tags:
-    - shell
+    - wacc
 
