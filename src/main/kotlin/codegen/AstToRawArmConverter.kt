@@ -84,7 +84,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun Function.toARM() {
         virtualRegIdAcc = 4
-        val originalOffset = spOffset
         spOffset = 0
         currScopeOffset = 0
         setBlock(funcLabelMap.getValue(name))
@@ -100,7 +99,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             packBlock(Unreachable)
         }
         addDirective(LTORG)
-        spOffset = originalOffset
     }
 
     private fun Statement.toARM() {
@@ -188,16 +186,16 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val lEnd = getLabel("loop_end")
                 branch(lCheck)
 
-                setBlock(lCheck)
-                val cond = expr.toARM().toReg()
-                cmp(cond, immFalse())
-                branch(Condition.EQ, lEnd)
-
                 setBlock(lBody)
                 inScopeDo {
                     body.map { it.toARM() }
                 }
                 branch(lCheck)
+
+                setBlock(lCheck)
+                val cond = expr.toARM().toReg()
+                cmp(cond, immTrue())
+                branch(Condition.EQ, lBody)
 
                 setBlock(lEnd)
             }
@@ -278,6 +276,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 baseAddressReg
             }
             is NewPair -> {
+                // malloc 8-bytes for 2 ptrs
                 callMalloc(8)
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst = first.toARM().toReg()
@@ -292,6 +291,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is FunctionCall -> {
                 val oldSPOffset = spOffset
+                // push args to the stack in reversed order.
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
                     val size = sizeof(arg.getType())
@@ -351,7 +351,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                             true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label1)
-                    load(Reg(1), Offset(Reg(1), 0))
+                    load(Reg(1), Offset(Reg(1)))
                     cmp(Reg(0), Reg(1))
                     branch(Condition.LT, label2)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
@@ -362,7 +362,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 CHECK_DIV_BY_ZERO -> {
                     val noErr = getLabel("no_err")
                     push(SpecialReg(LR))
-                    cmp(Reg(1), ImmNum(0))
+                    cmp(Reg(1), immFalse())
                     branch(NE, noErr)
                     callPrintf(StringLit("DivideByZeroError: divide or modulo by zero"),
                             true)
