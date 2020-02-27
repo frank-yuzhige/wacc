@@ -104,7 +104,7 @@ class CompilerEmulator(private val inputFile: File,
         var executableFile: File? = null
         try {
             val objectFilePath = assemblyFile.parent + "/temp"
-            val process = ProcessBuilder(compiler, "-o", objectFilePath,
+            val process = ProcessBuilder("sudo", compiler, "-o", objectFilePath,
                     "-mcpu=arm1176jzf-s", "-mtune=arm1176jzf-s", assemblyFile.absolutePath).start()
             process.waitFor()
             if (process.exitValue() != 0) {
