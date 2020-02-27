@@ -22,7 +22,8 @@ class AssemblyBehaviourTest {
     )
 
     private fun getRefCompilerOutput(file: File, inputData: List<String>): RefCompilerOutput {
-        val process = ProcessBuilder("./refCompile", "-x", file.absolutePath).start()
+        val path = System.getProperty("user.dir")
+        val process = ProcessBuilder("./${path}/refCompile", "-x", file.absolutePath).start()
         val writer = BufferedWriter(OutputStreamWriter(process.outputStream))
         if (inputData.isNotEmpty()) {
             for (line in inputData) {
