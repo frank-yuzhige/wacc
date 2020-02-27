@@ -78,6 +78,7 @@ class AssemblyBehaviourTest {
                     } else {
                         logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
                                 FailureType.EXECUTION_FAILURE)
+                        println(e.message)
                         println("Execution failed: ${testFile.path}")
                     }
                 } finally {
