@@ -1,6 +1,7 @@
 stages:
   - build
-  - test
+  - front_end_test
+  - back_end_test
 
 build:
   stage: build
@@ -10,10 +11,19 @@ build:
   tags:
     - shell
 
-test:
-  stage: test
+front_end_test:
+  stage: front_end_test
   script:
-    - ./gradlew test -i
+    - ./gradlew test -i --tests parser.*
+    - ./gradlew test -i --tests semantics.*
+  tags:
+    - shell
+
+
+back_end_test:
+  stage: back_end_test
+  script:
+    - ./gradlew test -i --tests codegen.*
   tags:
     - shell
 

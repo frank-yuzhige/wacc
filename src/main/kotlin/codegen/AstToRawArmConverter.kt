@@ -82,7 +82,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         definePreludes()
     }
 
-    private fun ast.Function.toARM() {
+    private fun Function.toARM() {
         virtualRegIdAcc = 4
         val originalOffset = spOffset
         spOffset = 0
@@ -101,10 +101,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         }
         addDirective(LTORG)
         spOffset = originalOffset
-    }
-
-    private fun markParam(paramIdent: Identifier, offset: Int) {
-        varOffsetMap[paramIdent.getVarSID()] = offset
     }
 
     private fun Statement.toARM() {
@@ -224,7 +220,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is BoolLit -> if (b) immTrue() else immFalse()
             is CharLit -> ImmNum(c.toInt())
             is StringLit -> defString(fromEscape(string).toString(), false)
-            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType()) == 1)
+            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType()))
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
@@ -250,7 +246,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
                     result = binop(ADD, result, result, offset)
-                    load(result, Offset(result, 4), sizeof(currType) == 1)
+                    load(result, Offset(result, 4), sizeof(currType))
                 }
                 result
             }
@@ -261,7 +257,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 load(temp, Offset(temp, when (func) {
                     FST -> 0; SND -> 4
                 }))
-                load(temp, Offset(temp), sizeof(this.getType()) == 1)
+                load(temp, Offset(temp), sizeof(this.getType()))
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
@@ -496,6 +492,11 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /* Get a new label based on the given name prefix */
     private fun getLabel(name: String): Label = Label(labelNameTable.getName(name))
 
+    /* Mark the relative offset for a parameter. */
+    private fun markParam(paramIdent: Identifier, offset: Int) {
+        varOffsetMap[paramIdent.getVarSID()] = offset
+    }
+
     /** Instruction helper methods **/
     /* These methods are helper methods that inserts instructions, change block state, etc. */
 
@@ -516,20 +517,18 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         packBlock(terminator)
     }
 
-    private fun load(cond: Condition, dst: Register, src: Operand, byte: Boolean = false): Register {
+    private fun load(cond: Condition, dst: Register, src: Operand, byte: Int = 4): Register {
         instructions += if (src is ImmNum && src.num in 0..255) {
             Mov(cond, dst, src)
+        } else if (byte == 1) {
+            Ldrsb(cond, dst, src)
         } else {
-            if (byte) {
-                Ldrsb(cond, dst, src)
-            } else {
-                Ldr(cond, dst, src)
-            }
+            Ldr(cond, dst, src)
         }
         return dst
     }
 
-    private fun load(dst: Register, src: Operand, byte: Boolean = false): Register = load(AL, dst, src, byte)
+    private fun load(dst: Register, src: Operand, byte: Int = 4): Register = load(AL, dst, src, byte)
 
     private fun store(src: Register, dst: Offset, byte: Int = 4): Operand {
         instructions += if (byte == 1) {
