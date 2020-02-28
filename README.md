@@ -76,6 +76,41 @@ newtype Tree<A> is union
     Leaf;
     Node of (Tree<A> left; A value; Tree<A> right);
 ```
+Members of tagged-unions cannot be directly accessed via type member. 
+e.g.```var x = Nothing(); var y = x.value;``` will throw a compile time error.
+
+After the definition of each variable of a union type, it will have a "context".
+A "context" indicates which union entry the variable has. Any attempt to access
+a member of the variable which is under a wrong context will result in a compile
+error.
+
+```
+newtype MaybeInt is union
+    Nothing;
+    Just of (int value);
+end
+
+MaybeInt x = Nothing();   # x : MaybeInt, is of "context" MaybeInt::Nothing
+int tmp = x.value;        # compile time error. MaybeInt::Nothing does not have a member value.
+MaybeInt y = Just(42);    # y : MaybeInt, is of "context" MaybeInt::Just
+int tmp = y.value;        # OK, tmp = 42
+```
+
+Simple pattern matching with when-clause came to rescue!
+When-clause decides the "context" of the matching object. In each case's block, the context will
+be passed on.
+```
+int f(MaybeInt m) is
+    int tmp = m.value;      # complie error, m: MaybeInt, yet we don't know its context.
+    when m:               
+        is Nothing -> int tmp = m.value;  # compile error, m is MaybeInt::Nothing
+        is Just(x) -> int tmp = m.value;  # OK, tmp = fromJust(m)
+    end;
+    int tmp2 = m.value      # compile error, we do not know m's context now!
+end
+
+
+```
 
 #### Traits, trait implementation and Type Constraints
 ```
@@ -100,10 +135,10 @@ end
 
 implement Ordering: Show is
     string show(Ordering x) is
-        when x is
-            LT -> return "LT";
-            EQ -> return "EQ";
-            GT -> return "GT";
+        when x:
+            is LT -> return "LT";
+            is EQ -> return "EQ";
+            is GT -> return "GT";
         end;
     end
 end
@@ -200,13 +235,9 @@ var y = if false then 'c'
 #### when-expression
 ```
 Maybe<Int> x = Nothing;
-when x is
-    Nothing -> println "Nothing";
-    Just    -> println x.value;
+when x:
+    is Nothing -> println "Nothing";
+    is Just(v) -> println v;
 end;
-
-var v = when x is
-    Nothing -> 42
-    Just    -> x.value    
 ```
 

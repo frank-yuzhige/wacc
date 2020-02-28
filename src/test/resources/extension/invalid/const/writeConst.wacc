@@ -1,0 +1,6 @@
+begin
+
+const int x = 0;
+x = 1;  # semantic error!
+
+end

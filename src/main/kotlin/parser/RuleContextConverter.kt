@@ -177,11 +177,14 @@ class RuleContextConverter() {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
-            is DeclarationContext -> Declaration(type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+            is DeclarationContext ->
+                Declaration(false, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+            is ConstDeclarationContext ->
+                Declaration(true, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
             is ReadCallContext -> Read(assignLhs().toAST())
-            is BuiltinFuncCallContext
-            -> BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
+            is BuiltinFuncCallContext ->
+                BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
             is CondBranchContext -> {
                 if (ELSE() == null) {
                     IfThen(expr(0).toAST(), stats(0).toAST())
@@ -199,6 +202,7 @@ class RuleContextConverter() {
                 ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
             }
             is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
+            is WhenClauseContext -> WhenClause(expr().toAST(), whenCase()?.map { it.toAST() }?: emptyList())
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
         }.records(start(), end())
@@ -282,6 +286,10 @@ class RuleContextConverter() {
         val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5(), binop6())[0]
         return BinaryOperator.read(opContext.text)
     }
+
+    private fun WhenCaseContext.toAST(): Pair<Pattern, Statements> = pattern().toAST() to stats().toAST()
+
+    private fun PatternContext.toAST(): Pattern = Pattern(capIdent().text, ident().map { it.toAST() }).records(start(), end())
 
     private fun containsReturn(context: StatsContext): List<Index> = context.stat().flatMap {
         when (it) {

@@ -24,3 +24,6 @@ fun parameterNumMismatch(ident: String, funcType: Type, expectedCount: Int, actu
 
 fun variableAlreadyDefined(variable: Identifier, type: Type, index: Index): String =
         "Variable '${variable.name}' with type '$type' has already been defined at $index"
+
+fun patternUnmatchedError(expectedCount: Int, actualCount: Int): String =
+        "Pattern unmatched! Expected $expectedCount members, yet $actualCount members are found"

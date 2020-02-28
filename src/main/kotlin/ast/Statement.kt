@@ -21,7 +21,7 @@ sealed class Statement : WaccAST() {
         override fun prettyPrint(): String = "skip"
     }
 
-    data class Declaration(val type: Type, val variable: Identifier, val rhs: Expression) : Statement() {
+    data class Declaration(val isConst: Boolean, val type: Type, val variable: Identifier, val rhs: Expression) : Statement() {
         override fun prettyPrint(): String
                 = "${if(type == Type.anyType()) "var" else "$type" } ${variable.name} = ${rhs.prettyPrint()}"
         override fun tellIdentity(): String = "a declaration statement"
@@ -75,6 +75,21 @@ sealed class Statement : WaccAST() {
                     "${body.prettyPrint().prependIndent()}\n" +
                     "done"
         }
+    }
+
+    data class WhenClause(val expr: Expression, val whenCases: List<Pair<Pattern, Statements>>): Statement() {
+        override fun tellIdentity(): String {
+            return "a when-clause"
+        }
+
+        override fun prettyPrint(): String {
+            return "when ${expr.prettyPrint()}" +
+                    whenCases.joinToString("\n") { (pm, stmts) ->
+                        "${pm.prettyPrint()} -> ${stmts.prettyPrint()}"
+                    }.prependIndent() +
+                    "end"
+        }
+
     }
 
     data class Block(val body: Statements) : Statement() {

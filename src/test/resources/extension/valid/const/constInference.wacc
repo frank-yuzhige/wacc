@@ -1,0 +1,13 @@
+begin
+
+const x = 1;
+const y = 2;
+const sum = x + y;
+const b = false;
+const str = "hello!";
+const arr = [x, y, sum];
+
+println sum; # sum = 3
+println arr[2];
+
+end

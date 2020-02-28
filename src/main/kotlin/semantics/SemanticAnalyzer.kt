@@ -110,7 +110,7 @@ class SemanticAnalyzer() {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
-            symbolTable.defineVar(param.getType(), param.getIdent())
+            symbolTable.defineVar(param.getType(), param.getIdent(), isConst = false)
         }
         this.body.map { it.check(retCheck) }
         symbolTable.popScope()?.let { logWarning(it) }
@@ -133,18 +133,18 @@ class SemanticAnalyzer() {
                 } else {
                     type
                 }
-                val prevAttr = symbolTable.defineVar(defType, variable)
+                val prevAttr = symbolTable.defineVar(defType, variable, isConst)
                 if (prevAttr != null) {
-                    logError(listOf(variableAlreadyDefined(variable, prevAttr.type, symbolTable.lookupVar(variable)!!.index)))
+                    logError(listOf(variableAlreadyDefined(variable, prevAttr.type, symbolTable.lookupVar(variable, false)!!.index)))
                 }
                 rhs.check(match(type))
             }
             is Assignment -> {
-                val lhsType = lhs.checkLhs()
+                val lhsType = lhs.checkLhs(pass(), isPush = true, isWrite = true)
                 lhsType?.let { rhs.check(match(it)) } ?: rhs.check(pass())
             }
             is Read -> {
-                val lhsType = target.checkLhs()
+                val lhsType = target.checkLhs(pass(), isPush = true, isWrite = true)
                 val readChecker = match(intType(), charType(), stringType())
                 lhsType?.let { logError(readChecker.test(it)) }
             }
@@ -172,13 +172,30 @@ class SemanticAnalyzer() {
                 expr.check(match(boolType()))
                 body.checkBlock(retCheck)
             }
+            is WhenClause -> {
+                expr.check(pass())
+                val matchingType = expr.getType()
+                whenCases.forEach { (pattern, stmts) ->
+                    val entry = symbolTable.lookupFunc(pattern.constructor)
+                    if (entry == null) {
+                        logError(accessToUndefinedFunc(pattern.constructor))
+                    } else if (entry.type.retType != matchingType) {
+                        logError(typeMismatchError(entry.type.retType, matchingType))
+                    } else if (entry.type.paramTypes.size != pattern.matchVars.size) {
+                        logError(patternUnmatchedError(entry.type.paramTypes.size, pattern.matchVars.size))
+                    } else {
+                        val dups = pattern.matchVars.groupingBy { it }.eachCount().filter { it.value > 1 }
+                    }
+                }
+            }
             is Block -> body.checkBlock(retCheck)
         }
         treeStack.pop()
     }
 
-    private fun Expression.checkLhs(tc: TypeChecker = pass(),
-                                    isPush: Boolean = true,
+    private fun Expression.checkLhs(tc: TypeChecker,
+                                    isPush: Boolean,
+                                    isWrite: Boolean,
                                     logAction: (List<String>) -> Unit = { logError(it) }): Type? {
         var result: Type? = null
         if (isPush) {
@@ -186,7 +203,7 @@ class SemanticAnalyzer() {
         }
         when (this) {
             is Identifier -> {
-                val attr = symbolTable.lookupVar(this)
+                val attr = symbolTable.lookupVar(this, isWrite)
                 if (attr != null) {
                     val actual = attr.type
                     val scopeId = attr.scopeId
@@ -218,7 +235,7 @@ class SemanticAnalyzer() {
             }
             is ArrayElem -> {
                 /* Check if the array var is in scope */
-                symbolTable.lookupVar(arrIdent)?.let { attr ->
+                symbolTable.lookupVar(arrIdent, isWrite = false)?.let { attr ->
                     this.arrIdent.scopeId = attr.scopeId
                     attr.type.unwrapArrayType(indices.count())?.let { actual ->
                         /* Check each index is int */
@@ -265,7 +282,8 @@ class SemanticAnalyzer() {
             is BoolLit -> logAction(tc.test(boolType()))
             is CharLit -> logAction(tc.test(charType()))
             is StringLit -> logAction(tc.test(stringType()))
-            is Identifier, is PairElem, is ArrayElem, is TypeMember -> checkLhs(tc, false, logAction)
+            is Identifier, is PairElem, is ArrayElem, is TypeMember ->
+                checkLhs(tc, isPush = false, isWrite = false, logAction = logAction)
             is BinExpr -> {
                 when (op) {
                     EQ, NEQ -> {
@@ -377,6 +395,6 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
-    fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_SEM_CHECK)
+    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_SEM_CHECK)
 }
 

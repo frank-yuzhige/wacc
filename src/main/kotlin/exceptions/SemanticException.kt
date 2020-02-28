@@ -25,4 +25,7 @@ open class SemanticException(val msg: String) : Exception(msg) {
 
     class ReturnInMainProgramException(indices: List<Index>) :
             SemanticException("Found return statement(s) in main program! at ${indices.joinToString(", ")}")
+
+    class WriteToConstVarException(name: String):
+            SemanticException("Attempt to write to a constant variable $name")
 }

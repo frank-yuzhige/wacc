@@ -72,6 +72,7 @@ builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
 stat: SKIP_STAT                                         #skip
     | (type|VAR) ident ASSIGN assignRhs                 #declaration
+    | CONST type? ident ASSIGN assignRhs                #constDeclaration
     | assignLhs ASSIGN assignRhs                        #assignment
     | READ assignLhs                                    #readCall
     | builtinFunc expr                                  #builtinFuncCall
@@ -79,8 +80,12 @@ stat: SKIP_STAT                                         #skip
         ((ELSE IF expr THEN stats)* ELSE stats?)? FI    #condBranch
     | WHILE expr DO stats? DONE                         #whileLoop
     | FOR (type|VAR)? ident IN enumRange DO stats? DONE #forLoop
+    | WHEN expr COLON whenCase* END                     #whenClause
     | BEGIN stats? END                                  #block
     ;
+
+pattern:  capIdent (LPAR ident (COMMA ident)* RPAR)?;
+whenCase: IS pattern ARROW stats;
 
 stats: stat SEMICOLON (stat SEMICOLON)*;
 

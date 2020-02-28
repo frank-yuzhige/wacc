@@ -3,6 +3,7 @@ lexer grammar WaccLexer;
 // reserved operators
 ARROW       : '->';
 DOUBLE_ARROW: '=>';
+COLON       : ':';
 DOT         : '.';
 
 // binary operators
@@ -69,9 +70,11 @@ PRINTLN: 'println';
 CALL: 'call';
 PAIR: 'pair';
 VAR: 'var';
+CONST: 'const';
 NEWTYPE: 'newtype';
 UNION: 'union';
 OF: 'of';
+WHEN: 'when';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 

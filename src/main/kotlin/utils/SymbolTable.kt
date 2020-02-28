@@ -23,7 +23,7 @@ class SymbolTable {
     val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
     private var scopeIdGen = 0
 
-    fun defineVar(type: Type, identNode: Identifier): VarAttributes? {
+    fun defineVar(type: Type, identNode: Identifier, isConst: Boolean): VarAttributes? {
         val name = identNode.name
         val currScope = this.scopeStack.first()
         val entry = currScope[name]
@@ -32,7 +32,7 @@ class SymbolTable {
         }
         val sid = getCurrScopeId()
         identNode.scopeId = sid
-        currScope[name] = VarAttributes(type, identNode.startIndex, getCurrScopeId())
+        currScope[name] = VarAttributes(type, isConst , getCurrScopeId(), identNode.startIndex)
         return null
     }
 
@@ -92,13 +92,22 @@ class SymbolTable {
 
     }
 
-    fun lookupVar(ident: Identifier): VarAttributes? = scopeStack
-            .mapNotNull { it[ident.name] }
-            .firstOrNull()
-            ?.addOccurrence()
-            ?.also { ident.scopeId = it.scopeId }
+    fun lookupVar(ident: Identifier, isWrite: Boolean): VarAttributes? {
+        val attr = scopeStack
+                .mapNotNull { it[ident.name] }
+                .firstOrNull()
+        if (attr != null) {
+            if (attr.isConst && isWrite) {
+                throw SemanticException.WriteToConstVarException(ident.name)
+            }
+            return attr.addOccurrence().also { ident.scopeId = it.scopeId }
+        }
+        return null
+    }
 
     fun lookupFunc(ident: String): FuncAttributes? = functions[ident]?.addOccurrence()
+
+    fun findConstructorType(constructor: String): NewType? = lookupFunc(constructor)?.type?.retType as? NewType
 
     fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
 
@@ -136,7 +145,7 @@ class SymbolTable {
             is Expression.StringLit -> Type.stringType()
             is Identifier -> {
                 if (accessType == AccessType.IN_SEM_CHECK){
-                    lookupVar(expr)?.type?: throw SemanticException.UndefinedVarException(expr.name)
+                    lookupVar(expr, false)?.type?: throw SemanticException.UndefinedVarException(expr.name)
                 } else {
                     collect[expr.getVarSID()]!!.type
                 }
@@ -145,7 +154,7 @@ class SymbolTable {
             is Expression.UnaryExpr -> expr.op.retType
             is Expression.ArrayElem -> {
                 val arrType = if (accessType == AccessType.IN_SEM_CHECK) {
-                    lookupVar(expr.arrIdent)?.type
+                    lookupVar(expr.arrIdent, false)?.type
                             ?: throw SemanticException.UndefinedVarException(expr.arrIdent.name)
                 } else {
                     collect[expr.arrIdent.getVarSID()]!!.type
@@ -259,7 +268,7 @@ class SymbolTable {
     data class FuncAttributes(val type: Type.FuncType, val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): FuncAttributes = this.also { occurrences++ }
     }
-    data class VarAttributes(val type: Type, val index: Index, val scopeId: Int, var occurrences: Int = 1) {
+    data class VarAttributes(val type: Type, val isConst: Boolean, val scopeId: Int, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
     data class TypeAttributes(val index: Index, var occurrences: Int = 1) {
