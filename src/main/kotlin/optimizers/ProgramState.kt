@@ -21,8 +21,12 @@ class ProgramState {
         return null
     }
 
-    fun defineVar(ident: Identifier, lit: Literal) {
+    fun updateVar(ident: Identifier, lit: Literal) {
         getNearestScope(ident)?.also { it[ident.name] = lit } ?: also { currentState.first[ident.name] = lit }
+    }
+
+    fun defineVarInCurrentScope(ident: Identifier, lit: Literal) {
+        currentState.first[ident.name] = lit
     }
 
     fun removeVar(ident: Identifier) {

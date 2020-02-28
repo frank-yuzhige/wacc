@@ -9,7 +9,6 @@ import ast.Statement.*
 import ast.UnaryOperator.*
 import utils.Statements
 import java.lang.IllegalArgumentException
-import java.util.*
 
 class AstOptimizer(option: OptimizationOption) {
     private val optLevel = OptimizationOption.values().indexOf(option)
@@ -47,7 +46,7 @@ class AstOptimizer(option: OptimizationOption) {
         is Declaration -> {
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0 && rhsOptimized is Literal) {
-                programState.defineVar(variable, rhsOptimized)
+                programState.defineVarInCurrentScope(variable, rhsOptimized)
                 if (rhsOptimized.isPrimitiveLiteral()) {
                     Declaration(type, variable, rhsOptimized)
                 } else {
@@ -62,7 +61,7 @@ class AstOptimizer(option: OptimizationOption) {
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0) {
                 if (rhsOptimized is Literal) {
-                    programState.defineVar(lhsIdent, rhsOptimized)
+                    programState.updateVar(lhsIdent, rhsOptimized)
                 } else if (programState.lookupVar(lhsIdent) != null) {
                     programState.removeVar(lhsIdent)
                 }
@@ -202,7 +201,9 @@ class AstOptimizer(option: OptimizationOption) {
             val y = rightOptimized.x
             result = when (op) {
                 MUL -> IntLit(x * y)
-                DIV -> IntLit(x / y)
+                DIV -> if (y != 0) {
+                    IntLit(x / y)
+                } else { this }
                 MOD -> IntLit(x % y)
                 ADD -> IntLit(x + y)
                 SUB -> IntLit(x - y)
