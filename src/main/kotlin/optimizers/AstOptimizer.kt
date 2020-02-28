@@ -13,6 +13,8 @@ import java.lang.IllegalArgumentException
 class AstOptimizer(option: OptimizationOption) {
     private val optLevel = OptimizationOption.values().indexOf(option)
     private val programState = ProgramState()
+    private var updateVar: Boolean = true
+    private var overflowOccurred = false
 
     fun doOptimize(ast: ProgramAST): ProgramAST {
         if (optLevel > 0) {
@@ -60,13 +62,13 @@ class AstOptimizer(option: OptimizationOption) {
             val lhsIdent = lhs.getIdentifier()
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0) {
-                if (rhsOptimized is Literal) {
+                if (rhsOptimized is Literal && updateVar) {
                     programState.updateVar(lhsIdent, rhsOptimized)
                 } else if (programState.lookupVar(lhsIdent) != null) {
                     programState.removeVar(lhsIdent)
                 }
             }
-            if (rhsOptimized.isPrimitiveLiteral()) {
+            if (rhsOptimized.isPrimitiveLiteral() && updateVar) {
                 Assignment(lhs, rhsOptimized)
             } else {
                 this
@@ -85,10 +87,32 @@ class AstOptimizer(option: OptimizationOption) {
             if (exprOptimized is BoolLit && optLevel > 0) {
                 if (exprOptimized.b) { Block(trueBranch.optimize()) } else { Block(falseBranch.optimize()) }
             } else {
-                CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize())
+                updateVar = false
+                CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize()).also { updateVar = true }
             }
         }
-        is WhileLoop -> WhileLoop(expr.optimize(), body.optimize())
+        is WhileLoop -> {
+            var exprOptimized = expr.optimize()
+            if (exprOptimized is BoolLit) {
+                if (!exprOptimized.b) {
+                    Block(emptyList())
+                } else {
+                    var bodyOptimized = body
+                    while (exprOptimized is BoolLit && exprOptimized.b) {
+                        bodyOptimized = body.optimize()
+                        exprOptimized = expr.optimize()
+                    }
+                    if (!overflowOccurred) {
+                        WhileLoop(exprOptimized, bodyOptimized)
+                    } else {
+                        WhileLoop(expr, body).also { overflowOccurred = false }
+                    }
+                }
+            } else {
+                updateVar = false
+                WhileLoop(exprOptimized, body.optimize()).also { updateVar = true }
+            }
+        }
         is Block -> Block(body.optimize())
         is Read -> {
             val targetIdent = target.getIdentifier()
@@ -200,13 +224,19 @@ class AstOptimizer(option: OptimizationOption) {
             val x = leftOptimized.x
             val y = rightOptimized.x
             result = when (op) {
-                MUL -> IntLit(x * y)
+                MUL -> if (!isValueOverflow(x * y.toLong())) {
+                    IntLit(x * y)
+                } else { this }
                 DIV -> if (y != 0) {
                     IntLit(x / y)
                 } else { this }
                 MOD -> IntLit(x % y)
-                ADD -> IntLit(x + y)
-                SUB -> IntLit(x - y)
+                ADD -> if (!isValueOverflow(x + y.toLong())) {
+                    IntLit(x + y)
+                } else { this }
+                SUB -> if (!isValueOverflow(x - y.toLong())) {
+                    IntLit(x - y)
+                } else { this }
                 GTE -> BoolLit(x >= y)
                 LTE -> BoolLit(x <= y)
                 GT -> BoolLit(x > y)
@@ -257,6 +287,9 @@ class AstOptimizer(option: OptimizationOption) {
         is ArrayElem -> arrIdent
         else -> throw IllegalArgumentException("Something went horribly wrong, this error should never occur!")
     }
+
+    private fun isValueOverflow(n: Long): Boolean = (n > Int.MAX_VALUE || n < Int.MIN_VALUE)
+            .also { if (it) { overflowOccurred = it } }
 
     private fun Expression.isPrimitiveLiteral(): Boolean =
             this is Literal && this !is ArrayLiteral && this !is NewPair

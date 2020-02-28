@@ -1,19 +1,29 @@
 stages:
   - build
-  - test
+  - front_end_test
+  - back_end_test
 
 build:
   stage: build
   script:
+    - make clean
     - make
     - ./gradlew build -x test
   tags:
-    - shell
+    - wacc
 
-test:
-  stage: test
+front_end_test:
+  stage: front_end_test
   script:
-    - ./gradlew test -i
+    - ./gradlew test -i --tests parser.*
+    - ./gradlew test -i --tests semantics.*
   tags:
-    - shell
+    - wacc
 
+
+back_end_test:
+  stage: back_end_test
+  script:
+    - ./gradlew test -i --tests codegen.*
+  tags:
+    - wacc

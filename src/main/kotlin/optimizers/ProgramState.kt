@@ -8,9 +8,7 @@ import java.util.*
 class ProgramState {
     private val currentState: Deque<MutableMap<String, Literal>> = ArrayDeque()
     fun enterScope(): Unit = currentState.addFirst(hashMapOf())
-    fun exitScope(): Unit {
-        currentState.pop()
-    }
+    fun exitScope(): MutableMap<String, Literal> = currentState.pop()
 
     private fun getNearestScope(ident: Identifier): MutableMap<String, Literal>? {
         currentState.forEach {
