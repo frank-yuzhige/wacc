@@ -5,20 +5,24 @@ import codegen.arm.Instruction
 import codegen.arm.Instruction.*
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.*
+import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
+import codegen.arm.SpecialRegName
+import codegen.arm.SpecialRegName.*
 import utils.TablePrinter
 
 typealias Liveness = Pair<MutableSet<Register>, MutableSet<Register>>
 typealias LivenessList = MutableList<Pair<Instruction, Liveness>>
 
 class ArmOptimizer(options: OptimizationOption) {
-
     private val blockLivenessMap: MutableMap<String, LivenessList> = mutableMapOf()
-
-    fun doOptimize(armProgram: ArmProgram) {
+    private val regToOffsetMap: MutableMap<Offset, Register> = mutableMapOf()
+    fun doOptimize(armProgram: ArmProgram): ArmProgram {
         armProgram.blocks.forEach {
             it.initialize()
             it.performLivenessAnalysis()
         }
+        dumpLivenessMap()
+        return ArmProgram(armProgram.stringConsts, armProgram.blocks.map { it.sweepDeadCode() })
     }
 
     /**
@@ -35,11 +39,14 @@ class ArmOptimizer(options: OptimizationOption) {
 
     private fun analyze(livenessList: LivenessList) {
         livenessList.forEachIndexed { i, (instr, liveness) ->
-            if (instr !is Str) {
+            if (instr is Str && instr.dst is Offset && instr.dst.src == SpecialReg(SP)) {
+                regToOffsetMap[instr.dst] = instr.src
+            }
+            if (instr.shouldBeAnalyzed()) {
                 // LiveIn(n) = uses(n) U (LiveOut(n) - defs(n))
                 liveness.liveIn().clear()
                 liveness.liveIn().addAll(
-                        instr.getUses().toMutableSet() + (liveness.liveOut() - instr.getDefs().toMutableSet()))
+                        instr.uses().toMutableSet() + (liveness.liveOut() - instr.defs().toMutableSet()))
 
                 // LiveOut(n) = U (s belongs to succ(n)) LiveIn(s)
                 liveness.liveOut().clear()
@@ -49,7 +56,23 @@ class ArmOptimizer(options: OptimizationOption) {
         }
     }
 
-    fun dumpLivenessMap() {
+    /**
+     * Remove dead code if the instruction node satisfies one of the following conditions:
+     * 1. There is only one virtual register in the defs set of the instruction node and
+     *    the virtual register defined is not in the liveOut set.
+     * 2.
+     */
+    private fun InstructionBlock.sweepDeadCode(): InstructionBlock {
+        val currLivenessList = blockLivenessMap[this.label.name]!!
+        val filteredInstrs = this.instructions.filterIndexed { i, instr ->
+            val defs = instr.defs()
+            val liveOut = currLivenessList[i].second.liveOut()
+            (!(defs.size == 1 && (!liveOut.contains(defs[0])))) || instr.isCritical()
+        }
+        return InstructionBlock(this.label, filteredInstrs, this.terminator, this.tails)
+    }
+
+    private fun dumpLivenessMap() {
         val blocks = blockLivenessMap.map { (label, livenessList) ->
             val body = "$label:\n"
             val tp = TablePrinter("#", "Instruction", "LiveIn", "LiveOut").markIntColumn(0).sortBy(0)
@@ -64,12 +87,44 @@ class ArmOptimizer(options: OptimizationOption) {
     private fun Liveness.liveIn(): MutableSet<Register> = this.first
     private fun Liveness.liveOut(): MutableSet<Register> = this.second
 
-    private fun getSuccessors(index: Int, livenessList: LivenessList): List<Pair<Instruction, Liveness>> =
-            if (index < livenessList.size - 1) {
-                listOf(livenessList[index + 1])
-            } else {
-                emptyList() // TODO
+    private fun Instruction.shouldBeAnalyzed(): Boolean = !this.isVarDefInstr() && isDiscreteInstr()
+
+    private fun Instruction.isVarDefInstr(): Boolean = (this is Str && this.dst is Offset)
+
+    private fun Instruction.isDiscreteInstr(): Boolean = !(this.isCritical() && (this is Terminator))
+
+    private fun Instruction.isCritical(): Boolean =
+            this.defs().intersect(reservedRegs() + SpecialReg(SP)).isNotEmpty()
+
+    private fun Instruction.defs(): List<Register> = when(this) {
+        is Str -> if (this.isVarDefInstr()) {
+            listOf(this.src)
+        } else { this.getDefs() }
+        is Add -> if (this.dest == SpecialReg(SP)) { emptyList() } else {this.getDefs() }
+        else -> this.getDefs()
+    }
+
+    private fun Instruction.uses(): List<Register> = when(this) {
+        is Ldr -> if (this.isVarDefInstr()) {
+            listOf(regToOffsetMap[this.opr]!!)
+        } else { this.getUses() }
+        is Add -> if (this.dest in reservedRegs() && this.rn == SpecialReg(SP) && this.opr is ImmNum) {
+            listOf(regToOffsetMap[Offset(SpecialReg(SP), (this.opr as ImmNum).num)]!!)
+        } else if (this.dest == SpecialReg(SP)) { emptyList() } else { this.getDefs() }
+        else -> this.getUses()
+    }
+
+    /**
+     * Obtains the successors of a instruction
+     */
+    private fun getSuccessors(index: Int, livenessList: LivenessList): List<Pair<Instruction, Liveness>> {
+        for (i in index + 1 until livenessList.size) {
+            if (livenessList[i].first.isDiscreteInstr()) {
+                return listOf(livenessList[i])
             }
+        }
+        return emptyList()
+    }
 
     private fun clone(livenessList: LivenessList): LivenessList {
         val newList: LivenessList = mutableListOf()
