@@ -2,6 +2,7 @@ import codegen.AstToRawArmConverter
 import codegen.RegisterAllocator
 import exceptions.SemanticException
 import exceptions.SyntacticException
+import optimizers.ArmOptimizer
 import optimizers.AstOptimizer
 import optimizers.OptimizationOption
 import parser.Parser
@@ -15,7 +16,7 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     var debug = false
-    var optLevel: Int? = null
+    var optLevel: Int = -1
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
         when {
@@ -64,13 +65,18 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
-    if (optLevel != null) {
-        val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel!!])
+    if (optLevel >= 0) {
+        val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
         ast = astOptimizer.doOptimize(ast)
     }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     println(arm)
-    println("=== Improved ARM ===")
+    if (optLevel > 1) {
+        val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
+        armOptimizer.doOptimize(arm)
+        armOptimizer.dumpLivenessMap()
+    }
+    println("\n=== Improved ARM ===")
     val betterArm = RegisterAllocator(arm).run()
     println(betterArm)
     val output = File(asmPath)
