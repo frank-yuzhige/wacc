@@ -6,7 +6,6 @@ import codegen.arm.Instruction.*
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.*
 import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
-import codegen.arm.SpecialRegName
 import codegen.arm.SpecialRegName.*
 import utils.TablePrinter
 
@@ -42,7 +41,7 @@ class ArmOptimizer(options: OptimizationOption) {
             if (instr is Str && instr.dst is Offset && instr.dst.src == SpecialReg(SP)) {
                 regToOffsetMap[instr.dst] = instr.src
             }
-            if (instr.shouldBeAnalyzed()) {
+            if (!instr.isVarDefInstr()) {
                 // LiveIn(n) = uses(n) U (LiveOut(n) - defs(n))
                 liveness.liveIn().clear()
                 liveness.liveIn().addAll(
@@ -57,19 +56,32 @@ class ArmOptimizer(options: OptimizationOption) {
     }
 
     /**
-     * Remove dead code if the instruction node satisfies one of the following conditions:
-     * 1. There is only one virtual register in the defs set of the instruction node and
-     *    the virtual register defined is not in the liveOut set.
-     * 2.
+     * Remove dead code if the instruction node satisfies the following condition:
+     * There is only one virtual register in the defs set of the instruction node and
+     * the virtual register defined is not in the liveOut set.
      */
     private fun InstructionBlock.sweepDeadCode(): InstructionBlock {
         val currLivenessList = blockLivenessMap[this.label.name]!!
-        val filteredInstrs = this.instructions.filterIndexed { i, instr ->
-            val defs = instr.defs()
-            val liveOut = currLivenessList[i].second.liveOut()
-            (!(defs.size == 1 && (!liveOut.contains(defs[0])))) || instr.isCritical()
+        val filteredInstrs: MutableList<Instruction> = mutableListOf()
+        var isDeadCodeMarker = true
+        this.instructions.forEachIndexed { index, instr ->
+            if (instr.isCritical()) {
+                filteredInstrs += instr
+            } else {
+                if (instr.isDiscreteInstr()) {
+                    isDeadCodeMarker = isDeadCode(index, currLivenessList)
+                }
+                if (!isDeadCodeMarker) {
+                    filteredInstrs += instr
+                }
+            }
         }
         return InstructionBlock(this.label, filteredInstrs, this.terminator, this.tails)
+    }
+
+    private fun isDeadCode(index: Int, livenessList: LivenessList): Boolean {
+        val defs = livenessList[index].first.defs()
+        return defs.size == 1 && !livenessList[index].second.liveOut().contains(defs[0])
     }
 
     private fun dumpLivenessMap() {
@@ -87,14 +99,23 @@ class ArmOptimizer(options: OptimizationOption) {
     private fun Liveness.liveIn(): MutableSet<Register> = this.first
     private fun Liveness.liveOut(): MutableSet<Register> = this.second
 
-    private fun Instruction.shouldBeAnalyzed(): Boolean = !this.isVarDefInstr() && isDiscreteInstr()
-
     private fun Instruction.isVarDefInstr(): Boolean = (this is Str && this.dst is Offset)
 
-    private fun Instruction.isDiscreteInstr(): Boolean = !(this.isCritical() && (this is Terminator))
+    private fun Instruction.isDiscreteInstr(): Boolean =
+            !(this.usedReservedRegs() || (this is Terminator) || this.isVarDefInstr())
 
-    private fun Instruction.isCritical(): Boolean =
-            this.defs().intersect(reservedRegs() + SpecialReg(SP)).isNotEmpty()
+    private fun Instruction.usedReservedRegs(): Boolean =
+            this.defs().union(this.uses()).intersect(reservedRegs() + SpecialReg(SP)).isNotEmpty()
+
+    private fun Instruction.isParameterPassing(): Boolean =
+            this.defs().size == 1 && this.defs().intersect(reservedRegs()).isNotEmpty()
+
+    private fun Instruction.isCritical(): Boolean = when(this) {
+        is Add -> this.dest == SpecialReg(SP) && this.rn == SpecialReg(SP)
+        is Sub -> this.dest == SpecialReg(SP) && this.rn == SpecialReg(SP)
+        is Push -> this.regList.size == 1 && this.regList[0] == SpecialReg(LR)
+        else -> false
+    }
 
     private fun Instruction.defs(): List<Register> = when(this) {
         is Str -> if (this.isVarDefInstr()) {
@@ -109,7 +130,7 @@ class ArmOptimizer(options: OptimizationOption) {
             listOf(regToOffsetMap[this.opr]!!)
         } else { this.getUses() }
         is Add -> if (this.dest in reservedRegs() && this.rn == SpecialReg(SP) && this.opr is ImmNum) {
-            listOf(regToOffsetMap[Offset(SpecialReg(SP), (this.opr as ImmNum).num)]!!)
+            regToOffsetMap[Offset(SpecialReg(SP), (this.opr as ImmNum).num)]?.let { listOf(it) } ?: this.getUses()
         } else if (this.dest == SpecialReg(SP)) { emptyList() } else { this.getDefs() }
         else -> this.getUses()
     }
@@ -119,7 +140,7 @@ class ArmOptimizer(options: OptimizationOption) {
      */
     private fun getSuccessors(index: Int, livenessList: LivenessList): List<Pair<Instruction, Liveness>> {
         for (i in index + 1 until livenessList.size) {
-            if (livenessList[i].first.isDiscreteInstr()) {
+            if (livenessList[i].first.isDiscreteInstr() || livenessList[i].first.isParameterPassing()) {
                 return listOf(livenessList[i])
             }
         }
