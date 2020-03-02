@@ -82,7 +82,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         definePreludes()
     }
 
-    private fun ast.Function.toARM() {
+    private fun Function.toARM() {
         virtualRegIdAcc = 4
         val originalOffset = spOffset
         spOffset = 0

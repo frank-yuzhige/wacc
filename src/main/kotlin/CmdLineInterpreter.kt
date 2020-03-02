@@ -2,6 +2,9 @@ import codegen.AstToRawArmConverter
 import codegen.RegisterAllocator
 import exceptions.SemanticException
 import exceptions.SyntacticException
+import optimizers.ArmOptimizer
+import optimizers.AstOptimizer
+import optimizers.OptimizationOption
 import parser.Parser
 import semantics.SemanticAnalyzer
 import utils.ERROR
@@ -13,11 +16,15 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     var debug = false
-
+    var optLevel: Int = -1
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
-        when (flag) {
-            "-d" -> {
+        when {
+            flag.startsWith("-o") && flag.last().isDigit() -> {
+                optLevel = flag.last().toString().toInt()
+                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel!!].label} **")
+            }
+            flag == "-d" -> {
                 println("** SYSTEM: DEBUG MODE ACTIVATED **")
                 debug = true
             }
@@ -31,12 +38,12 @@ fun main(args: Array<String>) {
         FileInputStream(filePath)
     } catch (fnfe: FileNotFoundException) {
         println("File not found!")
-        println("Unable to locate file at ${args[0]}")
+        println("Unable to locate file at $filePath")
         exitProcess(1)
     }
 
     val sa = SemanticAnalyzer()
-    val ast = try {
+    var ast = try {
         Parser(inputStream).parseProgram()
                 .also { sa.suppressWarning().doCheck(it) }
     } catch (pe: SyntacticException) {
@@ -58,9 +65,19 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
-    val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
+    if (optLevel >= 0) {
+        val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
+        ast = astOptimizer.doOptimize(ast)
+    }
+    var arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     println(arm)
-    println("=== Improved ARM ===")
+    if (optLevel > 1) {
+        val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
+        arm = armOptimizer.doOptimize(arm)
+        println("\n=== Code After Dead Code Elimination ===")
+        println(arm.toString())
+    }
+    println("\n=== Improved ARM ===")
     val betterArm = RegisterAllocator(arm).run()
     println(betterArm)
     val output = File(asmPath)

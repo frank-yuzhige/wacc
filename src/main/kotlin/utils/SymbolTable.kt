@@ -69,7 +69,7 @@ class SymbolTable {
         println(getFuncTable())
     }
 
-    fun getVarTable(): String {
+    private fun getVarTable(): String {
         val tp = TablePrinter("variable", "scope id", "type", "defined at", "ref count")
                 .markIntColumn(1, 4)
                 .sortBy(0, 1)
@@ -80,7 +80,7 @@ class SymbolTable {
         return tp.print()
     }
 
-    fun getFuncTable(): String {
+    private fun getFuncTable(): String {
         val tp = TablePrinter("function", "type", "defined at", "ref count")
                 .sortBy(0, 2)
         functions.map { (name, attr) ->
