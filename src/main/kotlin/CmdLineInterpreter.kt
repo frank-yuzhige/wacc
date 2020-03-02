@@ -69,12 +69,13 @@ fun main(args: Array<String>) {
         val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
         ast = astOptimizer.doOptimize(ast)
     }
-    val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
+    var arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     println(arm)
     if (optLevel > 1) {
         val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
-        armOptimizer.doOptimize(arm)
-        armOptimizer.dumpLivenessMap()
+        arm = armOptimizer.doOptimize(arm)
+        println("\n=== Code After Dead Code Elimination ===")
+        println(arm.toString())
     }
     println("\n=== Improved ARM ===")
     val betterArm = RegisterAllocator(arm).run()
