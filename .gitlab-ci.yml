@@ -20,7 +20,6 @@ front_end_test:
   tags:
     - wacc
 
-
 back_end_test:
   stage: back_end_test
   script:

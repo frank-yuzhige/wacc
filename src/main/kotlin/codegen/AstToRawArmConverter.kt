@@ -84,7 +84,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun Function.toARM() {
         virtualRegIdAcc = 4
-        val originalOffset = spOffset
         spOffset = 0
         currScopeOffset = 0
         setBlock(funcLabelMap.getValue(name))
@@ -100,11 +99,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             packBlock(Unreachable)
         }
         addDirective(LTORG)
-        spOffset = originalOffset
-    }
-
-    private fun markParam(paramIdent: Identifier, offset: Int) {
-        varOffsetMap[paramIdent.getVarSID()] = offset
     }
 
     private fun Statement.toARM() {
@@ -192,16 +186,16 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val lEnd = getLabel("loop_end")
                 branch(lCheck)
 
-                setBlock(lCheck)
-                val cond = expr.toARM().toReg()
-                cmp(cond, immFalse())
-                branch(Condition.EQ, lEnd)
-
                 setBlock(lBody)
                 inScopeDo {
                     body.map { it.toARM() }
                 }
                 branch(lCheck)
+
+                setBlock(lCheck)
+                val cond = expr.toARM().toReg()
+                cmp(cond, immTrue())
+                branch(Condition.EQ, lBody)
 
                 setBlock(lEnd)
             }
@@ -224,7 +218,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is BoolLit -> if (b) immTrue() else immFalse()
             is CharLit -> ImmNum(c.toInt())
             is StringLit -> defString(fromEscape(string).toString(), false)
-            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType()) == 1)
+            is Identifier -> load(getReg(), findVar(this), sizeof(this.getType()))
             is BinExpr -> {
                 val op1 = left.toARM().toReg()
                 val op2 = right.toARM()
@@ -250,7 +244,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
                     result = binop(ADD, result, result, offset)
-                    load(result, Offset(result, 4), sizeof(currType) == 1)
+                    load(result, Offset(result, 4), sizeof(currType))
                 }
                 result
             }
@@ -261,7 +255,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 load(temp, Offset(temp, when (func) {
                     FST -> 0; SND -> 4
                 }))
-                load(temp, Offset(temp), sizeof(this.getType()) == 1)
+                load(temp, Offset(temp), sizeof(this.getType()))
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
@@ -282,6 +276,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 baseAddressReg
             }
             is NewPair -> {
+                // malloc 8-bytes for 2 ptrs
                 callMalloc(8)
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst = first.toARM().toReg()
@@ -296,6 +291,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is FunctionCall -> {
                 val oldSPOffset = spOffset
+                // push args to the stack in reversed order.
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
                     val size = sizeof(arg.getType())
@@ -355,7 +351,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                             true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label1)
-                    load(Reg(1), Offset(Reg(1), 0))
+                    load(Reg(1), Offset(Reg(1)))
                     cmp(Reg(0), Reg(1))
                     branch(Condition.LT, label2)
                     callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
@@ -366,7 +362,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 CHECK_DIV_BY_ZERO -> {
                     val noErr = getLabel("no_err")
                     push(SpecialReg(LR))
-                    cmp(Reg(1), ImmNum(0))
+                    cmp(Reg(1), immFalse())
                     branch(NE, noErr)
                     callPrintf(StringLit("DivideByZeroError: divide or modulo by zero"),
                             true)
@@ -496,6 +492,11 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /* Get a new label based on the given name prefix */
     private fun getLabel(name: String): Label = Label(labelNameTable.getName(name))
 
+    /* Mark the relative offset for a parameter. */
+    private fun markParam(paramIdent: Identifier, offset: Int) {
+        varOffsetMap[paramIdent.getVarSID()] = offset
+    }
+
     /** Instruction helper methods **/
     /* These methods are helper methods that inserts instructions, change block state, etc. */
 
@@ -516,20 +517,18 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         packBlock(terminator)
     }
 
-    private fun load(cond: Condition, dst: Register, src: Operand, byte: Boolean = false): Register {
+    private fun load(cond: Condition, dst: Register, src: Operand, byte: Int = 4): Register {
         instructions += if (src is ImmNum && src.num in 0..255) {
             Mov(cond, dst, src)
+        } else if (byte == 1) {
+            Ldrsb(cond, dst, src)
         } else {
-            if (byte) {
-                Ldrsb(cond, dst, src)
-            } else {
-                Ldr(cond, dst, src)
-            }
+            Ldr(cond, dst, src)
         }
         return dst
     }
 
-    private fun load(dst: Register, src: Operand, byte: Boolean = false): Register = load(AL, dst, src, byte)
+    private fun load(dst: Register, src: Operand, byte: Int = 4): Register = load(AL, dst, src, byte)
 
     private fun store(src: Register, dst: Offset, byte: Int = 4): Operand {
         instructions += if (byte == 1) {

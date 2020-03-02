@@ -79,8 +79,12 @@ fun main(args: Array<String>) {
     }
     println("\n=== Improved ARM ===")
     val betterArm = RegisterAllocator(arm).run()
-    println(betterArm)
+    if (debug) {
+        println("=== Improved ARM ===")
+        println(betterArm)
+    }
     val output = File(asmPath)
     output.writeText(betterArm.toString())
-    println("===========\n")
+
+    println("Compilation Finished!")
 }
