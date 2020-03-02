@@ -107,5 +107,6 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     data class FunctionCall(val ident: String, val args: List<Expression>) : Expression() {
         override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
         override fun tellIdentity(): String = "a function call"
+        fun isConstructor(): Boolean = ident[0].isUpperCase()
     }
 }

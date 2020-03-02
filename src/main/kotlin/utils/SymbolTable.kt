@@ -51,7 +51,7 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException(def.name(), entry.type, entry.index)
                 }
-                typedefs[def.type] = TypeAttributes(def.startIndex)
+                typedefs[def.type] = TypeAttributes(false, setOf(def.name()), def.startIndex)
                 functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, def.startIndex)
             }
 
@@ -60,7 +60,7 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException("def.name()", def.type, entry.index)
                 }
-                typedefs[def.type] = TypeAttributes(def.startIndex)
+                typedefs[def.type] = TypeAttributes(true, def.memberMap.keys, def.startIndex)
                 var unionId = 0
                 def.memberMap.forEach { (constructor, params) ->
                     val fentry = functions[constructor]
@@ -202,11 +202,14 @@ class SymbolTable {
             }
             is Expression.TypeMember -> {
                 val newType = getType(expr.expr, accessType)
-                if (newType is NewType) {
-                    return functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
-                            ?: throw SemanticException.UndefinedFuncException(newType.toString())
+                return when {
+                    newType !is NewType ->
+                        throw SemanticException.TypeMismatchException(newType, newType)
+                    typedefs.getValue(newType).isUnion ->
+                        throw SemanticException.TypeMismatchException(newType, newType)
+                    else -> functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
+                                ?: throw SemanticException.UndefinedFuncException(newType.toString())
                 }
-                throw SemanticException.UndefinedFuncException(newType.toString())
             }
             is Expression.EnumRange -> {
                 if (accessType == AccessType.IN_SEM_CHECK) {
@@ -271,7 +274,7 @@ class SymbolTable {
     data class VarAttributes(val type: Type, val isConst: Boolean, val scopeId: Int, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
-    data class TypeAttributes(val index: Index, var occurrences: Int = 1) {
+    data class TypeAttributes(val isUnion: Boolean, val constructors: Set<String>, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
     enum class AccessType {

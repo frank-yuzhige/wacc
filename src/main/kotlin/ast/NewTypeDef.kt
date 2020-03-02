@@ -11,7 +11,7 @@ sealed class NewTypeDef: WaccAST() {
 
         override fun prettyPrint(): String = "newtype $type is\n" +
                 members.joinToString(";\n") { it.prettyPrint() }.prependIndent() +
-                "\nend"
+                ";\nend"
         override fun tellIdentity(): String = "a newtype definition"
 
         fun name(): String = type.toString()
@@ -32,7 +32,7 @@ sealed class NewTypeDef: WaccAST() {
                         "$constructor of (${params.joinToString(", ") { it.prettyPrint() }})"
                     }
                 }.prependIndent() +
-                "\nend"
+                ";\nend"
 
         override fun tellIdentity(): String = "a newtype definition"
 

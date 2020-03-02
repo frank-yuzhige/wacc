@@ -83,11 +83,11 @@ sealed class Statement : WaccAST() {
         }
 
         override fun prettyPrint(): String {
-            return "when ${expr.prettyPrint()}" +
+            return "when ${expr.prettyPrint()}:\n" +
                     whenCases.joinToString("\n") { (pm, stmts) ->
                         "${pm.prettyPrint()} -> ${stmts.prettyPrint()}"
                     }.prependIndent() +
-                    "end"
+                    "\nend"
         }
 
     }

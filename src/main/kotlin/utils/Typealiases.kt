@@ -9,7 +9,7 @@ typealias Parameter = Pair<Type, Identifier>
 typealias Statements = List<Statement>
 typealias VarWithSID = Pair<String, Int>
 
-fun Statements.prettyPrint(): String = this.joinToString(" ;\n") { it.prettyPrint() }
+fun Statements.prettyPrint(): String = this.joinToString(";\n") { it.prettyPrint() } + ";"
 fun Parameter.prettyPrint(): String = "${getType()} ${getIdent().prettyPrint()}"
 
 fun Parameter.getType(): Type = first

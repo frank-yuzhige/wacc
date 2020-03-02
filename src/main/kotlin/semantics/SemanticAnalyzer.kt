@@ -45,6 +45,7 @@ class SemanticAnalyzer() {
             throw SemanticException("$count semantic error$plural:\n${errorLog.joinToString("\n\n\n")}")
         }
     }
+
     private fun printWarningMessages() {
         logWarning(symbolTable.functions
                 .filter { (_, attr) -> attr.occurrences == 1 }
@@ -56,7 +57,6 @@ class SemanticAnalyzer() {
         println("$WARNING$count warning$plural:$RESET")
         warningLog.forEach { println("$WARNING[Warning]: $it\n$RESET") }
     }
-
 
     fun suppressWarning(): SemanticAnalyzer = this.also { allowsWarning = false }
 
@@ -117,8 +117,9 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
-    private fun Statements.checkBlock(retCheck: TypeChecker = pass()) {
+    private fun Statements.checkBlock(retCheck: TypeChecker = pass(), preDefinitons: () -> Unit = {}) {
         symbolTable.pushScope()
+        preDefinitons()
         this.map { it.check(retCheck) }
         symbolTable.popScope()?.let { logWarning(it) }
     }
@@ -177,14 +178,26 @@ class SemanticAnalyzer() {
                 val matchingType = expr.getType()
                 whenCases.forEach { (pattern, stmts) ->
                     val entry = symbolTable.lookupFunc(pattern.constructor)
-                    if (entry == null) {
-                        logError(accessToUndefinedFunc(pattern.constructor))
-                    } else if (entry.type.retType != matchingType) {
-                        logError(typeMismatchError(entry.type.retType, matchingType))
-                    } else if (entry.type.paramTypes.size != pattern.matchVars.size) {
-                        logError(patternUnmatchedError(entry.type.paramTypes.size, pattern.matchVars.size))
-                    } else {
-                        val dups = pattern.matchVars.groupingBy { it }.eachCount().filter { it.value > 1 }
+                    when {
+                        entry == null ->
+                            logError(accessToUndefinedFunc(pattern.constructor))
+                        entry.type.retType != matchingType ->
+                            logError(typeMismatchError(entry.type.retType, matchingType))
+                        entry.type.paramTypes.size != pattern.matchVars.size ->
+                            logError(patternUnmatchedError(entry.type.paramTypes.size, pattern.matchVars.size))
+                        else -> {
+                            val duplicates = pattern.matchVars.groupingBy { it }.eachCount().filter { it.value > 1 }
+                            if (duplicates.isNotEmpty()) {
+                                logError("sdsdsads")
+                            } else {
+                                val preDefs = {
+                                    pattern.matchVars.withIndex().forEach { (i, match) ->
+                                        symbolTable.defineVar(entry.members[i].getType(), match, isConst = true)
+                                    }
+                                }
+                                stmts.checkBlock(retCheck, preDefs)
+                            }
+                        }
                     }
                 }
             }
