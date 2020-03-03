@@ -186,7 +186,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                         mov(Reg(0), reg)
                         when (expr.getType()) {
                             is ArrayType -> callPrelude(FREE_ARRAY)
-                            is Type.PairType -> callPrelude(FREE_PAIR)
+                            is PairType -> callPrelude(FREE_PAIR)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
                         }
                     }
@@ -393,6 +393,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is FunctionCall -> {
                 val oldSPOffset = spOffset
+                notifyCompiler(CompilerNotifier.CallerSavePush)
                 // push args to the stack in reversed order.
                 for (arg in args.reversed()) {
                     val reg = arg.toARM().toReg()
@@ -402,6 +403,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 }
                 bl(AL, funcLabelMap.getValue(ident))
                 moveSP(spOffset - oldSPOffset)
+                notifyCompiler(CompilerNotifier.CallerSavePop)
                 mov(getReg(), Reg(0))
             }
             is EnumRange -> TODO()
@@ -442,7 +444,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     /* Define all prelude functions that are used in this code. */
     private fun definePreludes() {
         for (func in requiredPreludeFuncs) {
-            virtualRegIdAcc = 4
             setBlock(func.getLabel())
             when (func) {
                 RUNTIME_ERROR -> {
@@ -671,6 +672,10 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         } else {
             instructions += Pop(regs.toMutableList())
         }
+    }
+
+    private fun notifyCompiler(notifier: CompilerNotifier) {
+        instructions += notifier
     }
 
     private fun addDirective(type: DirectiveType) {

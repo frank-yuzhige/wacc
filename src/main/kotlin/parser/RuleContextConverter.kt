@@ -244,6 +244,7 @@ class RuleContextConverter() {
             is ExprBinopContext -> BinExpr(left.toAST(), getBinOp(), right.toAST())
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
             is ExprIfContext -> IfExpr(listOf(cond.toAST() to tr.toAST()), fl.toAST())
+            is ExprFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit

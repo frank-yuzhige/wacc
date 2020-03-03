@@ -23,6 +23,10 @@ sealed class Operand {
             override fun toString(): String = "r$id"
         }
 
+        data class VReg(val id: Int): Register() {
+            override fun toString(): String = "v$id"
+        }
+
         data class SpecialReg(val name: SpecialRegName): Register() {
             companion object {
                 fun sp(): SpecialReg = SpecialReg(SP)

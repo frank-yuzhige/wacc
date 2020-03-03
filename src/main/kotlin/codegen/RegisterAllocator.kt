@@ -43,6 +43,7 @@ class RegisterAllocator(val program: ArmProgram) {
     private val popedVirtuals = mutableSetOf<Reg>()   // virtuals that are on the stack, yet no longer needed.
     private val deadVirtuals = mutableSetOf<Reg>()
     private var spOffset = 0 // additional sp offset adjustment.
+    private var callerSavedVirtualsStack = ArrayDeque<List<Reg>>()
 
     fun run(): ArmProgram {
         val newBlocks = mutableListOf<InstructionBlock>()
@@ -80,7 +81,31 @@ class RegisterAllocator(val program: ArmProgram) {
                         realVirtualStackMap.getValue(real) += virtual
                     }
                 }
-                newInstructions += instr.adjustBySpOffset(spOffset)
+                when(instr) {
+                    is CompilerNotifier.CallerSavePush -> {
+                        val saved = realVirtualStackMap
+                                .filter { (_, list) -> list.isNotEmpty() }
+                                .map { (_, list) -> list.last }
+                        if (callerSavedVirtualsStack.isNotEmpty()) {
+                            callerSavedVirtualsStack.addLast(saved)
+                            newInstructions += Push(saved.toMutableList())
+                            System.err.println("@Caller pushed: ${callerSavedVirtualsStack.joinToString(", ")}")
+                            spOffset += callerSavedVirtualsStack.size * 4
+                        }
+                    }
+                    is CompilerNotifier.CallerSavePop -> {
+                        if (callerSavedVirtualsStack.isNotEmpty()) {
+                            val toBePoped = callerSavedVirtualsStack.pollLast().asReversed()
+                            if (toBePoped.isNotEmpty()) {
+                                newInstructions += Pop(toBePoped.toMutableList())
+                                spOffset -= callerSavedVirtualsStack.size * 4
+                            }
+                        }
+                    }
+                    else -> {
+                        newInstructions += instr.adjustBySpOffset(spOffset)
+                    }
+                }
                 /* For each virtual register that should be dead by the end of this instruction, "kill" it.
                 *  [INVARIANT]: each dying reg should not be on the stack (if it is on the stack, that means the virtual
                 *     which pushed the current virtual is not yet killed, which contradicts with our live-range reg allocation

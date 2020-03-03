@@ -185,6 +185,14 @@ sealed class Instruction {
         ASR
     }
 
+    sealed class CompilerNotifier: Instruction() {
+        object CallerSavePush : CompilerNotifier() {
+            override fun toString(): String = "@CallerSavePush"
+        }
+        object CallerSavePop : CompilerNotifier() {
+            override fun toString(): String = "@CallerSavePop"
+        }
+    }
 
     /** ARM directive **/
     data class Directive(val type: DirectiveType): Instruction() {
