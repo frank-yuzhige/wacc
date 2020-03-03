@@ -33,13 +33,9 @@ import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.Operand.Register.SpecialReg.Companion.sp
 import codegen.arm.SpecialRegName.*
+import utils.*
 import utils.EscapeCharMap.Companion.fromEscape
-import utils.LabelNameTable
-import utils.Parameter
-import utils.SymbolTable
-import utils.VarWithSID
 import java.util.*
-import kotlin.math.cos
 
 /* AstToRawArmConverter takes the program AST and the generated symbol table, returns a "raw" ARM program.
 *  The converter will generate a 'sort-of-functional' ARM program (meets ARM's syntax), except that it does
@@ -103,24 +99,25 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         push(SpecialReg(LR))
         callMalloc(symbolTable.mallocSize(name, isTaggedUnion))
 
-        var offsetAcc = 0
+        var structOffsetAcc = 0
         if (isTaggedUnion) {
             load(Reg(1), ImmNum(symbolTable.unionIdMap.getValue(name)))
             store(Reg(1), Offset(Reg(0)))
-            offsetAcc += 4
+            structOffsetAcc += 4
         }
+        var paramOffsetAcc = 4
         members.forEach { (t, _) ->
             val size = sizeof(t)
-            load(Reg(1), Offset(sp(), offsetAcc + 4), size == 1)
-            store(Reg(1), Offset(Reg(0), offsetAcc), size)
-            offsetAcc += sizeof(t)
+            load(Reg(1), Offset(sp(), paramOffsetAcc), size == 1)
+            store(Reg(1), Offset(Reg(0), structOffsetAcc), size)
+            structOffsetAcc += sizeof(t)
+            paramOffsetAcc += sizeof(t)
         }
         packBlock(PopPC)
         addDirective(LTORG)
     }
 
     private fun ast.Function.toARM() {
-//        virtualRegIdAcc = 4
         val originalOffset = spOffset
         spOffset = 0
         currScopeOffset = 0
@@ -268,6 +265,28 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
 
             is Block -> inScopeDo { body.map { it.toARM() } }
+
+            is WhenClause -> {
+                val wEnd = getLabel("when_end")
+                val wLabels = whenCases.map { (pattern, _) -> getLabel("when_${pattern.constructor}") } + wEnd
+                val matching = expr.toARM().toReg()
+                packBlock()
+                for (i in whenCases.indices) {
+                    whenCases[i].let { (pattern, stats) ->
+                        setBlock(wLabels[i])
+                        val constructorID = symbolTable.unionIdMap.getValue(pattern.constructor)
+                        val realConstructorID = Offset(matching).toReg()
+                        cmp(realConstructorID, ImmNum(constructorID))
+                        branch(NE, wLabels[i + 1])
+                        inScopeDo {
+                            pattern.defineConsts(matching)
+                            stats.map { it.toARM() }
+                        }
+                        branch(wEnd)
+                    }
+                }
+                setBlock(wEnd)
+            }
         }
     }
 
@@ -398,6 +417,18 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         }
     }
 
+    private fun Pattern.defineConsts(unionAtReg: Register) {
+        var offsetAcc = 4
+        val members = symbolTable.functions.getValue(constructor).members
+        matchVars.zip(members).forEach { (ident, param) ->
+            scopeEnterDef(ident)
+            val type = param.getType()
+            val value = load(AL, getReg(), Offset(unionAtReg, offsetAcc), sizeof(type) == 1)
+            alloca(ident, value, sizeof(type))
+            offsetAcc += sizeof(type)
+        }
+    }
+
     /* Pre-allocate space on stack for all variables defined in this scope, except for function parameters.
     *  It would be called on the first occurrence of any declaration of any variable in this scope.
     *  Calling this method twice would do no effect. */
@@ -515,7 +546,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun Operand.toReg(dst: Register? = null): Register = when (this) {
         is Register -> dst?.let { mov(dst, this) } ?: this
         is ImmNum -> if (num in 0..255) mov(dst ?: getReg(), this) else load(dst ?: getReg(), this)
-        is Label -> {
+        is Label, is Offset -> {
             load(dst ?: getReg(), this)
         }
         else -> mov(dst ?: getReg(), this)

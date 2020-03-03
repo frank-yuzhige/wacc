@@ -6,6 +6,10 @@ newtype IntTree is union
      Node of (IntTree left, int x, IntTree right);
 end
 
+int f(int x, int y) is
+    return x + y;
+end
+
 IntTree leaf1 = Leaf(3);
 IntTree leaf2 = Leaf(8);
 IntTree node1 = Node(leaf1, 4, leaf2);
@@ -13,12 +17,13 @@ IntTree node1 = Node(leaf1, 4, leaf2);
 when node1:
     is Nil -> println "nah!";
     is Leaf(x) -> println "naah!";
-    is Node(l, x, r) -> when l:
-        is Nil -> println "naaah!";
-        is Leaf(x) ->
-            int x = 1;
-            println leaf1; # print 3
-    end;
+    is Node(l, x, r) ->
+        println "I am a Node!";
+        println x;
+        when l: is Leaf(x) ->
+                    println "I am a leaf!";
+                    println x;
+        end;
 end;
 
 end
