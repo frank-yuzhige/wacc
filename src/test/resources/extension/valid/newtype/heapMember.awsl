@@ -1,0 +1,12 @@
+begin
+
+newtype Foo is
+    int[] arr
+end
+
+int[] arr = [1, 2, 3];
+Foo foo = Foo(arr);
+var a = foo.arr;
+print a[2];
+
+end

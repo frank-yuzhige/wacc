@@ -1,5 +1,6 @@
 package utils
 
+import CompilerMode
 import ast.WaccAST
 import codegen.AstToRawArmConverter
 import codegen.RegisterAllocator
@@ -7,14 +8,14 @@ import exceptions.SemanticException
 import exceptions.SyntacticException
 import parser.Parser
 import semantics.SemanticAnalyzer
-import utils.EmulatorMode.*
+import CompilerMode.*
 import java.io.*
 import java.lang.Exception
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 class CompilerEmulator(private val inputFile: File,
-                       private val mode: EmulatorMode,
+                       private val mode: CompilerMode,
                        private val errorStream: PrintStream = PrintStream(NullOutputStream())) {
 
     private val compiler: String = "arm-linux-gnueabi-gcc"

@@ -4,6 +4,7 @@ import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
+import utils.Parameter
 
 sealed class Type {
 
@@ -20,10 +21,13 @@ sealed class Type {
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
 
+        fun anyType(): BaseType = BaseType(ANY)
+
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
         fun charType(): BaseType = BaseType(CHAR)
         fun stringType(): BaseType = BaseType(STRING)
+        fun rangeTypeOf(type: Type) = NewType("Range", type)
     }
 
     data class BaseType(val kind: BaseTypeKind) : Type() {
@@ -41,12 +45,34 @@ sealed class Type {
                 } else {
                     "pair"
                 }
+
+        override fun normalize(): Type {
+            val t1 = when(firstElemType) { is PairType -> anyPairType(); else -> firstElemType }
+            val t2 = when(secondElemType) { is PairType -> anyPairType(); else -> secondElemType }
+            return PairType(t1, t2)
+        }
+    }
+
+    data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
+        constructor(name: String, vararg generics: Type): this(name, generics.asList())
+        override fun toString(): String {
+            return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
+        }
+    }
+
+    data class TypeVar(val name: String): Type() {
+        override fun toString(): String = name
     }
 
     data class FuncType(val retType: Type, val paramTypes: List<Type>) : Type() {
         override fun toString(): String =
                 "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
     }
+
+    open fun normalize(): Type {
+        return this
+    }
+
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
@@ -71,5 +97,6 @@ sealed class Type {
         }
         else -> null
     }
+
 }
 

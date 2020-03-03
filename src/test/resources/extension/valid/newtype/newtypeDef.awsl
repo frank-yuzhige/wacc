@@ -1,0 +1,13 @@
+begin
+
+newtype MyType is
+    int x;
+    char y
+end
+
+MyType a = MyType(2, 'k');
+MyType b = MyType(1, 'f');
+
+exit(0);
+
+end

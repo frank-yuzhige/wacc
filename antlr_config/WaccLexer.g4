@@ -1,5 +1,11 @@
 lexer grammar WaccLexer;
 
+// reserved operators
+ARROW       : '->';
+DOUBLE_ARROW: '=>';
+COLON       : ':';
+DOT         : '.';
+
 // binary operators
 ADD: '+' ;
 SUB: '-' ;
@@ -14,6 +20,7 @@ EQ : '==';
 NEQ: '!=';
 AND: '&&';
 OR : '||';
+DOTDOT : '..';
 
 // unary operators
 NOT: '!';
@@ -49,6 +56,8 @@ THEN: 'then';
 ELSE: 'else';
 FI: 'fi';
 WHILE: 'while';
+FOR: 'for';
+IN: 'in';
 DO: 'do';
 DONE: 'done';
 NEWPAIR: 'newpair';
@@ -60,6 +69,12 @@ PRINT: 'print';
 PRINTLN: 'println';
 CALL: 'call';
 PAIR: 'pair';
+VAR: 'var';
+CONST: 'const';
+NEWTYPE: 'newtype';
+UNION: 'union';
+OF: 'of';
+WHEN: 'when';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 
@@ -79,10 +94,11 @@ ASSIGN: '=';
 COMMA: ',';
 
 // idents
-fragment IDENT_HEAD: 'A'..'Z' | 'a'..'z' | '_';
-fragment IDENT_TAIL: IDENT_HEAD | DIGIT;
+fragment IDENT_HEAD: 'a'..'z' | '_';
+fragment IDENT_TAIL: IDENT_HEAD | 'A' .. 'Z' | DIGIT;
 
 IDENT: IDENT_HEAD IDENT_TAIL*;
+CAP_IDENT: ('A'..'Z') IDENT_TAIL*;
 
 // comments
 COMMENT: '#' ~('\r' | '\n')* -> skip;

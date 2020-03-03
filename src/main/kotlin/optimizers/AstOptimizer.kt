@@ -31,7 +31,7 @@ class AstOptimizer(option: OptimizationOption) {
     }
 
     private fun ProgramAST.optimize(): ProgramAST =
-        ProgramAST(functions.map { it.optimize() }, mainProgram.optimize())
+        ProgramAST(newTypes, functions.map { it.optimize() }, mainProgram.optimize())
 
     private fun Function.optimize(): Function =
             inScopeDo { Function(returnType, name, args, body.map { it.optimize() }) } as Function
@@ -50,7 +50,7 @@ class AstOptimizer(option: OptimizationOption) {
             if (optLevel > 0 && rhsOptimized is Literal) {
                 programState.defineVarInCurrentScope(variable, rhsOptimized)
                 if (rhsOptimized.isPrimitiveLiteral()) {
-                    Declaration(type, variable, rhsOptimized)
+                    Declaration(isConst, type, variable, rhsOptimized)
                 } else {
                     this
                 }
@@ -83,12 +83,25 @@ class AstOptimizer(option: OptimizationOption) {
             }
         }
         is CondBranch -> {
-            val exprOptimized = expr.optimize()
-            if (exprOptimized is BoolLit && optLevel > 0) {
-                if (exprOptimized.b) { Block(trueBranch.optimize()) } else { Block(falseBranch.optimize()) }
+            if (optLevel > 0) {
+                val optimizedConds = condStatsList
+                        .map { (expr, stats) -> expr.optimize() to stats }
+                        .filterNot { (optimizedExpr, _) -> optimizedExpr is BoolLit && !optimizedExpr.b }
+                /* If the 1st valid branch is true */
+                val first = optimizedConds.firstOrNull()
+                if (first != null && first.let { (expr, _) -> expr is BoolLit && expr.b }) {
+                    Block(first.second)
+                } else {
+                    val optimizedBranches = optimizedConds.map { (expr, stats) ->
+                        expr to stats.optimize()
+                    }
+                    CondBranch(optimizedBranches, elseBody.optimize())
+                }
             } else {
-                updateVar = false
-                CondBranch(expr.optimize(), trueBranch.optimize(), falseBranch.optimize()).also { updateVar = true }
+                CondBranch(
+                        condStatsList.map { (expr, stats) -> expr.optimize() to stats.optimize() },
+                        elseBody.optimize()
+                )
             }
         }
         is WhileLoop -> {
@@ -121,6 +134,9 @@ class AstOptimizer(option: OptimizationOption) {
             }
             this
         }
+        is IfThen -> this
+        is ForLoop -> this
+        is WhenClause -> this
     }
 
     private fun Expression.optimize(): Expression = when (this) {

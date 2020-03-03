@@ -1,0 +1,18 @@
+begin
+
+char f(int p, int q) is
+    var c = chr p;
+    return c;
+end
+
+var x = 1;
+var u = true;
+var ss = "hello";
+var k = x;
+var p = newpair(x, u);
+var pp = newpair(p, ss);
+var arr = [pp];
+var c = call f(k, x);
+println c;
+
+end

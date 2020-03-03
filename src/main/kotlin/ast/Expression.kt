@@ -64,7 +64,11 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun prettyPrint(): String = "${func.value} ${expr.prettyPrint()}"
     }
 
-    data class ArrayLiteral(val elements: List<Expression>) : Expression(), Literal {
+    data class TypeMember(val expr: Expression, val memberName: String): Expression() {
+        override fun prettyPrint(): String = "${expr.prettyPrint()}.$memberName"
+    }
+
+    data class ArrayLiteral(val elements: List<Expression>) : Expression() {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
         override fun tellIdentity(): String = "an array literal"
     }
@@ -74,8 +78,34 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun tellIdentity(): String = "a newpair declaration"
     }
 
+    data class EnumRange(val from: Expression, val then: Expression?, val to: Expression): Expression() {
+        constructor(from: Expression, to: Expression): this(from, null, to)
+        override fun prettyPrint(): String {
+            return if (then != null) {
+                "${from.prettyPrint()}, ${then.prettyPrint()}..${to.prettyPrint()}"
+            } else {
+                "${from.prettyPrint()}..${to.prettyPrint()}"
+            }
+        }
+        override fun tellIdentity(): String {
+            return super.tellIdentity()
+        }
+    }
+
+    data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseExpr: Expression) : Expression() {
+        override fun tellIdentity(): String = "an if-expression"
+        override fun prettyPrint(): String {
+            return condStatsList.joinToString { (cond, expr) ->
+                "if ${cond.prettyPrint()} then\n" +
+                        "${expr.prettyPrint().prependIndent()}\n" +
+                        "else"
+            } + "\n" + elseExpr.prettyPrint().prependIndent() + "\nfi"
+        }
+    }
+
     data class FunctionCall(val ident: String, val args: List<Expression>) : Expression() {
         override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
         override fun tellIdentity(): String = "a function call"
+        fun isConstructor(): Boolean = ident[0].isUpperCase()
     }
 }

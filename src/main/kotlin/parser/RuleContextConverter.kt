@@ -4,9 +4,12 @@ import antlr.WaccParser.*
 import ast.*
 import ast.Expression.*
 import ast.Function
+import ast.NewTypeDef.*
 import ast.Statement.*
 import ast.Type.*
+import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
+import ast.Type.Companion.anyType
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
@@ -32,6 +35,7 @@ class RuleContextConverter() {
     fun ProgContext.toAST(): ProgramAST {
         stack.push(this)
         val programAST = ProgramAST(
+                newtype().map { it.toAST() },
                 func().map { it.toAST() },
                 stats()?.toMainProgramAST()
                         ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))
@@ -94,6 +98,7 @@ class RuleContextConverter() {
         baseType() != null -> baseType().toAST()
         arrayType() != null -> arrayType().toAST()
         pairType() != null -> pairType().toAST()
+        capIdent() != null -> NewType(capIdent().text)
         else -> throw IllegalArgumentException("Unrecognized type: $text")
     }
 
@@ -112,7 +117,7 @@ class RuleContextConverter() {
             pairType() != null -> pairType().toAST()
             else -> {
                 logError(UnsupportedArrayBaseTypeException(this.text))
-                BaseType(BaseTypeKind.ANY)
+                BaseType(ANY)
             }
         })
         for (i in 1 until dimension) {
@@ -130,6 +135,34 @@ class RuleContextConverter() {
         return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
+    private fun NewtypeContext.toAST(): NewTypeDef {
+        return when {
+            structType() != null -> structType().toAST()
+            taggedUnion() != null -> taggedUnion().toAST()
+            else -> throw IllegalArgumentException("Unknown new type def")
+        }
+    }
+
+    private fun TaggedUnionContext.toAST(): NewTypeDef {
+        return if (unionEntry() == null || unionEntry().isEmpty()) {
+            UnionTypeDef(this.capIdent().text)
+        } else {
+            UnionTypeDef(this.capIdent().text, this.unionEntry().map { it.toAST() }.toMap())
+        }
+    }
+
+    private fun UnionEntryContext.toAST(): Pair<String, List<Parameter>> {
+        return capIdent().text to member().map { it.toAST() }
+    }
+
+    private fun StructTypeContext.toAST(): NewTypeDef {
+        return StructTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
+    }
+
+    private fun MemberContext.toAST(): Parameter {
+        return type().toAST() to ident().toAST()
+    }
+
     /** Statements **/
 
     private fun ParamListContext.toAST(): List<Parameter> = param().map { it.toAST() }
@@ -140,17 +173,36 @@ class RuleContextConverter() {
         return stat().map { it.toAST() }
     }
 
-    fun StatContext.toAST(): Statement {
+    private fun StatContext.toAST(): Statement {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
-            is DeclarationContext -> Declaration(type().toAST(), ident().toAST(), assignRhs().toAST())
+            is DeclarationContext ->
+                Declaration(false, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+            is ConstDeclarationContext ->
+                Declaration(true, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
             is ReadCallContext -> Read(assignLhs().toAST())
-            is BuiltinFuncCallContext
-            -> BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
-            is CondBranchContext -> CondBranch(expr().toAST(), stats(0).toAST(), stats(1).toAST())
+            is BuiltinFuncCallContext ->
+                BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
+            is CondBranchContext -> {
+                if (ELSE() == null) {
+                    IfThen(expr(0).toAST(), stats(0).toAST())
+                } else {
+                    val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                    CondBranch(list, stats().last().toAST())
+                }
+            }
+            is ForLoopContext -> {
+                val defType = if (type() == null && VAR() == null) {
+                    null
+                } else {
+                    type()?.toAST()?: anyType()
+                }
+                ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
+            }
             is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
+            is WhenClauseContext -> WhenClause(expr().toAST(), whenCase()?.map { it.toAST() }?: emptyList())
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
         }.records(start(), end())
@@ -162,6 +214,7 @@ class RuleContextConverter() {
         ident() != null -> ident().toAST()
         arrayElem() != null -> arrayElem().toAST()
         pairElem() != null -> pairElem().toAST()
+        typeMember() != null -> typeMember().toAST()
         else -> throw IllegalArgumentException("Unknown left value")
     }.records(start(), end())
 
@@ -169,6 +222,8 @@ class RuleContextConverter() {
         is RhsExprContext -> expr().toAST()
         is RhsArrayLiterContext -> arrayLiter().toAST()
         is RhsPairElemContext -> pairElem().toAST()
+        is RhsTypeMemberContext -> typeMember().toAST()
+        is RhsTypeConstructorContext -> typeConstructor().toAST()
         is RhsNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
         is RhsFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
         else -> throw IllegalArgumentException("Unknown right value")
@@ -188,6 +243,7 @@ class RuleContextConverter() {
             is ExprUnaryopContext -> UnaryExpr(UnaryOperator.read(unaryOp().text), expr().toAST())
             is ExprBinopContext -> BinExpr(left.toAST(), getBinOp(), right.toAST())
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
+            is ExprIfContext -> IfExpr(listOf(cond.toAST() to tr.toAST()), fl.toAST())
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit
@@ -204,6 +260,10 @@ class RuleContextConverter() {
     private fun PairElemContext.toAST(): Expression =
             PairElem(PairElemFunction.valueOf(pairElemFunc().text.toUpperCase()), expr().toAST())
 
+    private fun TypeMemberContext.toAST(): Expression = TypeMember(expr().toAST(), ident().text)
+
+    private fun TypeConstructorContext.toAST(): Expression = FunctionCall(capIdent().text, argList()?.toAST()?: emptyList())
+
     private fun ArrayElemContext.toAST(): Expression =
             ArrayElem(ident().toAST(), expr().map { it.toAST() })
 
@@ -216,10 +276,20 @@ class RuleContextConverter() {
         NullLit
     }
 
+    private fun EnumRangeContext.toAST(): EnumRange = when(this) {
+        is RangeFromToContext -> EnumRange(from.toAST(), to.toAST())
+        is RangeFromThenToContext -> EnumRange(from.toAST(), then.toAST(), to.toAST())
+        else -> throw IllegalArgumentException("Unknown enum type")
+    }
+
     private fun ExprBinopContext.getBinOp(): BinaryOperator {
         val opContext = listOfNotNull(binop1(), binop2(), binop3(), binop4(), binop5(), binop6())[0]
         return BinaryOperator.read(opContext.text)
     }
+
+    private fun WhenCaseContext.toAST(): Pair<Pattern, Statements> = pattern().toAST() to stats().toAST()
+
+    private fun PatternContext.toAST(): Pattern = Pattern(capIdent().text, ident().map { it.toAST() }).records(start(), end())
 
     private fun containsReturn(context: StatsContext): List<Index> = context.stat().flatMap {
         when (it) {
@@ -272,7 +342,4 @@ class RuleContextConverter() {
         }
     }
 }
-
-
-
 

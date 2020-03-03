@@ -1,0 +1,17 @@
+begin
+
+newtype Some is
+    int x;
+    char c
+end
+
+Some some = Some(1, 'a');
+int x = some.x;
+println x;
+some.x = 200;
+char y = some.c;
+x = some.x;
+println x;
+println y;
+
+end

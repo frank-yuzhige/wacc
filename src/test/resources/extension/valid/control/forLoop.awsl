@@ -1,0 +1,18 @@
+begin
+
+for int x in 0..5 do
+    println x;
+done;
+
+for var c in 'a'..'d' do
+    println c;
+done;
+
+int k = 0;
+for k in k..k+4 do
+    println k;
+done;
+
+
+
+end

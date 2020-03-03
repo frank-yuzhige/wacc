@@ -17,19 +17,32 @@ import kotlin.system.exitProcess
 fun main(args: Array<String>) {
     var debug = false
     var optLevel: Int = -1
+    var mode: CompilerMode = CompilerMode.EMIT
+
     val flags = args.filter { it.startsWith("-") }
     flags.forEach{ flag ->
         when {
             flag.startsWith("-o") && flag.last().isDigit() -> {
                 optLevel = flag.last().toString().toInt()
-                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel!!].label} **")
+                println("** SYSTEM: OPTIMIZE WITH ${OptimizationOption.values()[optLevel].label} **")
             }
-            flag == "-d" -> {
-                println("** SYSTEM: DEBUG MODE ACTIVATED **")
-                debug = true
+            else -> when (flag) {
+                "-p" -> {
+                    println("** PARSE ONLY **")
+                    mode = CompilerMode.PARSE_ONLY
+                }
+                "-s" ->{
+                    println("** SEM CHECK ONLY **")
+                    mode = CompilerMode.SEM_CHECK
+                }
+                "-d" -> {
+                    println("** SYSTEM: DEBUG MODE ACTIVATED **")
+                    debug = true
+                }
+                else -> throw UnsupportedOperationException("Unknown flag \"$flag\"!")
             }
-            else -> throw UnsupportedOperationException("Unknown flag \"$flag\"!")
         }
+
     }
 
     val filePath = args.getOrNull(flags.size)
@@ -44,8 +57,17 @@ fun main(args: Array<String>) {
 
     val sa = SemanticAnalyzer()
     var ast = try {
-        Parser(inputStream).parseProgram()
-                .also { sa.suppressWarning().doCheck(it) }
+        val parseOnlyAst = Parser(inputStream).parseProgram()
+        if (mode == CompilerMode.PARSE_ONLY) {
+            println(parseOnlyAst.prettyPrint())
+            exitProcess(0)
+        }
+        sa.suppressWarning().doCheck(parseOnlyAst)
+        if (mode == CompilerMode.SEM_CHECK) {
+            println(parseOnlyAst.prettyPrint())
+            exitProcess(0)
+        }
+        parseOnlyAst
     } catch (pe: SyntacticException) {
         System.err.println("${ERROR}PARSE ERROR:")
         System.err.println("${pe.msg}$RESET")
@@ -55,6 +77,7 @@ fun main(args: Array<String>) {
         System.err.println("${se.msg}$RESET")
         exitProcess(200)
     }
+
     val asmPath = if (debug) {
         "src/test/resources/valid/mine/gen.s"
     } else {
@@ -70,19 +93,19 @@ fun main(args: Array<String>) {
         ast = astOptimizer.doOptimize(ast)
     }
     var arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
-    println(arm)
+    println(arm.printWithIndex())
     if (optLevel > 1) {
         val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
         arm = armOptimizer.doOptimize(arm)
         println("\n=== Code After Dead Code Elimination ===")
-        println(arm.toString())
+        println(arm.printWithIndex())
     }
-    println("\n=== Improved ARM ===")
     val betterArm = RegisterAllocator(arm).run()
     if (debug) {
         println("=== Improved ARM ===")
         println(betterArm)
     }
+    println(betterArm.printWithIndex())
     val output = File(asmPath)
     output.writeText(betterArm.toString())
 

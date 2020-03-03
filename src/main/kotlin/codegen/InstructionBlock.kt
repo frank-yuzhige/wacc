@@ -16,4 +16,21 @@ class InstructionBlock(val label: Label,
         }
         return "$label:\n" + body.joinToString("\n").prependIndent()
     }
+
+    fun getInstrCount() = instructions.size +
+            when(terminator) { is Terminator.FallThrough, is Terminator.Unreachable -> 0; else -> 1}
+
+    fun findInstrAt(index: Int): Instruction {
+        return if (index in instructions.indices) {
+            instructions[index]
+        } else if (index == instructions.size) {
+            when (terminator) {
+                is Terminator.FallThrough,
+                is Terminator.Unreachable -> throw ArrayIndexOutOfBoundsException("Instr at $index is a null-terminator")
+                else -> terminator
+            }
+        } else {
+            throw ArrayIndexOutOfBoundsException("Couldn't find instr at $index")
+        }
+    }
 }

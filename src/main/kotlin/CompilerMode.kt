@@ -1,6 +1,4 @@
-package utils
-
-enum class EmulatorMode {
+enum class CompilerMode {
     PARSE_ONLY,
     SEM_CHECK,
     EMIT,
