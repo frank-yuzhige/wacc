@@ -2,7 +2,9 @@ package utils
 
 import ast.Expression.Identifier
 import ast.Statement
+import ast.Trait
 import ast.Type
+import ast.Type.TypeVar
 
 typealias Index = Pair<Int, Int>
 typealias Parameter = Pair<Type, Identifier>

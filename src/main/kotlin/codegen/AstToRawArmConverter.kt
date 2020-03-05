@@ -67,6 +67,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
+        newTypes.map { it.toARM() }
         funcLabelMap += "main" to Label("main")
         functions.map { funcLabelMap += it.name to getLabel("f_${it.name}") }
         Function(returnType = intType(),

@@ -8,20 +8,23 @@ data class Function(
         val returnType: Type,
         val name: String,
         val args: List<Parameter>,
+        val typeConstraints: List<TypeConstraint>,
         val body: Statements
 ) : WaccAST() {
     override fun prettyPrint(): String =
-            "${showHeader()} is\n" +
+            "${extractHeader().showHeader()} is\n" +
                     "${body.prettyPrint().prependIndent()}\n" +
                     "end\n"
 
     override fun tellIdentity(): String = "a function"
 
-    fun showHeader(): String = "$returnType $name(${args.joinToString(", ") { it.prettyPrint() }})"
+    override fun getTraceLog(): String = "In a function defined at ${startIndex}: ${extractHeader().showHeader()}"
 
-    override fun getTraceLog(): String = "In a function defined at ${startIndex}: ${showHeader()}"
+    fun extractHeader(): FunctionHeader = FunctionHeader(returnType, name, args, typeConstraints)
+
+    fun isGenericFunc(): Boolean = typeConstraints.isNotEmpty()
 
     fun getFuncType(): Type.FuncType {
-        return Type.FuncType(returnType, args.map { it.first })
+        return Type.FuncType(returnType, args.map { it.first }, typeConstraints)
     }
 }

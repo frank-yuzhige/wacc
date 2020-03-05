@@ -64,15 +64,18 @@ sealed class Type {
         override fun toString(): String = name
     }
 
-    data class FuncType(val retType: Type, val paramTypes: List<Type>) : Type() {
-        override fun toString(): String =
-                "(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
+    data class FuncType(val retType: Type,
+                        val paramTypes: List<Type>,
+                        val typeConstraints: List<TypeConstraint> = emptyList()) : Type() {
+        override fun toString(): String {
+            val constraints = if (typeConstraints.isNotEmpty()) "[${typeConstraints.joinToString(", ")}] => " else ""
+            return "$constraints(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
+        }
     }
 
     open fun normalize(): Type {
         return this
     }
-
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
