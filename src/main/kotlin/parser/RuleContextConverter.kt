@@ -85,7 +85,7 @@ class RuleContextConverter() {
                 ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
                 ?: emptyList()
         val result = Function(
-                type().toAST().bindConstraints(constraints),
+                type().toAST(typeVars).bindConstraints(constraints),
                 ident().text,
                 args,
                 constraints,

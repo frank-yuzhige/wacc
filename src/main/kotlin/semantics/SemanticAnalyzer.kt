@@ -536,7 +536,6 @@ class SemanticAnalyzer() {
         val newRet = retType inferFrom expecting
         System.err.println("after infer: $newRet")
         val sub = newRet.findUnifier(retType)
-        System.err.println(sub)
         return (this.substitutes(sub) as FuncType)
     }
 
@@ -596,7 +595,11 @@ class SemanticAnalyzer() {
                 is TypeVar -> if (expecting instanceOf actual.traits) expecting else throw TypeMismatchException(expecting, actual)
                 else -> throw TypeMismatchException(expecting, actual)
             }
-            is TypeVar -> if (actual instanceOf expecting.traits) actual else throw TypeMismatchException(expecting, actual)
+            is TypeVar -> if(expecting.isReified) {
+                if (actual instanceOf expecting.traits) expecting else throw TypeMismatchException(expecting, actual)
+            } else {
+                if (actual instanceOf expecting.traits) actual else throw TypeMismatchException(expecting, actual)
+            }
             is FuncType -> when(actual) {
                 is TypeVar -> if(expecting instanceOf actual.traits) expecting else throw TypeMismatchException(expecting, actual)
                 is FuncType -> TODO()

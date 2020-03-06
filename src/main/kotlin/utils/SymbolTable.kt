@@ -89,7 +89,6 @@ class SymbolTable {
                 ?.map { (ident, attr) ->
                     "Unused variable $ident at ${attr.index}: variable defined but its value is never used"
                 }
-
     }
 
     fun lookupVar(ident: Identifier, isWrite: Boolean): VarAttributes? {
@@ -139,13 +138,13 @@ class SymbolTable {
     fun isInstance(type: Type, trait: Trait): Boolean {
         return when(type) {
             is Type.BaseType -> when(type.kind) {
-                Type.BaseTypeKind.INT -> TODO()
-                Type.BaseTypeKind.BOOL -> TODO()
-                Type.BaseTypeKind.CHAR -> TODO()
-                Type.BaseTypeKind.STRING -> TODO()
+                Type.BaseTypeKind.INT -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum")
+                Type.BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
+                Type.BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
+                Type.BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show")
                 Type.BaseTypeKind.ANY -> TODO()
             }
-            is Type.ArrayType -> TODO()
+            is Type.ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
             is Type.PairType -> TODO()
             is NewType -> TODO()
             is Type.TypeVar -> trait in type.traits
