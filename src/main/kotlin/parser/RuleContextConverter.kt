@@ -35,8 +35,9 @@ class RuleContextConverter() {
     fun ProgContext.toAST(): ProgramAST {
         stack.push(this)
         val programAST = ProgramAST(
-                newtype().map { it.toAST() },
-                func().map { it.toAST() },
+                newtype()?.map { it.toAST() }?: emptyList(),
+                traitDef()?.map { it.toAST() } ?: emptyList(),
+                func()?.map { it.toAST() }?: emptyList(),
                 stats()?.toMainProgramAST()
                         ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))
         ).records(start(), end())
@@ -72,12 +73,61 @@ class RuleContextConverter() {
         return this.toAST()
     }
 
-    fun FuncContext.toAST(): Function {
+    fun FuncContext.toAST(defaultConstraint: TypeConstraint? = null): Function {
         stack.push(this)
-        val result = Function(type().toAST(), ident().text,
-                paramList()?.toAST() ?: emptyList(),
-                emptyList(),
-                stats().toFuncBodyAST()).records(start(), end())
+        val constraints = (constraintList()?.toAST()?: emptyList()).toMutableList()
+        if (defaultConstraint != null) {
+            constraints += defaultConstraint
+        }
+        val typeVars: Set<String> = constraints.map { it.typeVar }.toSet()
+        val args = paramList()
+                ?.toAST(typeVars)
+                ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
+                ?: emptyList()
+        val result = Function(
+                type().toAST().bindConstraints(constraints),
+                ident().text,
+                args,
+                constraints,
+                stats().toFuncBodyAST()
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    private fun ConstraintListContext.toAST(): List<TypeConstraint> {
+        val constraintContexts = constraint()?: emptyList()
+        val constraints = constraintContexts.map { it.toAST() }
+        return constraints
+    }
+
+    private fun ConstraintContext.toAST(): TypeConstraint {
+        return TypeConstraint(Trait(capIdent(1).text), capIdent(0).text)
+    }
+
+    private fun TraitDefContext.toAST(): TraitDef {
+        val defaultConstraint = TypeConstraint(Trait(trait.text), tvar.text)
+        return TraitDef(
+                trait.text,
+                constraintList()?.toAST()?: emptyList(),
+                tvar.text,
+                requiredFunc()?.map { it.toAST(defaultConstraint) }?: emptyList(),
+                func()?.map { it.toAST(defaultConstraint) }?: emptyList()
+                )
+    }
+
+    private fun RequiredFuncContext.toAST(defaultConstraint: TypeConstraint): FunctionHeader {
+        stack.push(this)
+        val constraints = (constraintList()?.toAST()?: emptyList()) + defaultConstraint
+        val args = paramList()
+                ?.toAST()
+                ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
+                ?: emptyList()
+        val result = FunctionHeader(type().toAST().bindConstraints(constraints),
+                ident().text,
+                args,
+                constraints
+        )
         stack.pop()
         return result
     }
@@ -95,13 +145,21 @@ class RuleContextConverter() {
 
     /** Types **/
 
-    private fun TypeContext.toAST(): Type = when {
+    private fun TypeContext.toAST(typeVars: Set<String> = emptySet()): Type = when {
         baseType() != null -> baseType().toAST()
         arrayType() != null -> arrayType().toAST()
         pairType() != null -> pairType().toAST()
-        capIdent() != null -> NewType(capIdent().text)
+        capIdent() != null -> {
+            if (capIdent().text in typeVars) {
+                TypeVar(capIdent().text, emptyList(), false) // add traits later
+            } else {
+                NewType(capIdent().text, generics()?.toAST(typeVars)?: emptyList())
+            }
+        }
         else -> throw IllegalArgumentException("Unrecognized type: $text")
     }
+
+    private fun GenericsContext.toAST(typeVars: Set<String>): List<Type> = type().map { it.toAST(typeVars) }
 
     private fun BaseTypeContext.toAST(): BaseType = when (text) {
         "int" -> BaseType(BaseTypeKind.INT)
@@ -148,27 +206,40 @@ class RuleContextConverter() {
         return if (unionEntry() == null || unionEntry().isEmpty()) {
             UnionTypeDef(this.capIdent().text)
         } else {
-            UnionTypeDef(this.capIdent().text, this.unionEntry().map { it.toAST() }.toMap())
+            val typeVars = this.genericTVars().toAST()
+            UnionTypeDef(
+                    this.capIdent().text,
+                    typeVars,
+                    this.unionEntry().map { it.toAST(typeVars.toSet()) }.toMap()
+            )
         }
     }
 
-    private fun UnionEntryContext.toAST(): Pair<String, List<Parameter>> {
-        return capIdent().text to member().map { it.toAST() }
+    private fun GenericTVarsContext.toAST(): List<String> = this.capIdent().map { it.text }
+
+    private fun UnionEntryContext.toAST(typeVars: Set<String>): Pair<String, List<Parameter>> {
+        return capIdent().text to member().map { it.toAST(typeVars) }
     }
 
     private fun StructTypeContext.toAST(): NewTypeDef {
-        return StructTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
+        val typeVars = this.genericTVars()?.toAST()?: emptyList()
+        return StructTypeDef(
+                capIdent().text,
+                typeVars,
+                member().map { it.toAST(typeVars.toSet()) }
+        ).records(start(), end())
     }
 
-    private fun MemberContext.toAST(): Parameter {
-        return type().toAST() to ident().toAST()
+    private fun MemberContext.toAST(typeVars: Set<String>): Parameter {
+        return type().toAST(typeVars) to ident().toAST()
     }
 
     /** Statements **/
 
-    private fun ParamListContext.toAST(): List<Parameter> = param().map { it.toAST() }
+    private fun ParamListContext.toAST(typeVars: Set<String> = emptySet()): List<Parameter>
+            = param().map { it.toAST(typeVars) }
 
-    private fun ParamContext.toAST(): Parameter = type().toAST() to ident().toAST()
+    private fun ParamContext.toAST(typeVars: Set<String>): Parameter = type().toAST(typeVars) to ident().toAST()
 
     private fun StatsContext.toAST(): Statements {
         return stat().map { it.toAST() }
@@ -344,4 +415,3 @@ class RuleContextConverter() {
         }
     }
 }
-

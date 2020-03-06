@@ -71,6 +71,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPairType(WaccParser.PairTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#generics}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenerics(WaccParser.GenericsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#member}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -82,6 +88,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitNewtype(WaccParser.NewtypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#genericTVars}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenericTVars(WaccParser.GenericTVarsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#structType}.
 	 * @param ctx the parse tree
@@ -259,11 +271,41 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParamList(WaccParser.ParamListContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#constraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstraint(WaccParser.ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#forallConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitForallConstraint(WaccParser.ForallConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#constraintList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstraintList(WaccParser.ConstraintListContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#func}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitFunc(WaccParser.FuncContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#requiredFunc}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRequiredFunc(WaccParser.RequiredFuncContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#traitDef}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTraitDef(WaccParser.TraitDefContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#builtinFunc}.
 	 * @param ctx the parse tree

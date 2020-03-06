@@ -105,7 +105,7 @@ sealed class Expression(var type: Type = Type.TypeVar("A", emptyList()), var inP
     }
 
     data class FunctionCall(val ident: String, val args: List<Expression>) : Expression() {
-        override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
+        override fun prettyPrint(): String = "$ident(${args.joinToString(", ") { it.prettyPrint() }})"
         override fun tellIdentity(): String = "a function call"
         fun isConstructor(): Boolean = ident[0].isUpperCase()
     }

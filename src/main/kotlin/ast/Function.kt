@@ -11,6 +11,7 @@ data class Function(
         val typeConstraints: List<TypeConstraint>,
         val body: Statements
 ) : WaccAST() {
+
     override fun prettyPrint(): String =
             "${extractHeader().showHeader()} is\n" +
                     "${body.prettyPrint().prependIndent()}\n" +

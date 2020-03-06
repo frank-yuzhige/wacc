@@ -1,0 +1,12 @@
+begin
+
+A sum(A a, A b) where A: Num is
+    return a + b;
+end
+
+int a = sum(1, 2);
+char c = sum('C', 'A');
+println a;
+println c;
+
+end

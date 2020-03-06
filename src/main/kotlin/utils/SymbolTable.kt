@@ -67,6 +67,7 @@ class SymbolTable {
                         throw MultipleFuncDefException(constructor, fentry.type, fentry.index)
                     }
                     val funType = Type.FuncType(def.type, params.map { it.first })
+                    System.err.println(">> $funType")
                     functions[constructor] = FuncAttributes(funType, params, def.startIndex)
                     unionIdMap[constructor] = unionId++
                 }

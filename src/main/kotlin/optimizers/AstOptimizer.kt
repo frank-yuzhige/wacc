@@ -31,10 +31,10 @@ class AstOptimizer(option: OptimizationOption) {
     }
 
     private fun ProgramAST.optimize(): ProgramAST =
-        ProgramAST(newTypes, functions.map { it.optimize() }, mainProgram.optimize())
+        ProgramAST(newTypes, traits, functions.map { it.optimize() }, mainProgram.optimize())
 
     private fun Function.optimize(): Function =
-            inScopeDo { Function(returnType, name, args, body.map { it.optimize() }) } as Function
+            inScopeDo { Function(returnType, name, args, typeConstraints, body.map { it.optimize() }) } as Function
 
     private fun Statements.optimize(): Statements {
         programState.enterScope()

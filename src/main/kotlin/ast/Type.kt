@@ -35,6 +35,13 @@ sealed class Type {
 
     data class ArrayType(val type: Type) : Type() {
         override fun toString(): String = "$type[]"
+        override fun bindConstraints(constraints: List<TypeConstraint>): Type {
+            return ArrayType(type.bindConstraints(constraints))
+        }
+
+        override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
+            return ArrayType(type.substitutes(substitutions))
+        }
     }
 
     data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
@@ -57,12 +64,37 @@ sealed class Type {
         override fun toString(): String {
             return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
         }
+
+        override fun bindConstraints(constraints: List<TypeConstraint>): Type {
+            return NewType(name, generics.map { it.bindConstraints(constraints) })
+        }
+
+        override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
+            return NewType(name, generics.map { it.substitutes(substitutions) })
+        }
+
     }
 
     data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
         constructor(name: String, vararg traits: Trait): this(name, traits.toList())
-        override fun toString(): String = name
+
+        override fun toString(): String = if(isReified) "@_$name" else "_$name"
         override fun reified(): Type = TypeVar(name, traits,true)
+        override fun bindConstraints(constraints: List<TypeConstraint>): Type {
+            return TypeVar(name, traits + constraints.filter { it.typeVar == name }.map { it.trait }, isReified)
+        }
+        override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
+            return substitutions[name to isReified]?:this
+        }
+        override fun equals(other: Any?): Boolean {
+            return other is TypeVar && other.name == name && other.isReified == isReified
+        }
+        override fun hashCode(): Int {
+            var result = name.hashCode()
+            result = 31 * result + traits.hashCode()
+            result = 31 * result + isReified.hashCode()
+            return result
+        }
     }
 
     data class FuncType(val retType: Type,
@@ -81,6 +113,17 @@ sealed class Type {
                 retType.reified(),
                 paramTypes.map { it.reified() }
         )
+
+        override fun bindConstraints(constraints: List<TypeConstraint>): Type {
+            return FuncType(retType.bindConstraints(constraints), paramTypes.map { it.bindConstraints(constraints) })
+        }
+
+        override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
+            System.err.println("subbing: $this")
+            val params = paramTypes.map { it.substitutes(substitutions) }
+            System.err.println(params)
+            return FuncType(retType.substitutes(substitutions), params)
+        }
 
         fun collectConstraints(): List<TypeConstraint> {
             val collect = mutableMapOf<String, List<Trait>>()
@@ -123,5 +166,7 @@ sealed class Type {
         else -> null
     }
 
+    open fun bindConstraints(constraints: List<TypeConstraint>): Type = this
+    open fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type = this
 }
 

@@ -159,7 +159,7 @@ class SemanticAnalyzer() {
                 PRINT, PRINTLN -> expr.checkExpr(anyType())
                 FREE -> expr.checkExpr(TypeVar("A", Trait("Malloc")))
                 EXIT -> expr.checkExpr(intType())
-                RETURN -> expr.checkExpr(TODO())
+                RETURN -> expr.checkExpr(returnType)
             }
             is IfThen -> {
                 expr.checkExpr(boolType())
@@ -424,7 +424,7 @@ class SemanticAnalyzer() {
         val inferredType = try {
             when(this) {
                 is Identifier -> {
-                    val attr = symbolTable.lookupVar(this, false)
+                    val attr = symbolTable.lookupVar(this, isWrite)
                             ?:throw UndefinedVarException(name)
                     (attr.type inferFrom expecting).also {
                         this.scopeId = attr.scopeId
@@ -448,7 +448,7 @@ class SemanticAnalyzer() {
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
-            TODO()
+            type
         } finally {
             if (isPush) {
                 treeStack.pop()
@@ -461,6 +461,7 @@ class SemanticAnalyzer() {
     private fun Expression.checkExpr(expecting: Type,
                                      logAction: (List<String>) -> Unit = { logError(it) }): Type {
         treeStack.push(this)
+        System.err.println("**** checking: ${this.prettyPrint()} against: $expecting")
         val inferredType = try {
             when(this) {
                 NullLit -> anyPairType() inferFrom expecting
@@ -469,7 +470,7 @@ class SemanticAnalyzer() {
                 is CharLit -> charType() inferFrom expecting
                 is StringLit -> stringType() inferFrom expecting
                 is Identifier, is ArrayElem, is PairElem, is TypeMember ->
-                    checkLhsExpr(type, isPush = false, isWrite = false, logAction = logAction)
+                    checkLhsExpr(expecting, isPush = false, isWrite = false, logAction = logAction)
                 is BinExpr -> {
                     val funcType = BinaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
                     left.checkExpr(funcType.paramTypes[0], logAction)
@@ -491,7 +492,6 @@ class SemanticAnalyzer() {
                         elements.drop(1).forEach { elem -> elem.checkExpr(fstType) { temp += it } }
                         if(temp.isNotEmpty()) {
                             logAction(temp)
-                            TODO()
                         }
                         ArrayType(fstType)
                     }
@@ -532,22 +532,40 @@ class SemanticAnalyzer() {
     }
 
     private infix fun FuncType.unifyReturn(expecting: Type): FuncType {
-        if (retType is TypeVar) {
-            val newRet = retType inferFrom expecting
-            return FuncType(
-                    newRet,
-                    paramTypes.map {
-                        if(it is TypeVar
-                                && it.name == retType.name
-                                && it.isReified == retType.isReified )
-                            newRet else it }
-            )
+        System.err.println("expecting: $expecting")
+        val newRet = retType inferFrom expecting
+        System.err.println("after infer: $newRet")
+        val sub = newRet.findUnifier(retType)
+        System.err.println(sub)
+        return (this.substitutes(sub) as FuncType)
+    }
+
+    private fun Type.findUnifier(original: Type): Map<Pair<String, Boolean>, Type> {
+        return when(original) {
+            is BaseType -> emptyMap()
+            is ArrayType -> when {
+                this is ArrayType -> type.findUnifier(original.type)
+                else -> emptyMap()
+            }
+            is PairType -> TODO()
+            is NewType -> when {
+                this is NewType && name == original.name -> {
+                    val map = mutableMapOf<Pair<String, Boolean>, Type>()
+                    generics.zip(original.generics).forEach { (new, old) ->
+                        map.putAll(new.findUnifier(old))
+                    }
+                    map
+                }
+                else -> emptyMap()
+            }
+            is TypeVar -> mapOf((original.name to original.isReified) to this)
+            is FuncType -> TODO()
         }
-        return this
     }
 
     private infix fun Type.inferFrom(expecting: Type): Type {
         val actual = this
+        System.err.println("Inferring expected: $expecting <==> actual: $actual")
         return when(expecting) {
             is BaseType -> when(actual) {
                 is BaseType -> if (expecting == actual) actual else throw TypeMismatchException(expecting, actual)

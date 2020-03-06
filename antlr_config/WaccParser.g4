@@ -10,18 +10,20 @@ ident   : IDENT;
 capIdent: CAP_IDENT;
 boolLit : TRUE | FALSE;
 
-type        : arrayType | baseType | pairType | capIdent;
+type        : arrayType | baseType | pairType | capIdent generics?;
 arrayType   : (baseType | pairType) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
 pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
+generics    : LT type (COMMA type)* GT;
 
 member: type ident;
 newtype: structType | taggedUnion;
-structType: NEWTYPE capIdent IS (member SEMICOLON)* END;
+genericTVars: LT tvar=capIdent (COMMA tvar=capIdent)* GT;
+structType: NEWTYPE capIdent genericTVars? IS (member SEMICOLON)* END;
 
 unionEntry: capIdent (OF LPAR member (COMMA member)* RPAR)?;
-taggedUnion: NEWTYPE capIdent IS UNION (unionEntry SEMICOLON)* END;
+taggedUnion: NEWTYPE capIdent genericTVars? IS UNION (unionEntry SEMICOLON)* END;
 
 enumRange: from=expr DOTDOT to=expr                 #rangeFromTo
          | from=expr COMMA then=expr DOTDOT to=expr #rangeFromThenTo
@@ -66,7 +68,15 @@ expr: left=expr binop1 right=expr    #exprBinop
 param    : type ident;
 paramList: param (COMMA param)*;
 
-func: type ident LPAR paramList? RPAR IS stats END;
+
+constraint: capIdent COLON capIdent;
+forallConstraint: FORALL capIdent;
+constraintList: (constraint|forallConstraint) (COMMA (constraint|forallConstraint))?;
+
+func: type ident LPAR paramList? RPAR (WHERE constraintList)? IS stats END;
+
+requiredFunc: type ident LPAR paramList? RPAR (WHERE constraintList)? IS REQUIRED;
+traitDef: TRAIT tvar=capIdent COLON trait=capIdent (WHERE constraintList)? IS requiredFunc+ func* END;
 
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
@@ -117,4 +127,4 @@ typeMember: expr DOT ident;
 typeConstructor: capIdent LPAR argList? RPAR;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN newtype* func* stats? END EOF;
+prog: BEGIN (newtype|func|traitDef)* stats? END EOF;
