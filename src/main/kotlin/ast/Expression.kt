@@ -5,7 +5,8 @@ import utils.VarWithSID
 
 interface Literal
 
-sealed class Expression(var inParens: Boolean = false) : WaccAST() {
+sealed class Expression(var type: Type = Type.TypeVar("A", emptyList()), var inParens: Boolean = false) : WaccAST() {
+
     override fun tellIdentity(): String = "an expression"
     enum class PairElemFunction(val value: String) {
         FST("fst"), SND("snd")

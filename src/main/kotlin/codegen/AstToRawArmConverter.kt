@@ -73,7 +73,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         Function(returnType = intType(),
                 name = "main",
                 args = mutableListOf(),
-                body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
+                body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0)),
+                typeConstraints = emptyList()
         ).toARM()
         functions.map { it.toARM() }
         definePreludes()

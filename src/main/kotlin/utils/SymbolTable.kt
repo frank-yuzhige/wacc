@@ -1,10 +1,8 @@
 package utils
 
-import ast.Expression
+import ast.*
 import ast.Expression.Identifier
 import ast.Function
-import ast.NewTypeDef
-import ast.Type
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
@@ -137,6 +135,23 @@ class SymbolTable {
         return tp.print()
     }
 
+    fun isInstance(type: Type, trait: Trait): Boolean {
+        return when(type) {
+            is Type.BaseType -> when(type.kind) {
+                Type.BaseTypeKind.INT -> TODO()
+                Type.BaseTypeKind.BOOL -> TODO()
+                Type.BaseTypeKind.CHAR -> TODO()
+                Type.BaseTypeKind.STRING -> TODO()
+                Type.BaseTypeKind.ANY -> TODO()
+            }
+            is Type.ArrayType -> TODO()
+            is Type.PairType -> TODO()
+            is NewType -> TODO()
+            is Type.TypeVar -> trait in type.traits
+            is Type.FuncType -> TODO()
+        }
+    }
+
     fun getType(expr: Expression, accessType: AccessType): Type {
         return when(expr) {
             Expression.NullLit -> Type.anyPairType()
@@ -244,8 +259,6 @@ class SymbolTable {
                 ?: throw SemanticException.UndefinedFuncException(constructor)
         return s + if (isTaggedUnion) 4 else 0
     }
-
-
 
     fun getMemberOffset(name: String, type: Type): Int {
         if (type is NewType) {

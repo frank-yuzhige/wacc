@@ -24,7 +24,11 @@ data class Function(
 
     fun isGenericFunc(): Boolean = typeConstraints.isNotEmpty()
 
+    fun reified(): Function = Function(
+            returnType.reified(), name, args.map { (type, arg) -> type.reified() to arg }, typeConstraints, body
+    )
+
     fun getFuncType(): Type.FuncType {
-        return Type.FuncType(returnType, args.map { it.first }, typeConstraints)
+        return Type.FuncType(returnType, args.map { it.first })
     }
 }

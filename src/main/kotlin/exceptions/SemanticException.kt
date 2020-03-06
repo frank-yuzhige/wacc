@@ -23,6 +23,9 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class NotEnoughArrayRankException(arrName: String):
             SemanticException("'$arrName' does not have enough rank!")
 
+    class FuncCallArgsMismatchException(funcName: String, expect: Int, actual: Int):
+            SemanticException("'$funcName' expects $expect arguments, but $actual arguments are offered!")
+
     class ReturnInMainProgramException(indices: List<Index>) :
             SemanticException("Found return statement(s) in main program! at ${indices.joinToString(", ")}")
 

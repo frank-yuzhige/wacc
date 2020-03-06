@@ -4,7 +4,6 @@ import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
-import utils.Parameter
 
 sealed class Type {
 
@@ -17,11 +16,11 @@ sealed class Type {
     }
 
     companion object {
-        fun anyArrayType(): ArrayType = ArrayType(BaseType(ANY))
+        fun anyArrayType(): ArrayType = ArrayType(anyType())
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
 
-        fun anyType(): BaseType = BaseType(ANY)
+        fun anyType(): Type = TypeVar("A")
 
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
@@ -60,22 +59,45 @@ sealed class Type {
         }
     }
 
-    data class TypeVar(val name: String): Type() {
+    data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
+        constructor(name: String, vararg traits: Trait): this(name, traits.toList())
         override fun toString(): String = name
+        override fun reified(): Type = TypeVar(name, traits,true)
     }
 
     data class FuncType(val retType: Type,
-                        val paramTypes: List<Type>,
-                        val typeConstraints: List<TypeConstraint> = emptyList()) : Type() {
+                        val paramTypes: List<Type>) : Type() {
+        companion object {
+            fun binOpOf(type: Type): FuncType = FuncType(type, listOf(type, type))
+            fun binCheckOf(type: Type): FuncType = FuncType(boolType(), listOf(type, type))
+        }
+
         override fun toString(): String {
-            val constraints = if (typeConstraints.isNotEmpty()) "[${typeConstraints.joinToString(", ")}] => " else ""
+            val constraints = if (collectConstraints().isNotEmpty()) "[${collectConstraints().joinToString(", ")}] => " else ""
             return "$constraints(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
+        }
+
+        override fun reified(): Type = FuncType(
+                retType.reified(),
+                paramTypes.map { it.reified() }
+        )
+
+        fun collectConstraints(): List<TypeConstraint> {
+            val collect = mutableMapOf<String, List<Trait>>()
+            (paramTypes + retType).filterIsInstance<TypeVar>().forEach { tvar ->
+                if (tvar.name in collect && collect[tvar.name]!!.toHashSet() != tvar.traits.toHashSet() ) {
+                    throw IllegalArgumentException("inconsistent type vars!")
+                } else {
+                    collect[tvar.name] = tvar.traits
+                }
+            }
+            return collect.flatMap { (name, traits) -> traits.map { TypeConstraint(it, name) } }
         }
     }
 
-    open fun normalize(): Type {
-        return this
-    }
+    open fun normalize(): Type = this
+
+    open fun reified(): Type = this
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type

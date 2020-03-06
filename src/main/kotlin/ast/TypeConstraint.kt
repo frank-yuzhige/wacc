@@ -2,7 +2,7 @@ package ast
 
 import ast.Type.TypeVar
 
-class TypeConstraint(val trait: Trait, val typeVar: TypeVar) {
+class TypeConstraint(val trait: Trait, val typeVar: String) {
     fun prettyPrint(): String = "$typeVar: $trait"
 }
 
