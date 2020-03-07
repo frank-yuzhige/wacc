@@ -26,6 +26,9 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class FuncCallArgsMismatchException(funcName: String, expect: Int, actual: Int):
             SemanticException("'$funcName' expects $expect arguments, but $actual arguments are offered!")
 
+    class UngroundTypeException(type: Type):
+            SemanticException("Unable to deduce a ground type for ${if (type is Type.TypeVar) "$type:${type.traits}" else "$type"}")
+
     class ReturnInMainProgramException(indices: List<Index>) :
             SemanticException("Found return statement(s) in main program! at ${indices.joinToString(", ")}")
 

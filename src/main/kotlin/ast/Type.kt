@@ -42,6 +42,8 @@ sealed class Type {
         override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
             return ArrayType(type.substitutes(substitutions))
         }
+
+        override fun isGround(): Boolean = type.isGround()
     }
 
     data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
@@ -73,6 +75,8 @@ sealed class Type {
             return NewType(name, generics.map { it.substitutes(substitutions) })
         }
 
+        override fun isGround(): Boolean = generics.all { it.isGround() }
+
     }
 
     data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
@@ -95,6 +99,8 @@ sealed class Type {
             result = 31 * result + isReified.hashCode()
             return result
         }
+
+        override fun isGround(): Boolean = isReified
     }
 
     data class FuncType(val retType: Type,
@@ -136,11 +142,19 @@ sealed class Type {
             }
             return collect.flatMap { (name, traits) -> traits.map { TypeConstraint(it, name) } }
         }
+
+        override fun isGround(): Boolean = (paramTypes + retType).all { it.isGround() }
     }
 
     open fun normalize(): Type = this
 
     open fun reified(): Type = this
+
+    open fun bindConstraints(constraints: List<TypeConstraint>): Type = this
+
+    open fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type = this
+
+    open fun isGround(): Boolean = true
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type
@@ -157,7 +171,6 @@ sealed class Type {
         }
         return t
     }
-
     fun unwrapPairType(elem: PairElemFunction): Type? = when (this) {
         is PairType -> when (elem) {
             FST -> this.firstElemType
@@ -165,8 +178,5 @@ sealed class Type {
         }
         else -> null
     }
-
-    open fun bindConstraints(constraints: List<TypeConstraint>): Type = this
-    open fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type = this
 }
 

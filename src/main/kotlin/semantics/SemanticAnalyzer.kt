@@ -473,14 +473,17 @@ class SemanticAnalyzer() {
                     checkLhsExpr(expecting, isPush = false, isWrite = false, logAction = logAction)
                 is BinExpr -> {
                     val funcType = BinaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
-                    left.checkExpr(funcType.paramTypes[0], logAction)
-                    right.checkExpr(funcType.paramTypes[1], logAction)
-                    funcType.retType
+                    val lt = left.checkExpr(funcType.paramTypes[0], logAction)
+                    val rt = right.checkExpr(funcType.paramTypes[1], logAction)
+                    val lu = lt.findUnifier(funcType.paramTypes[0])
+                    val ru = lt.findUnifier(funcType.paramTypes[0])
+                    funcType.retType.substitutes(lu).substitutes(ru)
                 }
                 is UnaryExpr -> {
                     val funcType = UnaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
-                    expr.checkExpr(funcType.paramTypes[0], logAction)
-                    funcType.retType
+                    val childType = expr.checkExpr(funcType.paramTypes[0], logAction)
+                    val sub = childType.findUnifier(funcType.paramTypes[0])
+                    funcType.retType.substitutes(sub)
                 }
                 is ArrayLiteral -> when {
                     elements.isEmpty() -> anyArrayType() inferFrom expecting
@@ -511,17 +514,24 @@ class SemanticAnalyzer() {
                     if (args.size != newFuncType.paramTypes.size) {
                         throw FuncCallArgsMismatchException(ident, newFuncType.paramTypes.size, args.size)
                     }
-                    args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
-                    newFuncType.retType
+                    val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
+                    val sub: Map<Pair<String, Boolean>, Type> = argsGrounds
+                            .zip(newFuncType.paramTypes) { ground, type -> ground.findUnifier(type)  }
+                            .fold(mutableMapOf()) { a, b -> a.also { it.putAll(b) } }
+
+                    newFuncType.retType.substitutes(sub)
                 }
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
-            throw sme
-        } finally {
-            treeStack.pop()
+            TypeVar("A")
         }
         type = inferredType
+        System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
+        if (!inferredType.isGround()) {
+            logAction(listOf(UngroundTypeException(inferredType).msg))
+        }
+        treeStack.pop()
         return inferredType
     }
 
