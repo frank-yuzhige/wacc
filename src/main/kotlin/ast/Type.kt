@@ -130,9 +130,7 @@ sealed class Type {
         }
 
         override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
-            System.err.println("subbing: $this")
             val params = paramTypes.map { it.substitutes(substitutions) }
-            System.err.println(params)
             return FuncType(retType.substitutes(substitutions), params)
         }
 

@@ -9,14 +9,20 @@ newtype List<A> is union
     Node of (A elem, List<A> next);
 end
 
-implement List<A>: Pure is
+instance List<A>: Pure where forall A is
     List<A> pure() is
-        return Nil();
+        List<A> x = Nil();
+        return x;
     end
 end
 
 A something() where A: Pure is
-
+    A a = pure();
+    return a;
 end
+
+List<int> a = Nil();
+var b = Node(1, a);
+b = pure();
 
 end

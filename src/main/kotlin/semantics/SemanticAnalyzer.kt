@@ -85,6 +85,24 @@ class SemanticAnalyzer() {
             }
             treeStack.pop()
         }
+        traits.map {
+            treeStack.push(it)
+            try {
+                symbolTable.defineTrait(it)
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
+        }
+        instances.map {
+            treeStack.push(it)
+            try {
+                symbolTable.implementTrait(it)
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
+        }
         functions.map {
             treeStack.push(it)
             try {
@@ -233,7 +251,8 @@ class SemanticAnalyzer() {
                 is TypeMember -> {
                     val exprType = expr.checkExpr(anyType())
                     if (exprType !is NewType) throw NotAStructTypeException(exprType)
-                    getType() inferFrom expecting
+                    val memberType = symbolTable.getTypeMemberType(exprType, memberName)
+                    memberType inferFrom expecting
                 }
                 else -> TODO()
             }
@@ -267,7 +286,7 @@ class SemanticAnalyzer() {
                     val lt = left.checkExpr(funcType.paramTypes[0], logAction)
                     val rt = right.checkExpr(funcType.paramTypes[1], logAction)
                     val lu = lt.findUnifier(funcType.paramTypes[0])
-                    val ru = lt.findUnifier(funcType.paramTypes[0])
+                    val ru = rt.findUnifier(funcType.paramTypes[0])
                     funcType.retType.substitutes(lu).substitutes(ru)
                 }
                 is UnaryExpr -> {
@@ -315,6 +334,7 @@ class SemanticAnalyzer() {
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
+            System.err.println("$$> logging: ${sme.msg}")
             TypeVar("A")
         }
         type = inferredType
@@ -326,8 +346,6 @@ class SemanticAnalyzer() {
         return inferredType
     }
 
-    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_SEM_CHECK)
-
     private infix fun Type.instanceOf(traits: List<Trait>): Type {
         return if (traits.all { symbolTable.isInstance(this, it) }) {
             this
@@ -337,9 +355,7 @@ class SemanticAnalyzer() {
     }
 
     private infix fun FuncType.unifyReturn(expecting: Type): FuncType {
-        System.err.println("expecting: $expecting")
         val newRet = retType inferFrom expecting
-        System.err.println("after infer: $newRet")
         val sub = newRet.findUnifier(retType)
         return (this.substitutes(sub) as FuncType)
     }
@@ -418,7 +434,7 @@ class SemanticAnalyzer() {
                 is FuncType -> TODO()
                 else -> throw TypeMismatchException(expecting, actual)
             }
-        }
+        }.also { System.err.println("We get: $it") }
     }
 
     private fun Type.validated(): Type = if(this is NewType) {

@@ -79,6 +79,7 @@ WHERE: 'where';
 FORALL: 'forall';
 TRAIT: 'trait';
 REQUIRED: 'required';
+INSTANCE: 'instance';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 

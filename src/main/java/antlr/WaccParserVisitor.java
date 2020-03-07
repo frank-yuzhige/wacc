@@ -113,6 +113,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTaggedUnion(WaccParser.TaggedUnionContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#traitInstance}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTraitInstance(WaccParser.TraitInstanceContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code rangeFromTo}
 	 * labeled alternative in {@link WaccParser#enumRange}.
 	 * @param ctx the parse tree

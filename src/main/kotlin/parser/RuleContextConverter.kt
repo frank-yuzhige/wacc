@@ -37,6 +37,7 @@ class RuleContextConverter() {
         val programAST = ProgramAST(
                 newtype()?.map { it.toAST() }?: emptyList(),
                 traitDef()?.map { it.toAST() } ?: emptyList(),
+                traitInstance()?.map { it.toAST() } ?: emptyList(),
                 func()?.map { it.toAST() }?: emptyList(),
                 stats()?.toMainProgramAST()
                         ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))
@@ -73,13 +74,48 @@ class RuleContextConverter() {
         return this.toAST(typeVars)
     }
 
-    fun FuncContext.toAST(defaultConstraint: TypeConstraint? = null): Function {
+    private fun TraitDefContext.toAST(): TraitDef {
         stack.push(this)
-        val constraints = (constraintList()?.toAST()?: emptyList()).toMutableList()
-        if (defaultConstraint != null) {
-            constraints += defaultConstraint
-        }
-        val typeVars: Set<String> = constraints.map { it.typeVar }.toSet()
+        val dependentConstraints = constraintList()?.collectConstraints()?: emptyList()
+        val typeVars = constraintList()?.collectTypeVars() ?: mutableSetOf()
+        typeVars += tvar.text
+        val defaultConstraint = TypeConstraint(Trait(trait.text), tvar.text)
+        val totalConstraints = dependentConstraints + defaultConstraint
+        val result = TraitDef(
+                trait.text,
+                dependentConstraints,
+                tvar.text,
+                requiredFunc()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList(),
+                func()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList()
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    private fun TraitInstanceContext.toAST(): TraitInstance {
+        stack.push(this)
+        val topConstraints = constraintList()?.collectConstraints() ?: emptyList()
+        val typeVars = constraintList()?.collectTypeVars() ?: mutableSetOf()
+        val thisTrait = Trait(trait.text)
+        val thisType = type().toAST(typeVars)
+        val result = TraitInstance(
+                thisType,
+                thisTrait,
+                topConstraints,
+                func().map { it.toAST(topConstraints, typeVars) }
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    fun FuncContext.toAST(defaultConstraint: List<TypeConstraint> = emptyList(),
+                          defaultTypeVars: Set<String> = emptySet()): Function {
+        stack.push(this)
+        val constraints = (constraintList()?.collectConstraints()?: emptyList()) + defaultConstraint
+        val typeVars: MutableSet<String> = constraintList()?.collectTypeVars()?: mutableSetOf()
+        // TODO: dup check and error
+        typeVars += defaultConstraint.map { it.typeVar }
+        typeVars += defaultTypeVars
         val args = paramList()
                 ?.toAST(typeVars)
                 ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
@@ -95,39 +131,42 @@ class RuleContextConverter() {
         return result
     }
 
-    private fun ConstraintListContext.toAST(): List<TypeConstraint> {
+    private fun ConstraintListContext.collectConstraints(): List<TypeConstraint> {
         val constraintContexts = constraint()?: emptyList()
         val constraints = constraintContexts.map { it.toAST() }
         return constraints
+    }
+
+    private fun ConstraintListContext.collectTypeVars(): MutableSet<String> {
+        val set = mutableSetOf<String>()
+        val foralls = forallConstraint() ?: emptyList()
+        val constraints = constraint() ?: emptyList()
+        set += foralls.map { it.capIdent().text }
+        set += constraints.map { it.capIdent(0).text }
+        // TODO: duplication check and err
+        return set
     }
 
     private fun ConstraintContext.toAST(): TypeConstraint {
         return TypeConstraint(Trait(capIdent(1).text), capIdent(0).text)
     }
 
-    private fun TraitDefContext.toAST(): TraitDef {
-        val defaultConstraint = TypeConstraint(Trait(trait.text), tvar.text)
-        return TraitDef(
-                trait.text,
-                constraintList()?.toAST()?: emptyList(),
-                tvar.text,
-                requiredFunc()?.map { it.toAST(defaultConstraint) }?: emptyList(),
-                func()?.map { it.toAST(defaultConstraint) }?: emptyList()
-                )
-    }
-
-    private fun RequiredFuncContext.toAST(defaultConstraint: TypeConstraint): FunctionHeader {
+    private fun RequiredFuncContext.toAST(defaultConstraints: List<TypeConstraint>,
+                                          defaultTypeVars: Set<String>): FunctionHeader {
         stack.push(this)
-        val constraints = (constraintList()?.toAST()?: emptyList()) + defaultConstraint
+        val constraints = (constraintList()?.collectConstraints()?: emptyList()) + defaultConstraints
+        val typeVars = constraintList()?.collectTypeVars()?: mutableSetOf()
+        typeVars += defaultTypeVars
         val args = paramList()
-                ?.toAST()
+                ?.toAST(typeVars)
                 ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
                 ?: emptyList()
-        val result = FunctionHeader(type().toAST().bindConstraints(constraints),
+        val result = FunctionHeader(
+                type().toAST(typeVars).bindConstraints(constraints),
                 ident().text,
                 args,
                 constraints
-        )
+        ).records(start(), end())
         stack.pop()
         return result
     }
@@ -150,6 +189,7 @@ class RuleContextConverter() {
         arrayType() != null -> arrayType().toAST()
         pairType() != null -> pairType().toAST()
         capIdent() != null -> {
+            val str = capIdent().text
             if (capIdent().text in typeVars) {
                 TypeVar(capIdent().text, emptyList(), false) // add traits later
             } else {
@@ -211,7 +251,7 @@ class RuleContextConverter() {
                     this.capIdent().text,
                     typeVars,
                     this.unionEntry().map { it.toAST(typeVars.toSet()) }.toMap()
-            )
+            ).records(start(), end())
         }
     }
 

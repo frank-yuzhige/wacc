@@ -25,6 +25,8 @@ structType: NEWTYPE capIdent genericTVars? IS (member SEMICOLON)* END;
 unionEntry: capIdent (OF LPAR member (COMMA member)* RPAR)?;
 taggedUnion: NEWTYPE capIdent genericTVars? IS UNION (unionEntry SEMICOLON)* END;
 
+traitInstance: INSTANCE type COLON trait=capIdent (WHERE constraintList)? IS func+ END;
+
 enumRange: from=expr DOTDOT to=expr                 #rangeFromTo
          | from=expr COMMA then=expr DOTDOT to=expr #rangeFromThenTo
          ;
@@ -53,7 +55,7 @@ expr: left=expr binop1 right=expr    #exprBinop
     | left=expr binop5 right=expr    #exprBinop
     | left=expr binop6 right=expr    #exprBinop
     | LPAR expr RPAR                 #exprParens
-    | ident LPAR argList RPAR        #exprFuncCall
+    | ident LPAR argList? RPAR       #exprFuncCall
     | IF cond=expr THEN tr=expr ELSE fl=expr FI #exprIf
     | integer                        #exprInt
     | boolLit                        #exprBool
@@ -127,4 +129,4 @@ typeMember: expr DOT ident;
 typeConstructor: capIdent LPAR argList? RPAR;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN (newtype|func|traitDef)* stats? END EOF;
+prog: BEGIN (newtype|func|traitDef|traitInstance)* stats? END EOF;

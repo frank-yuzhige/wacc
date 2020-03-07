@@ -9,8 +9,7 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.rangeTypeOf
 import exceptions.SemanticException
-import exceptions.SemanticException.MultipleFuncDefException
-import exceptions.SemanticException.MultipleTraitDefException
+import exceptions.SemanticException.*
 import java.util.*
 
 class SymbolTable {
@@ -69,7 +68,6 @@ class SymbolTable {
                         throw MultipleFuncDefException(constructor, fentry.type, fentry.index)
                     }
                     val funType = FuncType(def.type, params.map { it.first })
-                    System.err.println(">> $funType")
                     functions[constructor] = FuncAttributes(funType, params, def.startIndex)
                     unionIdMap[constructor] = unionId++
                 }
@@ -87,6 +85,34 @@ class SymbolTable {
             throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
         }
         traitDefs[trait] = TraitAttributes(traitDef.typeConstraints.map { it.trait }.toSet())
+        traitDef.requiredFuncs.forEach { header ->
+            functions[header.name] = FuncAttributes(header.getFuncType(), header.args, header.startIndex)
+        }
+    }
+
+    fun implementTrait(instance: TraitInstance) {
+        when(instance.targetType) {
+            is ArrayType -> TODO()
+            is PairType -> TODO()
+            is TypeVar -> TODO()
+            is NewType -> {
+                val entry = typedefs[instance.targetType.name]
+                        ?: throw UndefinedTypeException(instance.targetType.name)
+                val traitList = instance.targetType.generics.map { tvar ->
+                    when{
+                        tvar !is TypeVar -> TODO() // unsupported
+                        else -> {
+                            instance.typeConstraints
+                                    .filter { it.typeVar == tvar.name }
+                                    .map { it.trait }
+                                    .toSet()
+                        }
+                    }
+                }
+                entry.implementations[instance.trait] = traitList
+            }
+            else -> TODO() // error
+        }
     }
 
     fun pushScope() {
@@ -162,7 +188,7 @@ class SymbolTable {
             is ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
             is PairType -> TODO()
             is NewType -> {
-                val entry = lookupType(type)?:throw SemanticException.UndefinedTypeException(type.name)
+                val entry = lookupType(type)?:throw UndefinedTypeException(type.name)
                 trait in entry.implementations && type.generics.withIndex().all { (i, type) ->
                     val traits = entry.implementations.getValue(trait)[i]
                     traits.all { isInstance(type, it) }
@@ -182,7 +208,7 @@ class SymbolTable {
             is Expression.StringLit -> Type.stringType()
             is Identifier -> {
                 if (accessType == AccessType.IN_SEM_CHECK){
-                    lookupVar(expr, false)?.type?: throw SemanticException.UndefinedVarException(expr.name)
+                    lookupVar(expr, false)?.type?: throw UndefinedVarException(expr.name)
                 } else {
                     collect[expr.getVarSID()]!!.type
                 }
@@ -192,7 +218,7 @@ class SymbolTable {
             is Expression.ArrayElem -> {
                 val arrType = if (accessType == AccessType.IN_SEM_CHECK) {
                     lookupVar(expr.arrIdent, false)?.type
-                            ?: throw SemanticException.UndefinedVarException(expr.arrIdent.name)
+                            ?: throw UndefinedVarException(expr.arrIdent.name)
                 } else {
                     collect[expr.arrIdent.getVarSID()]!!.type
                 }
@@ -202,7 +228,7 @@ class SymbolTable {
             is Expression.PairElem -> {
                 getType(expr.expr, accessType).let { exprType ->
                     exprType.unwrapPairType(expr.func)
-                            ?: throw SemanticException.TypeMismatchException(Type.anyPairType(), exprType)
+                            ?: throw TypeMismatchException(Type.anyPairType(), exprType)
                 }
             }
             is Expression.ArrayLiteral -> {
@@ -216,7 +242,7 @@ class SymbolTable {
                         for (e in expr.elements.drop(1)) {
                             val sndType = getType(e, accessType)
                             if (sndType != fstType) {
-                                throw SemanticException.TypeMismatchException(fstType, sndType)
+                                throw TypeMismatchException(fstType, sndType)
                             }
                         }
                         ArrayType(fstType)
@@ -232,7 +258,7 @@ class SymbolTable {
             }
             is Expression.FunctionCall -> {
                 if (accessType == AccessType.IN_SEM_CHECK) {
-                    lookupFunc(expr.ident)?.type?.retType ?: throw SemanticException.UndefinedFuncException(expr.ident)
+                    lookupFunc(expr.ident)?.type?.retType ?: throw UndefinedFuncException(expr.ident)
                 } else {
                     functions[expr.ident]!!.type.retType
                 }
@@ -241,11 +267,11 @@ class SymbolTable {
                 val newType = getType(expr.expr, accessType)
                 return when {
                     newType !is NewType ->
-                        throw SemanticException.TypeMismatchException(newType, newType)
+                        throw TypeMismatchException(newType, newType)
                     typedefs.getValue(newType.name).isUnion ->
-                        throw SemanticException.TypeMismatchException(newType, newType)
+                        throw TypeMismatchException(newType, newType)
                     else -> functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
-                                ?: throw SemanticException.UndefinedFuncException(newType.toString())
+                                ?: throw UndefinedFuncException(newType.toString())
                 }
             }
             is Expression.EnumRange -> {
@@ -254,8 +280,8 @@ class SymbolTable {
                     val toT = getType(expr.to, accessType)
                     val thenT = expr.then?.let { getType(it, accessType) }?:fromT
                     when {
-                        fromT != toT -> throw SemanticException.TypeMismatchException(fromT, toT)
-                        fromT != thenT -> throw SemanticException.TypeMismatchException(fromT, thenT)
+                        fromT != toT -> throw TypeMismatchException(fromT, toT)
+                        fromT != thenT -> throw TypeMismatchException(fromT, thenT)
                         else -> rangeTypeOf(fromT)
                     }
                 } else {
@@ -268,6 +294,15 @@ class SymbolTable {
         }
     }
 
+    fun getTypeMemberType(type: Type, member: String): Type {
+        return when {
+            type !is NewType -> throw TypeMismatchException(type, type)
+            typedefs.getValue(type.name).isUnion -> throw NotAStructTypeException(type)
+            else -> functions[type.name]?.members?.find { it.second.name == member }?.first
+                    ?: throw UndefinedFuncException(type.toString())
+        }
+    }
+
     fun sizeof(type: Type): Int {
         return when(type) {
             boolType(), charType() -> 1
@@ -277,7 +312,7 @@ class SymbolTable {
 
     fun mallocSize(constructor: String, isTaggedUnion: Boolean = false): Int {
         val s = functions[constructor]?.members?.sumBy { sizeof(it.first) }
-                ?: throw SemanticException.UndefinedFuncException(constructor)
+                ?: throw UndefinedFuncException(constructor)
         return s + if (isTaggedUnion) 4 else 0
     }
 
@@ -291,7 +326,7 @@ class SymbolTable {
                 acc += sizeof(member.first)
             }
         }
-        throw SemanticException.UndefinedFuncException(type.toString())
+        throw UndefinedFuncException(type.toString())
     }
 
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
