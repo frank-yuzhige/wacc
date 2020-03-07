@@ -9,12 +9,14 @@ import ast.Statement.*
 import ast.UnaryOperator.*
 import utils.Statements
 import java.lang.IllegalArgumentException
+import java.lang.IndexOutOfBoundsException
 
 class AstOptimizer(option: OptimizationOption) {
     private val optLevel = OptimizationOption.values().indexOf(option)
     private val programState = ProgramState()
     private var updateVar: Boolean = true
     private var overflowOccurred = false
+    private var hasUnevaluableExpr = false
 
     fun doOptimize(ast: ProgramAST): ProgramAST {
         if (optLevel > 0) {
@@ -115,10 +117,15 @@ class AstOptimizer(option: OptimizationOption) {
                         bodyOptimized = body.optimize()
                         exprOptimized = expr.optimize()
                     }
-                    if (!overflowOccurred) {
+                    if (!overflowOccurred && !hasUnevaluableExpr) {
                         WhileLoop(exprOptimized, bodyOptimized)
                     } else {
-                        WhileLoop(expr, body).also { overflowOccurred = false }
+                        updateVar = false
+                        WhileLoop(expr, body.optimize()).also {
+                            hasUnevaluableExpr = false
+                            overflowOccurred = false
+                            updateVar = true
+                        }
                     }
                 }
             } else {
@@ -128,9 +135,26 @@ class AstOptimizer(option: OptimizationOption) {
         }
         is Block -> Block(body.optimize())
         is Read -> {
-            val targetIdent = target.getIdentifier()
             if (optLevel > 0) {
-                programState.removeVar(targetIdent)
+                val targetIdent = target.getIdentifier()
+                hasUnevaluableExpr = true
+                when (target) {
+                    is ArrayElem -> {
+                        var canBeEvaluated = true
+                        target.indices.forEach {
+                            if (it.optimize() !is IntLit) { canBeEvaluated = false }
+                        }
+                        if (canBeEvaluated) {
+                            try {
+                                programState.removeArrayElemAtIndex(targetIdent, target.indices.map { (it.optimize() as IntLit).x })
+                            } catch (ex: IndexOutOfBoundsException) {}
+                        }
+                    }
+                    is PairElem -> {
+                        programState.removePairElem(target.func, targetIdent)
+                    }
+                    else -> programState.removeVar(targetIdent)
+                }
             }
             this
         }
@@ -156,7 +180,7 @@ class AstOptimizer(option: OptimizationOption) {
                 var currentElem: Expression = this
                 for (expr in indicesOptimized) {
                     if (expr is IntLit) {
-                        if (expr.x < currentArray.size) {
+                        if (expr.x < currentArray.size && expr.x >= 0) {
                             currentElem = currentArray[expr.x]
                         } else { this }
                         if (currentElem is ArrayLiteral) {
