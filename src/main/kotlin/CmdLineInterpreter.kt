@@ -65,6 +65,7 @@ fun main(args: Array<String>) {
         sa.suppressWarning().doCheck(parseOnlyAst)
         if (mode == CompilerMode.SEM_CHECK) {
             println(parseOnlyAst.prettyPrint())
+            sa.symbolTable.dump()
             exitProcess(0)
         }
         parseOnlyAst
@@ -75,6 +76,7 @@ fun main(args: Array<String>) {
     } catch (se: SemanticException) {
         System.err.println("${ERROR}SEMANTIC ERROR:")
         System.err.println("${se.msg}$RESET")
+        sa.symbolTable.dump()
         exitProcess(200)
     }
 

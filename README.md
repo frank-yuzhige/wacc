@@ -21,14 +21,6 @@ int x = f(1, f(3, g("foobar")));
 
 ## Type System
 
-#### void function
-```
-void f(int x) is
-    ...
-    return;
-end
-```
-
 #### newtype
 ```
 newtype MyType is
@@ -168,21 +160,6 @@ for int k in 0..10 step 2 do
     ...
 done;
 
-```
-
-#### foreach-loop
-```
-int[] arr = [1, 4, 5, 6]
-foreach var x in arr do
-    print x;
-    print ",";  
-done # 1,4,5,6,
-
-List<Int> list = List.fromArray<Int>(arr)
-foreach var x in list do
-    print x;
-    print ",";
-done # 1,4,5,6,
 ```
 
 #### conditional branch

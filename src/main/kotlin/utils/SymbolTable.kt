@@ -3,19 +3,21 @@ package utils
 import ast.*
 import ast.Expression.Identifier
 import ast.Function
+import ast.Type.*
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.rangeTypeOf
-import ast.Type.NewType
 import exceptions.SemanticException
 import exceptions.SemanticException.MultipleFuncDefException
+import exceptions.SemanticException.MultipleTraitDefException
 import java.util.*
 
 class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
     private val scopeIdStack: Deque<Int> = ArrayDeque()
-    val typedefs: MutableMap<NewType, TypeAttributes> = mutableMapOf()
+    private val traitDefs: MutableMap<Trait, TraitAttributes> = mutableMapOf()
+    val typedefs: MutableMap<String, TypeAttributes> = mutableMapOf()
     val unionIdMap: MutableMap<String, Int> = mutableMapOf()
     val functions: MutableMap<String, FuncAttributes> = hashMapOf()
     val collect: MutableMap<VarWithSID, VarAttributes> = hashMapOf()
@@ -50,30 +52,41 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException(def.name(), entry.type, entry.index)
                 }
-                typedefs[def.type] = TypeAttributes(false, setOf(def.name()), def.startIndex)
+                typedefs[def.type.name] = TypeAttributes(false, mutableMapOf(), setOf(def.name()), def.startIndex)
                 functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, def.startIndex)
             }
 
             is NewTypeDef.UnionTypeDef -> {
-                val entry = typedefs[def.type]
+                val entry = typedefs[def.type.name]
                 if (entry != null) {
                     throw MultipleFuncDefException("def.name()", def.type, entry.index)
                 }
-                typedefs[def.type] = TypeAttributes(true, def.memberMap.keys, def.startIndex)
+                typedefs[def.type.name] = TypeAttributes(true, mutableMapOf(), def.memberMap.keys, def.startIndex)
                 var unionId = 0
                 def.memberMap.forEach { (constructor, params) ->
                     val fentry = functions[constructor]
                     if (fentry != null) {
                         throw MultipleFuncDefException(constructor, fentry.type, fentry.index)
                     }
-                    val funType = Type.FuncType(def.type, params.map { it.first })
+                    val funType = FuncType(def.type, params.map { it.first })
                     System.err.println(">> $funType")
                     functions[constructor] = FuncAttributes(funType, params, def.startIndex)
                     unionIdMap[constructor] = unionId++
                 }
             }
         }
+    }
 
+    fun defineTrait(traitDef: TraitDef) {
+        val trait = Trait(traitDef.traitName)
+        val entry = traitDefs[trait]
+        if (entry != null) {
+            throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
+        }
+        if(traitDef.typeConstraints.any { it.typeVar != traitDef.traitVar }) {
+            throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
+        }
+        traitDefs[trait] = TraitAttributes(traitDef.typeConstraints.map { it.trait }.toSet())
     }
 
     fun pushScope() {
@@ -106,6 +119,8 @@ class SymbolTable {
 
     fun lookupFunc(ident: String): FuncAttributes? = functions[ident]?.addOccurrence()
 
+    fun lookupType(type: NewType): TypeAttributes? = typedefs[type.name]
+
     fun findConstructorType(constructor: String): NewType? = lookupFunc(constructor)?.type?.retType as? NewType
 
     fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
@@ -137,18 +152,24 @@ class SymbolTable {
 
     fun isInstance(type: Type, trait: Trait): Boolean {
         return when(type) {
-            is Type.BaseType -> when(type.kind) {
-                Type.BaseTypeKind.INT -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum")
-                Type.BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
-                Type.BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
-                Type.BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show")
-                Type.BaseTypeKind.ANY -> TODO()
+            is BaseType -> when(type.kind) {
+                BaseTypeKind.INT -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
+                BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
+                BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum", "Read")
+                BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show", "Read")
+                BaseTypeKind.ANY -> TODO()
             }
-            is Type.ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
-            is Type.PairType -> TODO()
-            is NewType -> TODO()
-            is Type.TypeVar -> trait in type.traits
-            is Type.FuncType -> TODO()
+            is ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
+            is PairType -> TODO()
+            is NewType -> {
+                val entry = lookupType(type)?:throw SemanticException.UndefinedTypeException(type.name)
+                trait in entry.implementations && type.generics.withIndex().all { (i, type) ->
+                    val traits = entry.implementations.getValue(trait)[i]
+                    traits.all { isInstance(type, it) }
+                }
+            }
+            is TypeVar -> trait in type.traits
+            is FuncType -> TODO()
         }
     }
 
@@ -189,7 +210,7 @@ class SymbolTable {
                     anyArrayType()
                 } else {
                     if (expr.elements.isEmpty()) {
-                        Type.ArrayType(Type.BaseType(Type.BaseTypeKind.ANY))
+                        ArrayType(BaseType(BaseTypeKind.ANY))
                     } else {
                         val fstType = getType(expr.elements[0], accessType)
                         for (e in expr.elements.drop(1)) {
@@ -198,14 +219,14 @@ class SymbolTable {
                                 throw SemanticException.TypeMismatchException(fstType, sndType)
                             }
                         }
-                        Type.ArrayType(fstType)
+                        ArrayType(fstType)
                     }
                 }
             }
             is Expression.NewPair -> {
                 getType(expr.first, accessType).let { t1 ->
                     getType(expr.second, accessType).let { t2 ->
-                        Type.PairType(t1, t2)
+                        PairType(t1, t2)
                     }
                 }
             }
@@ -221,7 +242,7 @@ class SymbolTable {
                 return when {
                     newType !is NewType ->
                         throw SemanticException.TypeMismatchException(newType, newType)
-                    typedefs.getValue(newType).isUnion ->
+                    typedefs.getValue(newType.name).isUnion ->
                         throw SemanticException.TypeMismatchException(newType, newType)
                     else -> functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
                                 ?: throw SemanticException.UndefinedFuncException(newType.toString())
@@ -282,15 +303,22 @@ class SymbolTable {
         scopeDefs[prevId] = prev.keys
     }
 
-    data class FuncAttributes(val type: Type.FuncType, val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
+    data class FuncAttributes(val type: FuncType, val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): FuncAttributes = this.also { occurrences++ }
     }
     data class VarAttributes(val type: Type, val isConst: Boolean, val scopeId: Int, val index: Index, var occurrences: Int = 1) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
-    data class TypeAttributes(val isUnion: Boolean, val constructors: Set<String>, val index: Index, var occurrences: Int = 1) {
+    data class TypeAttributes(
+            val isUnion: Boolean,
+            val implementations: MutableMap<Trait, List<Set<Trait>>>,
+            val constructors: Set<String>,
+            val index: Index,
+            var occurrences: Int = 1
+    ) {
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
+    data class TraitAttributes(val dependencies: Set<Trait>)
     enum class AccessType {
         IN_SEM_CHECK, IN_CODE_GEN
     }

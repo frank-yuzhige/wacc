@@ -44,6 +44,8 @@ sealed class Type {
         }
 
         override fun isGround(): Boolean = type.isGround()
+
+        override fun reified(constraints: List<TypeConstraint>): Type = ArrayType(type.reified(constraints))
     }
 
     data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
@@ -76,14 +78,17 @@ sealed class Type {
         }
 
         override fun isGround(): Boolean = generics.all { it.isGround() }
-
+        override fun reified(constraints: List<TypeConstraint>): Type {
+            return NewType(name, generics.map { it.reified(constraints) })
+        }
     }
 
     data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
         constructor(name: String, vararg traits: Trait): this(name, traits.toList())
 
         override fun toString(): String = if(isReified) "@_$name" else "_$name"
-        override fun reified(): Type = TypeVar(name, traits,true)
+        override fun reified(constraints: List<TypeConstraint>): Type =
+                TypeVar(name, constraints.filter { it.typeVar == name }.map { it.trait },true)
         override fun bindConstraints(constraints: List<TypeConstraint>): Type {
             return TypeVar(name, traits + constraints.filter { it.typeVar == name }.map { it.trait }, isReified)
         }
@@ -115,9 +120,9 @@ sealed class Type {
             return "$constraints(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
         }
 
-        override fun reified(): Type = FuncType(
-                retType.reified(),
-                paramTypes.map { it.reified() }
+        override fun reified(constraints: List<TypeConstraint>): Type = FuncType(
+                retType.reified(constraints),
+                paramTypes.map { it.reified(constraints) }
         )
 
         override fun bindConstraints(constraints: List<TypeConstraint>): Type {
@@ -148,7 +153,7 @@ sealed class Type {
 
     open fun normalize(): Type = this
 
-    open fun reified(): Type = this
+    open fun reified(constraints: List<TypeConstraint>): Type = this
 
     open fun bindConstraints(constraints: List<TypeConstraint>): Type = this
 

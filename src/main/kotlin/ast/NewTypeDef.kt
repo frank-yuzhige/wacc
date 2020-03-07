@@ -15,7 +15,7 @@ sealed class NewTypeDef: WaccAST() {
                 ";\nend"
         override fun tellIdentity(): String = "a newtype definition"
 
-        fun name(): String = type.toString()
+        fun name(): String = type.name
 
         fun constructorFuncType(): FuncType {
             return FuncType(type, members.map { it.first })

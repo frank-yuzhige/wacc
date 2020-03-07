@@ -1,12 +1,18 @@
 begin
 
-A sum(A a, A b) where A: Num is
-    return a + b;
+newtype List<A> is union
+    Nil;
+    Node of (A elem, List<A> next);
 end
 
-int a = sum(1, 2);
-char c = sum('C', 'A');
-println a;
-println c;
+List<K> fromTwo(K a1, K a2) where K: Ord is
+    List<K> e = Nil();
+    var l1 = Node(a1, e);
+    var l2 = Node(a2, l1);
+    return l2;
+end
+
+var a = fromTwo(1, 2);
+List<int> e = Nil();
 
 end

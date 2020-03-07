@@ -1,7 +1,7 @@
 begin
 
 newtype Foo is
-    int[] arr
+    int[] arr;
 end
 
 int[] arr = [1, 2, 3];

@@ -1,5 +1,6 @@
 package exceptions
 
+import ast.Trait
 import ast.Type
 import semantics.accessToUndefinedFunc
 import semantics.accessToUndefinedVar
@@ -14,11 +15,26 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class UndefinedFuncException(funcName: String) :
             SemanticException(accessToUndefinedFunc(funcName))
 
+    class UndefinedTypeException(typeName: String):
+            SemanticException("Unable to find definition for type: $typeName!")
+
+    class MultipleVarDefInPatternException(vars: List<String>):
+            SemanticException("Found multiple ${vars.joinToString(", ") { "'$it'" }} in a pattern!")
+
+    class MultipleTraitDefException(trait: String, index: Index):
+            SemanticException("Trait \"$trait\" has already been defined at $index")
+
     class MultipleFuncDefException(function: String, type: Type, index: Index) :
             SemanticException("Function \"$function :: $type\" has already been defined at $index!")
 
     class TypeMismatchException(expected: Type, actual: Type) :
             SemanticException(typeMismatchError(expected, actual))
+
+    class TypeNotSatisfyingTraitsException(type: Type, traits: Iterable<Trait>):
+            SemanticException("$type does not implement ${traits.joinToString(", ") { it.toString() }}")
+
+    class NotAStructTypeException(type: Type):
+            SemanticException("$type is not a structural type!")
 
     class NotEnoughArrayRankException(arrName: String):
             SemanticException("'$arrName' does not have enough rank!")

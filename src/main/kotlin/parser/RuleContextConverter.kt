@@ -58,7 +58,7 @@ class RuleContextConverter() {
         return result
     }
 
-    private fun StatsContext.toFuncBodyAST(): Statements {
+    private fun StatsContext.toFuncBodyAST(typeVars: Set<String> = emptySet()): Statements {
         fun StatContext.isTerminator(): Boolean = when (this) {
             is BuiltinFuncCallContext ->
                 this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
@@ -70,7 +70,7 @@ class RuleContextConverter() {
         if (!this.stat().last().isTerminator()) {
             logError(LastStatIsNotTerminatorException())
         }
-        return this.toAST()
+        return this.toAST(typeVars)
     }
 
     fun FuncContext.toAST(defaultConstraint: TypeConstraint? = null): Function {
@@ -89,7 +89,7 @@ class RuleContextConverter() {
                 ident().text,
                 args,
                 constraints,
-                stats().toFuncBodyAST()
+                stats().toFuncBodyAST(typeVars)
         ).records(start(), end())
         stack.pop()
         return result
@@ -216,6 +216,7 @@ class RuleContextConverter() {
     }
 
     private fun GenericTVarsContext.toAST(): List<String> = this.capIdent().map { it.text }
+            .also { if (it.toHashSet().size < it.size) logError(MultipleTVarsWithSameNameException()) }
 
     private fun UnionEntryContext.toAST(typeVars: Set<String>): Pair<String, List<Parameter>> {
         return capIdent().text to member().map { it.toAST(typeVars) }
@@ -241,18 +242,18 @@ class RuleContextConverter() {
 
     private fun ParamContext.toAST(typeVars: Set<String>): Parameter = type().toAST(typeVars) to ident().toAST()
 
-    private fun StatsContext.toAST(): Statements {
-        return stat().map { it.toAST() }
+    private fun StatsContext.toAST(typeVars: Set<String> = emptySet()): Statements {
+        return stat().map { it.toAST(typeVars) }
     }
 
-    private fun StatContext.toAST(): Statement {
+    private fun StatContext.toAST(typeVars: Set<String> = emptySet()): Statement {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
             is DeclarationContext ->
-                Declaration(false, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+                Declaration(false, type()?.toAST(typeVars)?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is ConstDeclarationContext ->
-                Declaration(true, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+                Declaration(true, type()?.toAST(typeVars)?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
             is ReadCallContext -> Read(assignLhs().toAST())
             is BuiltinFuncCallContext ->
@@ -269,7 +270,7 @@ class RuleContextConverter() {
                 val defType = if (type() == null && VAR() == null) {
                     null
                 } else {
-                    type()?.toAST()?: anyType()
+                    type()?.toAST(typeVars)?: anyType()
                 }
                 ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
             }

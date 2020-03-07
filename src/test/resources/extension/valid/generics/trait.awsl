@@ -1,0 +1,22 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+newtype List<A> is union
+    Nil;
+    Node of (A elem, List<A> next);
+end
+
+implement List<A>: Pure is
+    List<A> pure() is
+        return Nil();
+    end
+end
+
+A something() where A: Pure is
+
+end
+
+end
