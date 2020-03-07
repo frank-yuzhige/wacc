@@ -1,0 +1,24 @@
+begin
+
+newtype Maybe<A> is union
+    Nothing;
+    Just of (A value);
+end
+
+A fromJust(Maybe<A> maybe) where forall A is
+    when(maybe):
+        is Nothing -> exit -1;
+        is Just(a) -> return a;
+    end;
+end
+
+var x = Just("hello world!");
+var str = fromJust(x);
+println str;
+x = Nothing();
+str = fromJust(x);
+
+# exit -1 here!
+
+
+end

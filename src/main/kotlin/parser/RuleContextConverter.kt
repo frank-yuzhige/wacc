@@ -65,6 +65,8 @@ class RuleContextConverter() {
                 this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
             is CondBranchContext ->
                 this.stats().all { it.stat().last()?.isTerminator() ?: false }
+            is WhenClauseContext ->
+                this.whenCase().all { it.stats().stat().last()?.isTerminator() ?: false }
             else -> false
         }
 
