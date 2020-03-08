@@ -130,7 +130,11 @@ class SemanticAnalyzer() {
         treeStack.pop()
     }
 
-    private fun Statements.checkBlock(returnType: Type = anyType(), typeconstraints: List<TypeConstraint> = emptyList(), preDefinitons: () -> Unit = {}) {
+    private fun Statements.checkBlock(
+            returnType: Type = anyType(),
+            typeconstraints: List<TypeConstraint> = emptyList(),
+            preDefinitons: () -> Unit = {}
+    ) {
         symbolTable.pushScope()
         preDefinitons()
         this.map { it.check(returnType, typeconstraints) }

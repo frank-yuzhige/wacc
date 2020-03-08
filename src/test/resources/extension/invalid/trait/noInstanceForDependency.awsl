@@ -1,0 +1,24 @@
+begin
+
+trait A: SomeTrait where forall A is
+    A someFunc(A a) is required
+end
+
+trait B: SomeMoreTrait where A: SomeTrait is
+    A someMoreFunc(A a) is required
+end
+
+newtype Some is
+    int x;
+end
+
+instance Some: SomeMoreTrait where
+    Some someMoreFunc(Some a) is
+        return a;
+    end;
+end
+
+var s = Some(100);
+s = someMoreFunc(s);
+
+end

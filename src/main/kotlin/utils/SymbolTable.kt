@@ -8,6 +8,7 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
+import java.lang.IllegalArgumentException
 import java.util.*
 
 class SymbolTable {
@@ -105,7 +106,17 @@ class SymbolTable {
             is NewType -> {
                 val traitEntry = traitDefs[instance.trait]
                         ?: throw UndefinedTraitException(instance.trait.traitName)
-                // check if required are all defined, and other definitions are defaults.
+                // check if all dependencies are implemented.
+                for (dependency in traitEntry.dependencies) {
+                    if (!isInstance(instance.targetType, dependency)) {
+                        throw TypeNotInstanceOfADependentTraitException(
+                                instance.targetType,
+                                instance.trait.traitName,
+                                dependency.traitName
+                        )
+                    }
+                }
+                // check if required are all defined.
                 val sub = mapOf((traitEntry.traitVar to false) to instance.targetType)
                 val remainingRequired = traitEntry.requiredFuncs
                         .map { it.name to it.getFuncType().substitutes(sub) }
@@ -133,7 +144,7 @@ class SymbolTable {
                         ?: throw UndefinedTypeException(instance.targetType.name)
                 val traitList = instance.targetType.generics.map { tvar ->
                     when{
-                        tvar !is TypeVar -> TODO() // unsupported
+                        tvar !is TypeVar -> throw InstanceWithGroundGenericTypeException(tvar)
                         else -> {
                             instance.typeConstraints
                                     .filter { it.typeVar == tvar.name }
@@ -224,7 +235,7 @@ class SymbolTable {
                 BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
                 BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
                 BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show", "Read")
-                BaseTypeKind.ANY -> TODO()
+                BaseTypeKind.ANY -> throw IllegalArgumentException("Base type ANY is deprecated, only used in var")
             }
             is ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
             is PairType -> TODO()
@@ -236,14 +247,15 @@ class SymbolTable {
                 }
             }
             is TypeVar -> trait in type.traits
-            is FuncType -> TODO()
+            is FuncType -> false
         }
     }
 
     fun findTraitFuncDef(fName: String, groundType: FuncType): Function {
         val fEntry = functions[fName] ?: throw UndefinedFuncException(fName)
         if(fEntry.trait != null) {
-            val tEntry = traitDefs[fEntry.trait] ?: throw UndefinedTraitException(fEntry.trait.traitName)
+            val tEntry = traitDefs[fEntry.trait]
+                    ?: throw UndefinedTraitException(fEntry.trait.traitName)
             for (impl in tEntry.implementations.getValue(fName)) {
                 try { groundType.inferFrom(impl.getFuncType(), this) }
                 catch (sme: SemanticException) {
@@ -251,7 +263,7 @@ class SymbolTable {
                 }
                 return impl
             }
-            TODO() // error: no trait function matching...
+            throw NotATraitRequiredFuncException(fName, fEntry.trait.traitName)
         }
         TODO() // error: not a trait function
     }

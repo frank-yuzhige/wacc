@@ -53,4 +53,13 @@ open class SemanticException(val msg: String) : Exception(msg) {
 
     class WriteToConstVarException(name: String):
             SemanticException("Attempt to write to a constant variable $name")
+
+    class NotATraitRequiredFuncException(fName: String, traitName: String):
+            SemanticException("Trait $traitName does not require function $fName")
+
+    class TypeNotInstanceOfADependentTraitException(type: Type, currentTrait: String, missingTrait: String):
+            SemanticException("Trait $currentTrait requires $missingTrait, yet $type is not an instance of $missingTrait!")
+
+    class InstanceWithGroundGenericTypeException(type: Type):
+            SemanticException("Unsupported operation of implementing a trait for a type $type with a ground generic type")
 }

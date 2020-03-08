@@ -1,0 +1,96 @@
+# A simple demonstration for Semigroup and Monoid trait.
+begin
+
+trait A: Semigroup where forall A is
+    A append(A a, A b) is required
+end
+
+trait A: Monoid where A: Semigroup is
+    A epsilon() is required
+end
+
+newtype AndBool is
+    bool b;
+end
+
+newtype OrBool is
+    bool b;
+end
+
+newtype PlusInt is
+    int i;
+end
+
+newtype MulInt is
+    int i;
+end
+
+instance AndBool: Semigroup is
+    AndBool append(AndBool a, AndBool b) is
+        return AndBool(a.b && b.b);
+    end
+end
+
+instance AndBool: Monoid is
+    AndBool epsilon() is
+        return AndBool(true);
+    end
+end
+
+instance OrBool: Semigroup is
+    OrBool append(OrBool a, OrBool b) is
+        return OrBool(a.b || b.b);
+    end
+end
+
+instance OrBool: Monoid is
+    OrBool epsilon() is
+        return OrBool(false);
+    end
+end
+
+instance PlusInt: Semigroup is
+    PlusInt append(PlusInt a, PlusInt b) is
+        return PlusInt(a.i + b.i);
+    end
+end
+
+instance PlusInt: Monoid is
+    PlusInt epsilon() is
+        return PlusInt(0);
+    end
+end
+
+instance MulInt: Semigroup is
+    MulInt append(MulInt a, MulInt b) is
+        return PlusInt(a.i * b.i);
+    end
+end
+
+instance MulInt: Monoid is
+    MulInt epsilon() is
+        return MulInt(1);
+    end
+end
+
+AndBool abe = epsilon();
+OrBool  obe = epsilon();
+PlusInt pie = epsilon();
+MulInt  mie = epsilon();
+
+var ab = AndBool(false);
+ab = append(abe, ab);
+println ab.b;         # false
+ab = append(ab, abe);
+println ab.b;         # false
+
+var mi4 = MulInt(4);
+var mi10 = MulInt(10);
+var mi40 = append(mi4, mi10);
+
+println mi40.i;       # 40
+
+var mi0 = append(mie, mi40);
+println mi0;          # 0
+
+end
