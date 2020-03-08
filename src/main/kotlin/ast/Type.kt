@@ -43,6 +43,7 @@ sealed class Type {
             return ArrayType(type.substitutes(substitutions))
         }
 
+        override fun isDetermined(): Boolean = type.isDetermined()
         override fun isGround(): Boolean = type.isGround()
 
         override fun reified(constraints: List<TypeConstraint>): Type = ArrayType(type.reified(constraints))
@@ -77,6 +78,7 @@ sealed class Type {
             return NewType(name, generics.map { it.substitutes(substitutions) })
         }
 
+        override fun isDetermined(): Boolean = generics.all { it.isDetermined() }
         override fun isGround(): Boolean = generics.all { it.isGround() }
         override fun reified(constraints: List<TypeConstraint>): Type {
             return NewType(name, generics.map { it.reified(constraints) })
@@ -105,7 +107,8 @@ sealed class Type {
             return result
         }
 
-        override fun isGround(): Boolean = isReified
+        override fun isDetermined(): Boolean = isReified
+        override fun isGround(): Boolean = false
     }
 
     data class FuncType(val retType: Type,
@@ -118,6 +121,11 @@ sealed class Type {
         override fun toString(): String {
             val constraints = if (collectConstraints().isNotEmpty()) "[${collectConstraints().joinToString(", ")}] => " else ""
             return "$constraints(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
+        }
+
+        fun printAsLabel(): String {
+            assert(isGround())
+            return "${paramTypes.joinToString("_")}__$retType"
         }
 
         override fun reified(constraints: List<TypeConstraint>): Type = FuncType(
@@ -146,6 +154,7 @@ sealed class Type {
             return collect.flatMap { (name, traits) -> traits.map { TypeConstraint(it, name) } }
         }
 
+        override fun isDetermined(): Boolean = (paramTypes + retType).all { it.isDetermined() }
         override fun isGround(): Boolean = (paramTypes + retType).all { it.isGround() }
     }
 
@@ -157,7 +166,37 @@ sealed class Type {
 
     open fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type = this
 
+    open fun isDetermined(): Boolean = true
+
     open fun isGround(): Boolean = true
+
+    fun findUnifier(original: Type): Map<Pair<String, Boolean>, Type> {
+        return when(original) {
+            is BaseType -> emptyMap()
+            is ArrayType -> when {
+                this is ArrayType -> type.findUnifier(original.type)
+                else -> emptyMap()
+            }
+            is PairType -> TODO()
+            is NewType -> when {
+                this is NewType && name == original.name -> {
+                    val map = mutableMapOf<Pair<String, Boolean>, Type>()
+                    generics.zip(original.generics).forEach { (new, old) ->
+                        map.putAll(new.findUnifier(old))
+                    }
+                    map
+                }
+                else -> emptyMap()
+            }
+            is TypeVar -> mapOf((original.name to original.isReified) to this)
+            is FuncType -> when(this) {
+                is FuncType -> paramTypes.zip(original.paramTypes) { c, p -> c.findUnifier(p) }
+                        .fold(mutableMapOf<Pair<String, Boolean>, Type>()) { a, b -> a.also{ a.putAll(b)} } +
+                        retType.findUnifier(original.retType)
+                else -> emptyMap()
+            }
+        }
+    }
 
     fun unwrapArrayType(): Type? = when (this) {
         is ArrayType -> type

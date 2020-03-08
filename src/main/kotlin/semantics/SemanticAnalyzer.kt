@@ -193,7 +193,7 @@ class SemanticAnalyzer() {
             }
             is WhenClause -> try {
                 val matchingType = expr.checkExpr(anyType())
-                if (!matchingType.isGround()) {
+                if (!matchingType.isDetermined()) {
                     throw UngroundTypeException(matchingType)
                 }
                 whenCases.forEach { (pattern, stmts) ->
@@ -326,7 +326,7 @@ class SemanticAnalyzer() {
                         throw FuncCallArgsMismatchException(ident, newFuncType.paramTypes.size, args.size)
                     }
                     val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
-                    val sub: Map<Pair<String, Boolean>, Type> = argsGrounds
+                    val sub: Grounding = argsGrounds
                             .zip(newFuncType.paramTypes) { ground, type -> ground.findUnifier(type)  }
                             .fold(mutableMapOf()) { a, b -> a.also { it.putAll(b) } }
 
@@ -340,7 +340,7 @@ class SemanticAnalyzer() {
         }
         type = inferredType
         System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
-        if (!inferredType.isGround()) {
+        if (!inferredType.isDetermined()) {
             logAction(listOf(UngroundTypeException(inferredType).msg))
         }
         treeStack.pop()
@@ -359,29 +359,6 @@ class SemanticAnalyzer() {
         val newRet = retType inferFrom expecting
         val sub = newRet.findUnifier(retType)
         return (this.substitutes(sub) as FuncType)
-    }
-
-    private fun Type.findUnifier(original: Type): Map<Pair<String, Boolean>, Type> {
-        return when(original) {
-            is BaseType -> emptyMap()
-            is ArrayType -> when {
-                this is ArrayType -> type.findUnifier(original.type)
-                else -> emptyMap()
-            }
-            is PairType -> TODO()
-            is NewType -> when {
-                this is NewType && name == original.name -> {
-                    val map = mutableMapOf<Pair<String, Boolean>, Type>()
-                    generics.zip(original.generics).forEach { (new, old) ->
-                        map.putAll(new.findUnifier(old))
-                    }
-                    map
-                }
-                else -> emptyMap()
-            }
-            is TypeVar -> mapOf((original.name to original.isReified) to this)
-            is FuncType -> TODO()
-        }
     }
 
     private infix fun Type.inferFrom(expecting: Type): Type {

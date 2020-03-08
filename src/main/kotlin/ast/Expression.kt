@@ -1,11 +1,16 @@
 package ast
 
 import utils.EscapeCharMap.Companion.fromEscape
+import utils.Grounding
 import utils.VarWithSID
 
 interface Literal
 
 sealed class Expression(var type: Type = Type.TypeVar("A", emptyList()), var inParens: Boolean = false) : WaccAST() {
+
+    fun ground(grounding: Grounding): Expression {
+        return this.also { type = type.substitutes(grounding) }
+    }
 
     override fun tellIdentity(): String = "an expression"
     enum class PairElemFunction(val value: String) {

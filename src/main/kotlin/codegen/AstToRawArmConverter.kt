@@ -58,6 +58,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private val maxImmNum = 1024
     private var blockComplete = false
     private var virtualRegIdAcc = 4
+    private val groundFunctionList = mutableListOf<GroundFunction>()
+    private val groundConstructorSet = mutableSetOf<GroundConstructor>()
+    private var currentGrounding: Grounding = emptyMap()
 
     var currBlockLabel = Label("")
 
@@ -76,7 +79,13 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0)),
                 typeConstraints = emptyList()
         ).toARM()
-        functions.map { it.toARM() }
+        /* generate all ground functions */
+        functions.filter { it.getFuncType().isGround() }.map { it.toARM() }
+        while (groundFunctionList.isNotEmpty()) {
+            val curr = groundFunctionList.removeAt(0)
+            currentGrounding = curr.funcType.findUnifier(curr.function.getFuncType())
+            curr.function.toARM(curr.funcType)
+        }
         definePreludes()
     }
 
@@ -118,11 +127,14 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         addDirective(LTORG)
     }
 
-    private fun ast.Function.toARM() {
-        val originalOffset = spOffset
+    private fun Function.toARM(type: FuncType? = null) {
         spOffset = 0
         currScopeOffset = 0
-        setBlock(funcLabelMap.getValue(name))
+        if(type == null) {
+            setBlock(funcLabelMap.getValue(this.name))
+        } else {
+            setBlock(funcLabelMap.getValue("f_" + name + "_" + type.printAsLabel()))
+        }
         push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second, args.toSet()) }
         var offsetAcc = -4
@@ -143,7 +155,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is Declaration -> {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
-                alloca(variable, reg, sizeof(type))
+                alloca(variable, reg, sizeof(rhs.type))
             }
 
             is Assignment -> {
@@ -282,6 +294,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun Expression.toARM(): Operand {
+        this.ground(currentGrounding)
+        assert(type.isGround())
         return when (this) {
             NullLit -> immNull()
             is IntLit -> {
@@ -403,13 +417,32 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     store(reg, Offset(SpecialReg(SP), -size, true), size)
                     spOffset += size
                 }
-                bl(AL, funcLabelMap.getValue(ident))
+                val funcAttr = symbolTable.lookupFunc(ident)!!
+                if (funcAttr.type.isGround()) {
+                    bl(AL, funcLabelMap.getValue(ident))
+                } else {
+                    val actualFuncType = FuncType(type, args.map { it.type })
+                    val fLabel = groundGenericFunc(ident, actualFuncType)
+                    bl(AL, fLabel)
+                }
                 moveSP(spOffset - oldSPOffset)
                 notifyCompiler(CompilerNotifier.CallerSavePop)
                 mov(getReg(), Reg(0))
             }
             is EnumRange -> TODO()
         }
+    }
+
+    /* Generate a ground function entry, push it to the queue. Return its label.*/
+    private fun groundGenericFunc(fname: String, actualFuncType: FuncType): Label {
+        val labelName = "f_" + fname + "_" + actualFuncType.printAsLabel()
+        if(labelName in funcLabelMap) {
+            return Label(labelName)
+        }
+        val def = ast.functions.first { it.name == fname }
+        groundFunctionList += GroundFunction(def, actualFuncType)
+        funcLabelMap[labelName] = Label(labelName)
+        return Label(labelName)
     }
 
     private fun Pattern.defineConsts(unionAtReg: Register) {
@@ -883,10 +916,11 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         return format + if (newline) "\\n" else ""
     }
 
-    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_CODE_GEN)
+    private fun Expression.getType(): Type = this.type
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1
+        is TypeVar -> sizeof(currentGrounding[type.name to false]!!)
         else -> 4
     }
 }

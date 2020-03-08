@@ -212,7 +212,7 @@ class SymbolTable {
             is BaseType -> when(type.kind) {
                 BaseTypeKind.INT -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
                 BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
-                BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum", "Read")
+                BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
                 BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show", "Read")
                 BaseTypeKind.ANY -> TODO()
             }
