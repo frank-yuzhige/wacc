@@ -73,6 +73,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         Function(returnType = intType(),
                 name = "main",
                 args = mutableListOf(),
+                typeConstraints = listOf<TypeConstraint>(),
                 body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
         ).toARM()
         functions.map { it.toARM() }

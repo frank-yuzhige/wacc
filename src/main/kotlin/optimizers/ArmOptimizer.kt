@@ -12,16 +12,34 @@ import utils.TablePrinter
 typealias Liveness = Pair<MutableSet<Register>, MutableSet<Register>>
 typealias LivenessList = MutableList<Pair<Instruction, Liveness>>
 
-class ArmOptimizer(options: OptimizationOption) {
+class ArmOptimizer(option: OptimizationOption) {
     private val blockLivenessMap: MutableMap<String, LivenessList> = mutableMapOf()
     private val regToOffsetMap: MutableMap<Offset, Register> = mutableMapOf()
     fun doOptimize(armProgram: ArmProgram): ArmProgram {
-        armProgram.blocks.forEach {
+        val separatedBlocks = separateBlocks(armProgram)
+        val nonPreludeBlocks = separatedBlocks.first
+        val preludeBlocks = separatedBlocks.second
+        nonPreludeBlocks.forEach {
             it.initialize()
             it.performLivenessAnalysis()
         }
         dumpLivenessMap()
-        return ArmProgram(armProgram.stringConsts, armProgram.blocks.map { it.sweepDeadCode() })
+        return ArmProgram(armProgram.stringConsts, nonPreludeBlocks.map { it.sweepDeadCode() } + preludeBlocks)
+    }
+
+    /**
+     * Separate the instruction blocks in the arm program into two sets: the ones that are prelude functions, and
+     * the ones that are not
+     */
+    private fun separateBlocks(arm: ArmProgram): Pair<List<InstructionBlock>, List<InstructionBlock>> {
+        var separationIndex = 0
+        for ((index, instrBlock) in arm.blocks.withIndex()) {
+            if (instrBlock.label.name.startsWith("p_")) {
+                separationIndex = index
+                break;
+            }
+        }
+        return arm.blocks.subList(0, separationIndex) to arm.blocks.subList(separationIndex, arm.blocks.lastIndex)
     }
 
     /**

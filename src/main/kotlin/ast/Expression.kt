@@ -68,7 +68,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun prettyPrint(): String = "${expr.prettyPrint()}.$memberName"
     }
 
-    data class ArrayLiteral(val elements: List<Expression>) : Expression() {
+    data class ArrayLiteral(val elements: List<Expression>) : Expression(), Literal {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
         override fun tellIdentity(): String = "an array literal"
     }

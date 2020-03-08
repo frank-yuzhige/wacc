@@ -75,7 +75,7 @@ class RuleContextConverter() {
     fun FuncContext.toAST(): Function {
         stack.push(this)
         val result = Function(type().toAST(), ident().text,
-                paramList()?.toAST() ?: emptyList(),
+                paramList()?.toAST() ?: emptyList(), emptyList(),
                 stats().toFuncBodyAST()).records(start(), end())
         stack.pop()
         return result
