@@ -51,6 +51,7 @@ class AstOptimizer(option: OptimizationOption) {
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0 && rhsOptimized is Literal) {
                 programState.defineVarInCurrentScope(variable, rhsOptimized)
+                if (rhsOptimized is HeapType) { rhsOptimized.reference = variable.name }
                 if (rhsOptimized.isPrimitiveLiteral()) {
                     Declaration(isConst, type, variable, rhsOptimized)
                 } else { this }

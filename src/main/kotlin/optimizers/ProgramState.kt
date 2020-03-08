@@ -11,6 +11,7 @@ import java.util.*
 class ProgramState() {
     private val currentState: Deque<MutableMap<String, Literal>> = ArrayDeque()
     private val previousState: Deque<MutableMap<String, Literal>> = ArrayDeque()
+
     fun enterScope(): Unit = currentState.push(hashMapOf())
     fun exitScope(): MutableMap<String, Literal> = currentState.pop()
 

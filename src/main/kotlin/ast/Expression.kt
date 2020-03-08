@@ -4,6 +4,9 @@ import utils.EscapeCharMap.Companion.fromEscape
 import utils.VarWithSID
 
 interface Literal
+interface HeapType {
+    var reference: String
+}
 
 sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     override fun tellIdentity(): String = "an expression"
@@ -30,7 +33,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun tellIdentity(): String = "an char literal"
     }
 
-    data class StringLit(val string: String) : Expression(), Literal {
+    data class StringLit(val string: String, override var reference: String = "") : Expression(), Literal, HeapType {
         override fun prettyPrint(): String = "\"${fromEscape(string)}\""
         override fun tellIdentity(): String = "an string literal"
     }
@@ -68,12 +71,12 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun prettyPrint(): String = "${expr.prettyPrint()}.$memberName"
     }
 
-    data class ArrayLiteral(val elements: List<Expression>) : Expression(), Literal {
+    data class ArrayLiteral(val elements: List<Expression>, override var reference: String = "") : Expression(), Literal, HeapType {
         override fun prettyPrint(): String = "[${elements.joinToString(", ") { it.prettyPrint() }}]"
         override fun tellIdentity(): String = "an array literal"
     }
 
-    data class NewPair(val first: Expression, val second: Expression) : Expression(), Literal {
+    data class NewPair(val first: Expression, val second: Expression, override var reference: String = "") : Expression(), Literal, HeapType {
         override fun prettyPrint(): String = "newpair(${first.prettyPrint()}, ${second.prettyPrint()})"
         override fun tellIdentity(): String = "a newpair declaration"
     }

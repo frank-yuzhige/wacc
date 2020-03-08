@@ -32,7 +32,10 @@ class ArmOptimizer(option: OptimizationOption) {
      * the ones that are not
      */
     private fun separateBlocks(arm: ArmProgram): Pair<List<InstructionBlock>, List<InstructionBlock>> {
-        var separationIndex = 0
+        if (arm.blocks.size == 1) {
+            return arm.blocks to emptyList()
+        }
+        var separationIndex = 1
         for ((index, instrBlock) in arm.blocks.withIndex()) {
             if (instrBlock.label.name.startsWith("p_")) {
                 separationIndex = index
