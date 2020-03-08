@@ -4,10 +4,8 @@ import ast.*
 import ast.Expression.Identifier
 import ast.Function
 import ast.Type.*
-import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
-import ast.Type.Companion.rangeTypeOf
 import exceptions.SemanticException
 import exceptions.SemanticException.*
 import java.util.*
@@ -41,7 +39,7 @@ class SymbolTable {
         if (entry != null) {
             throw MultipleFuncDefException(func.name, entry.type, entry.index)
         }
-        functions[func.name] = FuncAttributes(func.getFuncType(), func.args, func.startIndex)
+        functions[func.name] = FuncAttributes(func.getFuncType(), func.args, null, func.startIndex)
     }
 
     fun defineType(def: NewTypeDef) {
@@ -52,7 +50,7 @@ class SymbolTable {
                     throw MultipleFuncDefException(def.name(), entry.type, entry.index)
                 }
                 typedefs[def.type.name] = TypeAttributes(false, mutableMapOf(), setOf(def.name()), def.startIndex)
-                functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, def.startIndex)
+                functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, null, def.startIndex)
             }
 
             is NewTypeDef.UnionTypeDef -> {
@@ -68,7 +66,7 @@ class SymbolTable {
                         throw MultipleFuncDefException(constructor, fentry.type, fentry.index)
                     }
                     val funType = FuncType(def.type, params.map { it.first })
-                    functions[constructor] = FuncAttributes(funType, params, def.startIndex)
+                    functions[constructor] = FuncAttributes(funType, params, null, def.startIndex)
                     unionIdMap[constructor] = unionId++
                 }
             }
@@ -84,6 +82,10 @@ class SymbolTable {
         if(traitDef.typeConstraints.any { it.typeVar != traitDef.traitVar }) {
             throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
         }
+        val dups = traitDef.typeConstraints.countDuplicates()
+        if(dups.isNotEmpty()) {
+            TODO() //error: duplicate dependencies.
+        }
         traitDefs[trait] = TraitAttributes(
                 traitDef.traitVar,
                 traitDef.typeConstraints.map { it.trait }.toSet(),
@@ -91,7 +93,7 @@ class SymbolTable {
                 traitDef.defaultFuncs
         )
         traitDef.requiredFuncs.forEach { header ->
-            functions[header.name] = FuncAttributes(header.getFuncType(), header.args, header.startIndex)
+            functions[header.name] = FuncAttributes(header.getFuncType(), header.args, trait, header.startIndex)
         }
     }
 
@@ -230,99 +232,13 @@ class SymbolTable {
         }
     }
 
-    fun getType(expr: Expression, accessType: AccessType): Type {
-        return when(expr) {
-            Expression.NullLit -> Type.anyPairType()
-            is Expression.IntLit -> Type.intType()
-            is Expression.BoolLit -> Type.boolType()
-            is Expression.CharLit -> Type.charType()
-            is Expression.StringLit -> Type.stringType()
-            is Identifier -> {
-                if (accessType == AccessType.IN_SEM_CHECK){
-                    lookupVar(expr, false)?.type?: throw UndefinedVarException(expr.name)
-                } else {
-                    collect[expr.getVarSID()]!!.type
-                }
-            }
-            is Expression.BinExpr -> expr.op.retType
-            is Expression.UnaryExpr -> expr.op.retType
-            is Expression.ArrayElem -> {
-                val arrType = if (accessType == AccessType.IN_SEM_CHECK) {
-                    lookupVar(expr.arrIdent, false)?.type
-                            ?: throw UndefinedVarException(expr.arrIdent.name)
-                } else {
-                    collect[expr.arrIdent.getVarSID()]!!.type
-                }
-                arrType.unwrapArrayType(expr.indices.size)
-                        ?: throw SemanticException.NotEnoughArrayRankException(expr.arrIdent.name)
-            }
-            is Expression.PairElem -> {
-                getType(expr.expr, accessType).let { exprType ->
-                    exprType.unwrapPairType(expr.func)
-                            ?: throw TypeMismatchException(Type.anyPairType(), exprType)
-                }
-            }
-            is Expression.ArrayLiteral -> {
-                if (expr.elements.isEmpty()) {
-                    anyArrayType()
-                } else {
-                    if (expr.elements.isEmpty()) {
-                        ArrayType(BaseType(BaseTypeKind.ANY))
-                    } else {
-                        val fstType = getType(expr.elements[0], accessType)
-                        for (e in expr.elements.drop(1)) {
-                            val sndType = getType(e, accessType)
-                            if (sndType != fstType) {
-                                throw TypeMismatchException(fstType, sndType)
-                            }
-                        }
-                        ArrayType(fstType)
-                    }
-                }
-            }
-            is Expression.NewPair -> {
-                getType(expr.first, accessType).let { t1 ->
-                    getType(expr.second, accessType).let { t2 ->
-                        PairType(t1, t2)
-                    }
-                }
-            }
-            is Expression.FunctionCall -> {
-                if (accessType == AccessType.IN_SEM_CHECK) {
-                    lookupFunc(expr.ident)?.type?.retType ?: throw UndefinedFuncException(expr.ident)
-                } else {
-                    functions[expr.ident]!!.type.retType
-                }
-            }
-            is Expression.TypeMember -> {
-                val newType = getType(expr.expr, accessType)
-                return when {
-                    newType !is NewType ->
-                        throw TypeMismatchException(newType, newType)
-                    typedefs.getValue(newType.name).isUnion ->
-                        throw TypeMismatchException(newType, newType)
-                    else -> functions[newType.name]?.members?.find { it.second.name == expr.memberName }?.first
-                                ?: throw UndefinedFuncException(newType.toString())
-                }
-            }
-            is Expression.EnumRange -> {
-                if (accessType == AccessType.IN_SEM_CHECK) {
-                    val fromT = getType(expr.from, accessType)
-                    val toT = getType(expr.to, accessType)
-                    val thenT = expr.then?.let { getType(it, accessType) }?:fromT
-                    when {
-                        fromT != toT -> throw TypeMismatchException(fromT, toT)
-                        fromT != thenT -> throw TypeMismatchException(fromT, thenT)
-                        else -> rangeTypeOf(fromT)
-                    }
-                } else {
-                    rangeTypeOf(getType(expr.from, accessType))
-                }
-            }
-            is Expression.IfExpr -> {
-                getType(expr.elseExpr, accessType)
-            }
+    fun findTraitFuncDefs(fName: String, groundType: FuncType): List<Function> {
+        val fEntry = functions[fName] ?: throw UndefinedFuncException(fName)
+        if(fEntry.trait != null) {
+            val tEntry = traitDefs[fEntry.trait] ?: throw UndefinedTraitException(fEntry.trait.traitName)
+            return tEntry.implementations.getValue(fName)
         }
+        TODO() // error: not a trait function
     }
 
     fun getTypeMemberType(type: Type, member: String): Type {
@@ -372,6 +288,7 @@ class SymbolTable {
     data class FuncAttributes(
             val type: FuncType,
             val members: List<Parameter>,
+            val trait: Trait?,
             val index: Index,
             var occurrences: Int = 1
     ) {
@@ -399,7 +316,8 @@ class SymbolTable {
             val traitVar: String,
             val dependencies: Set<Trait>,
             val requiredFuncs: List<FunctionHeader>,
-            val defaultFuncs: List<Function>
+            val defaultFuncs: List<Function>,
+            val implementations: MutableMap<String, List<Function>> = mutableMapOf()
     )
     enum class AccessType {
         IN_SEM_CHECK, IN_CODE_GEN

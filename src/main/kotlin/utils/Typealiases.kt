@@ -17,3 +17,8 @@ fun Parameter.prettyPrint(): String = "${getType()} ${getIdent().prettyPrint()}"
 
 fun Parameter.getType(): Type = first
 fun Parameter.getIdent(): Identifier = second
+
+
+fun<T> Iterable<T>.countDuplicates(): Map<T, Int> {
+    return this.groupingBy { it }.eachCount().filter { it.value > 1 }
+}

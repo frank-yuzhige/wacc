@@ -4,6 +4,8 @@ import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
+import exceptions.SemanticException
+import utils.SymbolTable
 
 sealed class Type {
 
@@ -202,6 +204,69 @@ sealed class Type {
                 else -> emptyMap()
             }
         }
+    }
+
+    fun instanceOf(traits: List<Trait>, symbolTable: SymbolTable): Type {
+        return if (traits.all { symbolTable.isInstance(this, it) }) {
+            this
+        } else {
+            throw SemanticException.TypeNotSatisfyingTraitsException(this, traits)
+        }
+    }
+
+    fun inferFrom(expecting: Type, symbolTable: SymbolTable): Type {
+        val actual = this
+        System.err.println("Inferring expected: $expecting <==> actual: $actual")
+        return when(expecting) {
+            is BaseType -> when(actual) {
+                is BaseType -> if (expecting == actual) actual else throw SemanticException.TypeMismatchException(expecting, actual)
+                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
+                else -> throw SemanticException.TypeMismatchException(expecting, actual)
+            }
+            is ArrayType -> when(actual) {
+                is ArrayType -> ArrayType(actual.type.inferFrom(expecting.type, symbolTable))
+                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
+                else -> throw SemanticException.TypeMismatchException(expecting, actual)
+            }
+            is PairType -> when(actual) {
+                is PairType -> PairType(
+                        actual.firstElemType.inferFrom(expecting.firstElemType, symbolTable),
+                        actual.secondElemType.inferFrom(expecting.secondElemType, symbolTable)
+                )
+                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
+                else -> throw SemanticException.TypeMismatchException(expecting, actual)
+            }
+            is NewType -> when(actual) {
+                is NewType -> {
+                    if (actual.name == expecting.name && actual.generics.size == expecting.generics.size) {
+                        NewType(actual.name, actual.generics
+                                .zip(expecting.generics) { ga, ge -> ga.inferFrom(ge, symbolTable) })
+                    } else {
+                        throw SemanticException.TypeMismatchException(expecting, actual)
+                    }
+                }
+                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
+                else -> throw SemanticException.TypeMismatchException(expecting, actual)
+            }
+            is TypeVar -> if(expecting.isReified) {
+                when(actual) {
+                    is TypeVar -> if(actual.isReified) {
+                        if(actual == expecting) expecting else throw SemanticException.TypeMismatchException(expecting, actual)
+                    } else {
+                        expecting.instanceOf(actual.traits, symbolTable)
+                    }
+                    else -> throw SemanticException.TypeMismatchException(expecting, actual)
+                }
+
+            } else {
+                actual.instanceOf(expecting.traits, symbolTable)
+            }
+            is FuncType -> when(actual) {
+                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
+                is FuncType -> TODO()
+                else -> throw SemanticException.TypeMismatchException(expecting, actual)
+            }
+        }.also { System.err.println("We get: $it") }
     }
 
     fun unwrapArrayType(): Type? = when (this) {

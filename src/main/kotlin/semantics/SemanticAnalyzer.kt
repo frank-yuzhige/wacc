@@ -204,7 +204,7 @@ class SemanticAnalyzer() {
                             logError(patternUnmatchedError(entry.type.paramTypes.size, pattern.matchVars.size))
                         else -> {
                             val realFuncType = entry.type unifyReturn matchingType
-                            val duplicates = pattern.matchVars.groupingBy { it }.eachCount().filter { it.value > 1 }
+                            val duplicates = pattern.matchVars.countDuplicates()
                             if (duplicates.isNotEmpty()) {
                                 throw MultipleVarDefInPatternException(duplicates.keys.map { it.name })
                             }
@@ -348,13 +348,7 @@ class SemanticAnalyzer() {
         return inferredType
     }
 
-    private infix fun Type.instanceOf(traits: List<Trait>): Type {
-        return if (traits.all { symbolTable.isInstance(this, it) }) {
-            this
-        } else {
-            throw TypeNotSatisfyingTraitsException(this, traits)
-        }
-    }
+    private infix fun Type.instanceOf(traits: List<Trait>): Type = this.instanceOf(traits, symbolTable)
 
     private infix fun FuncType.unifyReturn(expecting: Type): FuncType {
         val newRet = retType inferFrom expecting
@@ -362,59 +356,7 @@ class SemanticAnalyzer() {
         return (this.substitutes(sub) as FuncType)
     }
 
-    private infix fun Type.inferFrom(expecting: Type): Type {
-        val actual = this
-        System.err.println("Inferring expected: $expecting <==> actual: $actual")
-        return when(expecting) {
-            is BaseType -> when(actual) {
-                is BaseType -> if (expecting == actual) actual else throw TypeMismatchException(expecting, actual)
-                is TypeVar -> expecting instanceOf actual.traits
-                else -> throw TypeMismatchException(expecting, actual)
-            }
-            is ArrayType -> when(actual) {
-                is ArrayType -> ArrayType(actual.type inferFrom expecting.type)
-                is TypeVar -> expecting instanceOf actual.traits
-                else -> throw TypeMismatchException(expecting, actual)
-            }
-            is PairType -> when(actual) {
-                is PairType -> PairType(
-                        actual.firstElemType inferFrom expecting.firstElemType,
-                        actual.secondElemType inferFrom expecting.secondElemType
-                )
-                is TypeVar -> expecting instanceOf actual.traits
-                else -> throw TypeMismatchException(expecting, actual)
-            }
-            is NewType -> when(actual) {
-                is NewType -> {
-                    if (actual.name == expecting.name && actual.generics.size == expecting.generics.size) {
-                        NewType(actual.name, actual.generics.zip(expecting.generics) { ga, ge -> ga inferFrom ge })
-                    } else {
-                        throw TypeMismatchException(expecting, actual)
-                    }
-                }
-                is TypeVar -> expecting instanceOf actual.traits
-                else -> throw TypeMismatchException(expecting, actual)
-            }
-            is TypeVar -> if(expecting.isReified) {
-                when(actual) {
-                    is TypeVar -> if(actual.isReified) {
-                        if(actual == expecting) expecting else throw TypeMismatchException(expecting, actual)
-                    } else {
-                        expecting instanceOf actual.traits
-                    }
-                    else -> throw TypeMismatchException(expecting, actual)
-                }
-
-            } else {
-                actual instanceOf expecting.traits
-            }
-            is FuncType -> when(actual) {
-                is TypeVar -> expecting instanceOf actual.traits
-                is FuncType -> TODO()
-                else -> throw TypeMismatchException(expecting, actual)
-            }
-        }.also { System.err.println("We get: $it") }
-    }
+    private infix fun Type.inferFrom(expecting: Type): Type = this.inferFrom(expecting, symbolTable)
 
     private fun Type.validated(): Type = if(this is NewType) {
         symbolTable.lookupType(this)?.let{ this }?: throw UndefinedTypeException(this.name)
