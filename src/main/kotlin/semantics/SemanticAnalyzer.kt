@@ -113,6 +113,7 @@ class SemanticAnalyzer() {
             }
             treeStack.pop()
         }
+        instances.map { it.functions.map { f -> f.reified().checkFunc() } }
         functions.map { it.reified().checkFunc() }
         isInMain = true
         mainProgram.checkBlock()

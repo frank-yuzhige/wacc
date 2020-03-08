@@ -84,7 +84,12 @@ class SymbolTable {
         if(traitDef.typeConstraints.any { it.typeVar != traitDef.traitVar }) {
             throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
         }
-        traitDefs[trait] = TraitAttributes(traitDef.typeConstraints.map { it.trait }.toSet())
+        traitDefs[trait] = TraitAttributes(
+                traitDef.traitVar,
+                traitDef.typeConstraints.map { it.trait }.toSet(),
+                traitDef.requiredFuncs,
+                traitDef.defaultFuncs
+        )
         traitDef.requiredFuncs.forEach { header ->
             functions[header.name] = FuncAttributes(header.getFuncType(), header.args, header.startIndex)
         }
@@ -96,7 +101,33 @@ class SymbolTable {
             is PairType -> TODO()
             is TypeVar -> TODO()
             is NewType -> {
-                val entry = typedefs[instance.targetType.name]
+                val traitEntry = traitDefs[instance.trait]
+                        ?: throw UndefinedTraitException(instance.trait.traitName)
+                // check if required are all defined, and other definitions are defaults.
+                val sub = mapOf((traitEntry.traitVar to false) to instance.targetType)
+                val remainingRequired = traitEntry.requiredFuncs
+                        .map { it.name to it.getFuncType().substitutes(sub) }
+                        .toMap().toMutableMap()
+                val totalFuncs = traitEntry.defaultFuncs
+                                .map { it.name to it.getFuncType().substitutes(sub) }
+                                .toMap().toMutableMap() + remainingRequired
+                val definedFuncNames = mutableSetOf<String>()
+                instance.functions.forEach { func ->
+                    val funcHeader = func.extractHeader()
+                    if (funcHeader.name !in totalFuncs) {
+                        throw UndefinedFuncException(funcHeader.name)
+                    }
+                    if (funcHeader.name in definedFuncNames) {
+                        throw MultipleFuncDefException(funcHeader.name, funcHeader.getFuncType(), 1 to 1)
+                    }
+                    val requiredType = remainingRequired.getValue(funcHeader.name)
+                    if (requiredType != funcHeader.getFuncType()) {
+                        TODO() // error here!
+                    }
+                    definedFuncNames += funcHeader.name
+
+                }
+                val typeEntry = typedefs[instance.targetType.name]
                         ?: throw UndefinedTypeException(instance.targetType.name)
                 val traitList = instance.targetType.generics.map { tvar ->
                     when{
@@ -109,7 +140,7 @@ class SymbolTable {
                         }
                     }
                 }
-                entry.implementations[instance.trait] = traitList
+                typeEntry.implementations[instance.trait] = traitList
             }
             else -> TODO() // error
         }
@@ -338,10 +369,21 @@ class SymbolTable {
         scopeDefs[prevId] = prev.keys
     }
 
-    data class FuncAttributes(val type: FuncType, val members: List<Parameter>, val index: Index, var occurrences: Int = 1) {
+    data class FuncAttributes(
+            val type: FuncType,
+            val members: List<Parameter>,
+            val index: Index,
+            var occurrences: Int = 1
+    ) {
         fun addOccurrence(): FuncAttributes = this.also { occurrences++ }
     }
-    data class VarAttributes(val type: Type, val isConst: Boolean, val scopeId: Int, val index: Index, var occurrences: Int = 1) {
+    data class VarAttributes(
+            val type: Type,
+            val isConst: Boolean,
+            val scopeId: Int,
+            val index: Index,
+            var occurrences: Int = 1
+    ) {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
     data class TypeAttributes(
@@ -353,7 +395,12 @@ class SymbolTable {
     ) {
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
-    data class TraitAttributes(val dependencies: Set<Trait>)
+    data class TraitAttributes(
+            val traitVar: String,
+            val dependencies: Set<Trait>,
+            val requiredFuncs: List<FunctionHeader>,
+            val defaultFuncs: List<Function>
+    )
     enum class AccessType {
         IN_SEM_CHECK, IN_CODE_GEN
     }

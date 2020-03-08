@@ -16,7 +16,10 @@ open class SemanticException(val msg: String) : Exception(msg) {
             SemanticException(accessToUndefinedFunc(funcName))
 
     class UndefinedTypeException(typeName: String):
-            SemanticException("Unable to find definition for type: $typeName!")
+            SemanticException("Unable to find definition for type: '$typeName'")
+
+    class UndefinedTraitException(traitName: String):
+            SemanticException("Unable to find a definiton for trait: '$traitName'")
 
     class MultipleVarDefInPatternException(vars: List<String>):
             SemanticException("Found multiple ${vars.joinToString(", ") { "'$it'" }} in a pattern!")
