@@ -35,6 +35,7 @@ sealed class Type {
 
     data class ArrayType(val type: Type) : Type() {
         override fun toString(): String = "$type[]"
+        override fun printAsLabel(): String = "arr_${type.printAsLabel()}_"
         override fun bindConstraints(constraints: List<TypeConstraint>): Type {
             return ArrayType(type.bindConstraints(constraints))
         }
@@ -68,6 +69,10 @@ sealed class Type {
         constructor(name: String, vararg generics: Type): this(name, generics.asList())
         override fun toString(): String {
             return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
+        }
+
+        override fun printAsLabel(): String {
+            return "${name}${if(generics.isEmpty())"" else "_${generics.joinToString("_") { it.printAsLabel() }}_"}"
         }
 
         override fun bindConstraints(constraints: List<TypeConstraint>): Type {
@@ -123,9 +128,8 @@ sealed class Type {
             return "$constraints(${paramTypes.joinToString(", ") { it.toString() }}) -> $retType"
         }
 
-        fun printAsLabel(): String {
-            assert(isGround())
-            return "${paramTypes.joinToString("_")}__$retType"
+        override fun printAsLabel(): String {
+            return "${paramTypes.joinToString("_") { it.printAsLabel() } }__${retType.printAsLabel()}"
         }
 
         override fun reified(constraints: List<TypeConstraint>): Type = FuncType(
@@ -169,6 +173,8 @@ sealed class Type {
     open fun isDetermined(): Boolean = true
 
     open fun isGround(): Boolean = true
+
+    open fun printAsLabel(): String = toString()
 
     fun findUnifier(original: Type): Map<Pair<String, Boolean>, Type> {
         return when(original) {

@@ -59,8 +59,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private var blockComplete = false
     private var virtualRegIdAcc = 4
     private val groundFunctionList = mutableListOf<GroundFunction>()
-    private val groundConstructorSet = mutableSetOf<GroundConstructor>()
+    private val groundConstructorList = mutableListOf<GroundConstructor>()
     private var currentGrounding: Grounding = emptyMap()
+    private val constructorIsUnionMap = mutableMapOf<String, Boolean>()
 
     var currBlockLabel = Label("")
 
@@ -70,7 +71,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
-        newTypes.map { it.toARM() }
+        newTypes.map { it.declareConstructors() }
         funcLabelMap += "main" to Label("main")
         functions.map { funcLabelMap += it.name to getLabel("f_${it.name}") }
         Function(returnType = intType(),
@@ -83,27 +84,31 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         functions.filter { it.getFuncType().isGround() }.map { it.toARM() }
         while (groundFunctionList.isNotEmpty()) {
             val curr = groundFunctionList.removeAt(0)
-            currentGrounding = curr.funcType.findUnifier(curr.function.getFuncType())
-            curr.function.toARM(curr.funcType)
+            currentGrounding = curr.groundType.findUnifier(curr.function.getFuncType().reified(curr.function.typeConstraints))
+            curr.function.toARM(curr.groundType)
+        }
+        while (groundConstructorList.isNotEmpty()) {
+            val curr = groundConstructorList.removeAt(0)
+            defineConstructor(curr.name, curr.constructorType, curr.isUnion)
         }
         definePreludes()
     }
 
-    private fun NewTypeDef.toARM() {
+    private fun NewTypeDef.declareConstructors() {
         when(this) {
             is NewTypeDef.StructTypeDef -> {
-                defineConstructor(type.name, members, isTaggedUnion = false)
+                constructorIsUnionMap[name()] = false
             }
             is NewTypeDef.UnionTypeDef -> {
-                memberMap.forEach { (constructor, members) ->
-                    defineConstructor(constructor, members, isTaggedUnion = true)
+                memberMap.forEach { (constructor, _) ->
+                    constructorIsUnionMap[constructor] = true
                 }
             }
         }
     }
 
-    private fun defineConstructor(name: String, members: List<Parameter>, isTaggedUnion: Boolean) {
-        funcLabelMap += name to getLabel("constructor_$name")
+    private fun defineConstructor(name: String, funcType: FuncType, isTaggedUnion: Boolean) {
+        funcLabelMap += name to getConstructorLabel(name, funcType)
 
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
@@ -116,7 +121,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             structOffsetAcc += 4
         }
         var paramOffsetAcc = 4
-        members.forEach { (t, _) ->
+        funcType.paramTypes.forEach { t ->
             val size = sizeof(t)
             load(Reg(1), Offset(sp(), paramOffsetAcc), size)
             store(Reg(1), Offset(Reg(0), structOffsetAcc), size)
@@ -435,14 +440,27 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     /* Generate a ground function entry, push it to the queue. Return its label.*/
     private fun groundGenericFunc(fname: String, actualFuncType: FuncType): Label {
-        val labelName = "f_" + fname + "_" + actualFuncType.printAsLabel()
-        if(labelName in funcLabelMap) {
+        if (fname[0].isUpperCase()) {
+            // constructor
+            assert(actualFuncType.isGround())
+            val label = getConstructorLabel(fname, actualFuncType)
+            if (label.name in funcLabelMap) {
+                return label
+            }
+            groundConstructorList += GroundConstructor(fname, actualFuncType, constructorIsUnionMap.getValue(fname))
+            funcLabelMap[label.name] = label
+            return label
+        } else {
+            // normal function
+            val labelName = "f_" + fname + "_" + actualFuncType.printAsLabel()
+            if(labelName in funcLabelMap) {
+                return Label(labelName)
+            }
+            val def = ast.functions.first { it.name == fname }
+            groundFunctionList += GroundFunction(def, actualFuncType)
+            funcLabelMap[labelName] = Label(labelName)
             return Label(labelName)
         }
-        val def = ast.functions.first { it.name == fname }
-        groundFunctionList += GroundFunction(def, actualFuncType)
-        funcLabelMap[labelName] = Label(labelName)
-        return Label(labelName)
     }
 
     private fun Pattern.defineConsts(unionAtReg: Register) {
@@ -450,7 +468,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         val members = symbolTable.functions.getValue(constructor).members
         matchVars.zip(members).forEach { (ident, param) ->
             scopeEnterDef(ident)
-            val type = param.getType()
+            val type = ident.getType().substitutes(currentGrounding)
             val value = load(AL, getReg(), Offset(unionAtReg, offsetAcc), sizeof(type))
             alloca(ident, value, sizeof(type))
             offsetAcc += sizeof(type)
@@ -916,11 +934,14 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         return format + if (newline) "\\n" else ""
     }
 
+    private fun getConstructorLabel(name: String, type: FuncType): Label =
+            Label("constructor_${type.printAsLabel()}")
+
     private fun Expression.getType(): Type = this.type
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1
-        is TypeVar -> sizeof(currentGrounding[type.name to false]!!)
+        is TypeVar -> sizeof(currentGrounding[type.name to true]!!)
         else -> 4
     }
 }

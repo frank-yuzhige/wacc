@@ -7,12 +7,20 @@ end
 
 List<K> fromTwo(K a1, K a2) where K: Ord is
     List<K> e = Nil();
-    var l1 = Node(a1, e);
-    var l2 = Node(a2, l1);
+    var l1 = Node(a2, e);
+    var l2 = Node(a1, l1);
     return l2;
+end
+
+int printAll(List<A> list) where forall A is
+    when list:
+        is Nil -> println ""; return 0;
+        is Node(elem, next) -> print elem; print ", "; return printAll(next);
+    end;
 end
 
 var a = fromTwo(1, 2);
 List<int> e = Nil();
+var x = printAll(a);
 
 end

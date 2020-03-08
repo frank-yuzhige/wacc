@@ -211,6 +211,7 @@ class SemanticAnalyzer() {
                             stmts.checkBlock(returnType, typeconstraints) {
                                 pattern.matchVars.withIndex().forEach { (i, match) ->
                                     symbolTable.defineVar(realFuncType.paramTypes[i], match, isConst = true)
+                                    match.type = realFuncType.paramTypes[i]
                                 }
                             }
                         }
