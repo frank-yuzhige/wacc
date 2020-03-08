@@ -251,7 +251,8 @@ sealed class Type {
             is TypeVar -> if(expecting.isReified) {
                 when(actual) {
                     is TypeVar -> if(actual.isReified) {
-                        if(actual == expecting) expecting else throw SemanticException.TypeMismatchException(expecting, actual)
+                        if(actual == expecting) expecting else
+                            throw SemanticException.TypeMismatchException(expecting, actual)
                     } else {
                         expecting.instanceOf(actual.traits, symbolTable)
                     }
@@ -263,7 +264,16 @@ sealed class Type {
             }
             is FuncType -> when(actual) {
                 is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
-                is FuncType -> TODO()
+                is FuncType -> {
+                    if (actual.paramTypes.size == expecting.paramTypes.size) {
+                        FuncType(
+                                actual.retType.inferFrom(expecting.retType, symbolTable),
+                                actual.paramTypes.zip(expecting.paramTypes) { ga, ge -> ga.inferFrom(ge, symbolTable) }
+                        )
+                    } else {
+                        throw SemanticException.TypeMismatchException(expecting, actual)
+                    }
+                }
                 else -> throw SemanticException.TypeMismatchException(expecting, actual)
             }
         }.also { System.err.println("We get: $it") }

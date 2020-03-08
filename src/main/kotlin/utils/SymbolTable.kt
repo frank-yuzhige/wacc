@@ -143,6 +143,14 @@ class SymbolTable {
                     }
                 }
                 typeEntry.implementations[instance.trait] = traitList
+                for (impl in instance.functions) {
+                    if (impl.name in traitEntry.implementations) {
+                        traitEntry.implementations[impl.name]!! += impl
+                    } else {
+                        traitEntry.implementations[impl.name] = mutableListOf(impl)
+                    }
+
+                }
             }
             else -> TODO() // error
         }
@@ -232,11 +240,18 @@ class SymbolTable {
         }
     }
 
-    fun findTraitFuncDefs(fName: String, groundType: FuncType): List<Function> {
+    fun findTraitFuncDef(fName: String, groundType: FuncType): Function {
         val fEntry = functions[fName] ?: throw UndefinedFuncException(fName)
         if(fEntry.trait != null) {
             val tEntry = traitDefs[fEntry.trait] ?: throw UndefinedTraitException(fEntry.trait.traitName)
-            return tEntry.implementations.getValue(fName)
+            for (impl in tEntry.implementations.getValue(fName)) {
+                try { groundType.inferFrom(impl.getFuncType(), this) }
+                catch (sme: SemanticException) {
+                    continue
+                }
+                return impl
+            }
+            TODO() // error: no trait function matching...
         }
         TODO() // error: not a trait function
     }
@@ -317,11 +332,8 @@ class SymbolTable {
             val dependencies: Set<Trait>,
             val requiredFuncs: List<FunctionHeader>,
             val defaultFuncs: List<Function>,
-            val implementations: MutableMap<String, List<Function>> = mutableMapOf()
+            val implementations: MutableMap<String, MutableList<Function>> = mutableMapOf()
     )
-    enum class AccessType {
-        IN_SEM_CHECK, IN_CODE_GEN
-    }
 
 }
 

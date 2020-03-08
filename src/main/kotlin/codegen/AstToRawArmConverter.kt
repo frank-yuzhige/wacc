@@ -451,12 +451,14 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             funcLabelMap[label.name] = label
             return label
         } else {
-            // normal function
+            // non-constructor
             val labelName = "f_" + fname + "_" + actualFuncType.printAsLabel()
             if(labelName in funcLabelMap) {
                 return Label(labelName)
             }
-            val def = ast.functions.first { it.name == fname }
+            val def = ast.functions.firstOrNull { it.name == fname }  // top-level normal function
+                    ?: symbolTable.findTraitFuncDef(fname, actualFuncType)    // trait impl
+            // normal function
             groundFunctionList += GroundFunction(def, actualFuncType)
             funcLabelMap[labelName] = Label(labelName)
             return Label(labelName)

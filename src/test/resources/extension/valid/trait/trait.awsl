@@ -24,5 +24,9 @@ end
 List<int> a = Nil();
 var b = Node(1, a);
 b = pure();
+when b:
+    is Nil -> println "yes!";
+    is Node(a, b) -> println "no!";
+end;
 
 end
