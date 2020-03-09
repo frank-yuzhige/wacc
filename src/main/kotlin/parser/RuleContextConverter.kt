@@ -338,7 +338,6 @@ class RuleContextConverter() {
         is RhsArrayLiterContext -> arrayLiter().toAST()
         is RhsPairElemContext -> pairElem().toAST()
         is RhsTypeMemberContext -> typeMember().toAST()
-        is RhsTypeConstructorContext -> typeConstructor().toAST()
         is RhsNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
         is RhsFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
         else -> throw IllegalArgumentException("Unknown right value")
@@ -360,6 +359,8 @@ class RuleContextConverter() {
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
             is ExprIfContext -> IfExpr(listOf(cond.toAST() to tr.toAST()), fl.toAST())
             is ExprFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
+            is ExprTypeConstructorContext -> typeConstructor().toAST()
+            is ExprVarMemberContext -> TypeMember(v.toAST(), m.text)
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit

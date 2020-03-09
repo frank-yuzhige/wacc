@@ -11,7 +11,7 @@ capIdent: CAP_IDENT;
 boolLit : TRUE | FALSE;
 
 type        : arrayType | baseType | pairType | capIdent generics?;
-arrayType   : (baseType | pairType) (LBRA RBRA)+;
+arrayType   : (baseType | pairType | capIdent generics?) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
 pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
@@ -55,7 +55,9 @@ expr: left=expr binop1 right=expr    #exprBinop
     | left=expr binop5 right=expr    #exprBinop
     | left=expr binop6 right=expr    #exprBinop
     | LPAR expr RPAR                 #exprParens
+    | v=ident DOT m=ident            #exprVarMember
     | ident LPAR argList? RPAR       #exprFuncCall
+    | typeConstructor                #exprTypeConstructor
     | IF cond=expr THEN tr=expr ELSE fl=expr FI #exprIf
     | integer                        #exprInt
     | boolLit                        #exprBool
@@ -112,7 +114,6 @@ assignRhs: expr                              #rhsExpr
          | NEWPAIR LPAR expr COMMA expr RPAR #rhsNewPair
          | pairElem                          #rhsPairElem
          | typeMember                        #rhsTypeMember
-         | typeConstructor                   #rhsTypeConstructor
          | CALL ident LPAR argList? RPAR     #rhsFuncCall
          ;
 

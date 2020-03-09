@@ -63,7 +63,7 @@ end
 
 instance MulInt: Semigroup is
     MulInt append(MulInt a, MulInt b) is
-        return PlusInt(a.i * b.i);
+        return MulInt(a.i * b.i);
     end
 end
 
@@ -71,6 +71,17 @@ instance MulInt: Monoid is
     MulInt epsilon() is
         return MulInt(1);
     end
+end
+
+T concat(T[] arr) where T: Monoid is
+    T base = epsilon();
+    int l = len arr;
+    int i = 0;
+    while (i < l) do
+        base = append(base, arr[i]);
+        i = i + 1;
+    done;
+    return base;
 end
 
 AndBool abe = epsilon();
@@ -91,6 +102,6 @@ var mi40 = append(mi4, mi10);
 println mi40.i;       # 40
 
 var mi0 = append(mie, mi40);
-println mi0;          # 0
+println mi0.i;          # 40
 
 end

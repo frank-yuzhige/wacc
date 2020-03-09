@@ -119,7 +119,7 @@ class SymbolTable {
                 // check if required are all defined.
                 val sub = mapOf((traitEntry.traitVar to false) to instance.targetType)
                 val remainingRequired = traitEntry.requiredFuncs
-                        .map { it.name to it.getFuncType().substitutes(sub) }
+                        .map { it.name to it.getFuncType().substitutes(sub) as FuncType }
                         .toMap().toMutableMap()
                 val totalFuncs = traitEntry.defaultFuncs
                                 .map { it.name to it.getFuncType().substitutes(sub) }
@@ -135,7 +135,7 @@ class SymbolTable {
                     }
                     val requiredType = remainingRequired.getValue(funcHeader.name)
                     if (requiredType != funcHeader.getFuncType()) {
-                        TODO() // error here!
+                        throw TraitRequiredFuncTypeError(instance.trait.traitName, funcHeader.name, requiredType, funcHeader.getFuncType())
                     }
                     definedFuncNames += funcHeader.name
 
@@ -251,6 +251,7 @@ class SymbolTable {
         }
     }
 
+    /* Find the correct trait func def for the given ground type. */
     fun findTraitFuncDef(fName: String, groundType: FuncType): Function {
         val fEntry = functions[fName] ?: throw UndefinedFuncException(fName)
         if(fEntry.trait != null) {
@@ -263,7 +264,6 @@ class SymbolTable {
                 }
                 return impl
             }
-            throw NotATraitRequiredFuncException(fName, fEntry.trait.traitName)
         }
         TODO() // error: not a trait function
     }

@@ -423,7 +423,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     spOffset += size
                 }
                 val funcAttr = symbolTable.lookupFunc(ident)!!
-                if (funcAttr.type.isGround()) {
+                if (!this.isConstructor() && funcAttr.type.isGround()) {
                     bl(AL, funcLabelMap.getValue(ident))
                 } else {
                     val actualFuncType = FuncType(type, args.map { it.type })

@@ -291,14 +291,13 @@ class SemanticAnalyzer() {
                     val funcType = BinaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
                     val lt = left.checkExpr(funcType.paramTypes[0], logAction)
                     val rt = right.checkExpr(funcType.paramTypes[1], logAction)
-                    val lu = lt.findUnifier(funcType.paramTypes[0])
-                    val ru = rt.findUnifier(funcType.paramTypes[0])
-                    funcType.retType.substitutes(lu).substitutes(ru)
+                    val sub = FuncType(funcType.retType, listOf(lt, rt)).findUnifier(funcType)
+                    funcType.retType.substitutes(sub)
                 }
                 is UnaryExpr -> {
                     val funcType = UnaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
                     val childType = expr.checkExpr(funcType.paramTypes[0], logAction)
-                    val sub = childType.findUnifier(funcType.paramTypes[0])
+                    val sub = FuncType(funcType.retType, listOf(childType)).findUnifier(funcType)
                     funcType.retType.substitutes(sub)
                 }
                 is ArrayLiteral -> when {
@@ -331,11 +330,8 @@ class SemanticAnalyzer() {
                         throw FuncCallArgsMismatchException(ident, newFuncType.paramTypes.size, args.size)
                     }
                     val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
-                    val sub: Grounding = argsGrounds
-                            .zip(newFuncType.paramTypes) { ground, type -> ground.findUnifier(type)  }
-                            .fold(mutableMapOf()) { a, b -> a.also { it.putAll(b) } }
-
-                    newFuncType.retType.substitutes(sub)
+                    val sub: Grounding = FuncType(newFuncType.retType, argsGrounds).findUnifier(newFuncType)
+                    newFuncType.retType.substitutes(sub).also { System.err.println(it) }
                 }
             }
         } catch (sme: SemanticException) {
@@ -351,8 +347,6 @@ class SemanticAnalyzer() {
         treeStack.pop()
         return inferredType
     }
-
-    private infix fun Type.instanceOf(traits: List<Trait>): Type = this.instanceOf(traits, symbolTable)
 
     private infix fun FuncType.unifyReturn(expecting: Type): FuncType {
         val newRet = retType inferFrom expecting

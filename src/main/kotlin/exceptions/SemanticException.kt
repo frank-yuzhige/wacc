@@ -2,6 +2,7 @@ package exceptions
 
 import ast.Trait
 import ast.Type
+import ast.Type.FuncType
 import semantics.accessToUndefinedFunc
 import semantics.accessToUndefinedVar
 import semantics.typeMismatchError
@@ -36,6 +37,9 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class TypeNotSatisfyingTraitsException(type: Type, traits: Iterable<Trait>):
             SemanticException("$type does not implement ${traits.joinToString(", ") { it.toString() }}")
 
+    class NoUnificationFoundForTypesException(actual: Type, expected: Type):
+            SemanticException("Unable to deduce a unification for '$actual' against '$expected'")
+
     class NotAStructTypeException(type: Type):
             SemanticException("$type is not a structural type!")
 
@@ -56,6 +60,9 @@ open class SemanticException(val msg: String) : Exception(msg) {
 
     class NotATraitRequiredFuncException(fName: String, traitName: String):
             SemanticException("Trait $traitName does not require function $fName")
+
+    class TraitRequiredFuncTypeError(traitName: String, fName: String, required: FuncType, actual: FuncType):
+            SemanticException("Trait $traitName expects $fName to be of type: \"$required\", yet the provided implementation is: \"$actual\"")
 
     class TypeNotInstanceOfADependentTraitException(type: Type, currentTrait: String, missingTrait: String):
             SemanticException("Trait $currentTrait requires $missingTrait, yet $type is not an instance of $missingTrait!")

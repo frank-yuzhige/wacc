@@ -5,6 +5,7 @@ import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
 import exceptions.SemanticException
+import exceptions.SemanticException.NoUnificationFoundForTypesException
 import utils.SymbolTable
 
 sealed class Type {
@@ -14,7 +15,7 @@ sealed class Type {
         BOOL("bool"),
         CHAR("char"),
         STRING("string"),
-        ANY("?")
+        ANY("var")
     }
 
     companion object {
@@ -178,34 +179,43 @@ sealed class Type {
 
     open fun printAsLabel(): String = toString()
 
-    fun findUnifier(original: Type): Map<Pair<String, Boolean>, Type> {
+    /* Find the mgu that unifies this type to the original type.
+    *  Throws a semantic error when unable to find such unifier. */
+    fun findUnifier(original: Type, oldMgu: Map<Pair<String, Boolean>, Type> = mutableMapOf()): Map<Pair<String, Boolean>, Type> {
+        val actual = this.substitutes(oldMgu)
         return when(original) {
-            is BaseType -> emptyMap()
+            is BaseType -> if(actual == original) emptyMap() else throw NoUnificationFoundForTypesException(actual, original)
             is ArrayType -> when {
-                this is ArrayType -> type.findUnifier(original.type)
-                else -> emptyMap()
+                actual is ArrayType -> actual.type.findUnifier(original.type)
+                else -> throw NoUnificationFoundForTypesException(actual, original)
             }
-            is PairType -> TODO()
+            is PairType -> throw NoUnificationFoundForTypesException(actual, original)
             is NewType -> when {
-                this is NewType && name == original.name -> {
-                    val map = mutableMapOf<Pair<String, Boolean>, Type>()
-                    generics.zip(original.generics).forEach { (new, old) ->
-                        map.putAll(new.findUnifier(old))
-                    }
-                    map
+                actual is NewType && actual.name == original.name -> {
+                    actual.generics.zip(original.generics)
+                            .fold(oldMgu) { mgu, (new, old) -> new.findUnifier(old, mgu) }
                 }
-                else -> emptyMap()
+                else -> throw NoUnificationFoundForTypesException(actual, original)
             }
-            is TypeVar -> mapOf((original.name to original.isReified) to this)
-            is FuncType -> when(this) {
-                is FuncType -> paramTypes.zip(original.paramTypes) { c, p -> c.findUnifier(p) }
-                        .fold(mutableMapOf<Pair<String, Boolean>, Type>()) { a, b -> a.also{ a.putAll(b)} } +
-                        retType.findUnifier(original.retType)
-                else -> emptyMap()
+            is TypeVar -> {
+                val key = original.name to original.isReified
+                if (key in oldMgu) {
+                    val oldVal = oldMgu.getValue(key)
+                    oldMgu + actual.findUnifier(oldVal)
+                }
+                oldMgu + (key to actual)
+            }
+            is FuncType -> when {
+                actual is FuncType && actual.paramTypes.size == original.paramTypes.size -> {
+                    (actual.paramTypes + actual.retType).zip(original.paramTypes + original.retType)
+                            .fold(oldMgu) { mgu, (new, old) -> new.findUnifier(old, mgu)  }
+                }
+                else -> throw NoUnificationFoundForTypesException(actual, original)
             }
         }
     }
 
+    /* Determine whether this type is instance of all traits provided, in the given symbol table. */
     fun instanceOf(traits: List<Trait>, symbolTable: SymbolTable): Type {
         return if (traits.all { symbolTable.isInstance(this, it) }) {
             this
@@ -214,6 +224,7 @@ sealed class Type {
         }
     }
 
+    /* Infer the current type from the provided expecting type. */
     fun inferFrom(expecting: Type, symbolTable: SymbolTable): Type {
         val actual = this
         System.err.println("Inferring expected: $expecting <==> actual: $actual")
@@ -266,10 +277,8 @@ sealed class Type {
                 is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
                 is FuncType -> {
                     if (actual.paramTypes.size == expecting.paramTypes.size) {
-                        FuncType(
-                                actual.retType.inferFrom(expecting.retType, symbolTable),
-                                actual.paramTypes.zip(expecting.paramTypes) { ga, ge -> ga.inferFrom(ge, symbolTable) }
-                        )
+                        val mgu = actual.findUnifier(expecting)
+                        actual.substitutes(mgu)
                     } else {
                         throw SemanticException.TypeMismatchException(expecting, actual)
                     }
