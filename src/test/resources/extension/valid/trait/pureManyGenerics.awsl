@@ -1,0 +1,41 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+newtype Cluster<A,B,C,D,E,F,G,H,I,J> is
+    A a;
+    B b;
+    C c;
+    D d;
+    E e;
+    F f;
+    G g;
+    H h;
+    I i;
+    J j;
+end
+
+instance Cluster<A,B,C,D,E,F,G,H,I,J>: Pure where
+    A: Pure,
+    B: Pure,
+    C: Pure,
+    D: Pure,
+    E: Pure,
+    F: Pure,
+    G: Pure,
+    H: Pure,
+    I: Pure,
+    J: Pure is
+
+    Cluster<A,B,C,D,E,F,G,H,I,J> pure() is
+        return Cluster(pure(),pure(),pure(),pure(),pure(),pure(),pure(),pure(),pure(),pure());
+    end
+
+end
+
+exit -1;
+
+
+end

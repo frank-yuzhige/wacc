@@ -4,15 +4,12 @@ import ast.*
 import ast.Expression.Identifier
 import ast.Function
 import ast.Type.*
-import ast.Type.Companion.anyType
 import ast.Type.Companion.arrayTypeOf
-import ast.Type.Companion.boolType
-import ast.Type.Companion.charType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
 import utils.SymbolTable.TypeAttributes.Companion.arrayAttributes
-import java.lang.IllegalArgumentException
 import java.util.*
+import kotlin.IllegalArgumentException
 
 class SymbolTable {
     private val scopeStack: Deque<MutableMap<String, VarAttributes>> = ArrayDeque()
@@ -104,11 +101,13 @@ class SymbolTable {
         if(dups.isNotEmpty()) {
             TODO() //error: duplicate dependencies.
         }
+        // add trait def entry
         traitDefs[trait] = TraitAttributes(
                 traitDef.traitVar,
                 traitDef.typeConstraints.map { it.trait }.toSet(),
                 traitDef.requiredFuncs
         )
+        // Add required functions
         traitDef.requiredFuncs.forEach { header ->
             functions[header.name] = FuncAttributes(header.getFuncType(), header.args, trait, header.startIndex)
         }
@@ -116,8 +115,6 @@ class SymbolTable {
 
     fun implementTrait(instance: TraitInstance) {
         when(instance.targetType) {
-            is PairType -> TODO()
-            is TypeVar -> TODO()
             is NewType -> {
                 val bindedType = instance.targetType.bindConstraints(instance.typeConstraints)
                 val traitEntry = traitDefs[instance.trait]
@@ -141,7 +138,7 @@ class SymbolTable {
                 instance.functions.forEach { func ->
                     val funcHeader = func.extractHeader()
                     if (funcHeader.name !in required) {
-                        throw UndefinedFuncException(funcHeader.name)
+                        throw NotATraitRequiredFuncException(funcHeader.name, instance.trait.traitName)
                     }
                     if (funcHeader.name in definedFuncNames) {
                         throw MultipleFuncDefException(funcHeader.name, funcHeader.getFuncType(), 1 to 1)
@@ -155,7 +152,7 @@ class SymbolTable {
                 }
                 val typeEntry = typedefs[instance.targetType.name]
                         ?: throw UndefinedTypeException(instance.targetType.name)
-                val traitList = instance.targetType.generics.map { tvar ->
+                val genericTraitsList = instance.targetType.generics.map { tvar ->
                     when{
                         tvar !is TypeVar -> throw InstanceWithGroundGenericTypeException(instance.targetType)
                         else -> {
@@ -166,7 +163,7 @@ class SymbolTable {
                         }
                     }
                 }
-                typeEntry.implementations[instance.trait] = traitList
+                typeEntry.traitDependencies[instance.trait] = genericTraitsList
                 for (impl in instance.functions) {
                     if (impl.name in traitEntry.implementations) {
                         traitEntry.implementations[impl.name]!! += impl
@@ -176,7 +173,7 @@ class SymbolTable {
 
                 }
             }
-            else -> TODO() // error
+            else -> throw ImplToTraitForTypeUnsupoortedException(instance.targetType)
         }
     }
 
@@ -253,8 +250,8 @@ class SymbolTable {
             is PairType -> TODO()
             is NewType -> {
                 val entry = lookupType(type)?:throw UndefinedTypeException(type.name)
-                trait in entry.implementations.keys && type.generics.withIndex().all { (i, type) ->
-                    val currRequiredTraits = entry.implementations.getValue(trait)[i]
+                trait in entry.traitDependencies.keys && type.generics.withIndex().all { (i, type) ->
+                    val currRequiredTraits = entry.traitDependencies.getValue(trait)[i]
                     currRequiredTraits.all { isInstance(type, it) }
                 }
             }
@@ -282,14 +279,15 @@ class SymbolTable {
             val tEntry = traitDefs[fEntry.trait]
                     ?: throw UndefinedTraitException(fEntry.trait.traitName)
             for (impl in tEntry.implementations.getValue(fName)) {
-                try { groundType.inferFrom(impl.getFuncType(), this) }
-                catch (sme: SemanticException) {
+                try {
+                    groundType.inferFrom(impl.getFuncType(), this)
+                } catch (sme: SemanticException) {
                     continue
                 }
                 return impl
             }
         }
-        TODO() // error: not a trait function
+        throw IllegalArgumentException("$fName is not a trait function")
     }
 
     fun getTypeMemberType(type: Type, member: String): Type {
@@ -298,38 +296,12 @@ class SymbolTable {
             type.name !in typedefs -> throw UndefinedTypeException(type.name)
             typedefs.getValue(type.name).isUnion -> throw NotAStructTypeException(type)
             else -> {
-                val typeEntry = typedefs.getValue(type.name) // FIXME: unify here
+                val typeEntry = typedefs.getValue(type.name)
                 val sub = type.findUnifier(typeEntry.typeWhenDef)
                 functions[type.name]?.members?.find { it.second.name == member }?.first?.substitutes(sub)
                         ?: throw UndefinedFuncException(type.toString())
             }
         }
-    }
-
-    fun sizeof(type: Type): Int {
-        return when(type) {
-            boolType(), charType() -> 1
-            else -> 4
-        }
-    }
-
-    fun mallocSize(constructor: String, isTaggedUnion: Boolean = false): Int {
-        val s = functions[constructor]?.members?.sumBy { sizeof(it.first) }
-                ?: throw UndefinedFuncException(constructor)
-        return s + if (isTaggedUnion) 4 else 0
-    }
-
-    fun getMemberOffset(name: String, type: Type): Int {
-        if (type is NewType) {
-            var acc = 0
-            for (member in functions.getValue(type.name).members) {
-                if (member.second.name == name) {
-                    return acc
-                }
-                acc += sizeof(member.first)
-            }
-        }
-        throw UndefinedFuncException(type.toString())
     }
 
     private fun getCurrScopeId(): Int = scopeIdStack.peekFirst()
@@ -362,7 +334,7 @@ class SymbolTable {
     data class TypeAttributes(
             val typeWhenDef: NewType,
             val isUnion: Boolean,
-            val implementations: MutableMap<Trait, List<Set<Trait>>>,
+            val traitDependencies: MutableMap<Trait, List<Set<Trait>>>,
             val constructors: Set<String>,
             val index: Index,
             var occurrences: Int = 1

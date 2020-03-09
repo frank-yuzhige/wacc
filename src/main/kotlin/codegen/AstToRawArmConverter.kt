@@ -34,6 +34,7 @@ import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.Operand.Register.SpecialReg.Companion.sp
 import codegen.arm.SpecialRegName.*
+import exceptions.SemanticException
 import utils.*
 import utils.EscapeCharMap.Companion.fromEscape
 import java.util.*
@@ -66,7 +67,10 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     var currBlockLabel = Label("")
 
-    fun export(): ArmProgram = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
+    fun export(): ArmProgram = ArmProgram(
+            StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts),
+            blocks.toList()
+    )
 
     fun translate(): AstToRawArmConverter = this.also { ast.toARM() }
 
@@ -113,7 +117,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
-        callMalloc(symbolTable.mallocSize(name, isTaggedUnion))
+        callMalloc(mallocSize(name, isTaggedUnion))
 
         var structOffsetAcc = 0
         if (isTaggedUnion) {
@@ -358,7 +362,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val reg = expr.toARM().toReg()
                 mov(Reg(0), reg)
                 callPrelude(CHECK_NULL_PTR)
-                val shift = symbolTable.getMemberOffset(memberName, expr.getType())
+                val shift = getMemberOffset(memberName, expr.getType())
                 val offset = Offset(reg, shift)
                 load(reg, offset, sizeof(getType()))
             }
@@ -458,7 +462,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 return Label(labelName)
             }
             val def = ast.functions.firstOrNull { it.name == fname }  // top-level normal function
-                    ?: symbolTable.findTraitFuncDef(fname, actualFuncType)    // trait impl
+                    ?: symbolTable.findTraitFuncDef(fname, actualFuncType)     // trait impl
             // normal function
             groundFunctionList += GroundFunction(def, actualFuncType)
             funcLabelMap[labelName] = Label(labelName)
@@ -914,7 +918,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             val addr = lhs.expr.toARM().toReg()
             mov(Reg(0), addr)
             callPrelude(CHECK_NULL_PTR)
-            val offset = symbolTable.getMemberOffset(lhs.memberName, lhs.expr.getType())
+            val offset = getMemberOffset(lhs.memberName, lhs.expr.getType())
             Offset(addr, offset)
         }
         else -> {
@@ -947,5 +951,23 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         is TypeVar -> sizeof(currentGrounding[type.name to true]
                 ?: throw IllegalArgumentException("type var ${type.name} not found in grounding $currentGrounding"))
         else -> 4
+    }
+
+    private fun mallocSize(constructor: String, isTaggedUnion: Boolean = false): Int {
+        val s = symbolTable.functions[constructor]!!.members.sumBy { sizeof(it.first) }
+        return s + if (isTaggedUnion) 4 else 0
+    }
+
+    private fun getMemberOffset(name: String, type: Type): Int {
+        if (type is NewType) {
+            var acc = 0
+            for (member in symbolTable.functions.getValue(type.name).members) {
+                if (member.second.name == name) {
+                    return acc
+                }
+                acc += sizeof(member.first)
+            }
+        }
+        throw SemanticException.UndefinedFuncException(type.toString()) // should never reach here
     }
 }

@@ -76,7 +76,7 @@ paramList: param (COMMA param)*;
 
 constraint: capIdent COLON capIdent;
 forallConstraint: FORALL capIdent;
-constraintList: (constraint|forallConstraint) (COMMA (constraint|forallConstraint))?;
+constraintList: (constraint|forallConstraint) (COMMA (constraint|forallConstraint))*;
 
 func: type ident LPAR paramList? RPAR (WHERE constraintList)? IS stats END;
 
