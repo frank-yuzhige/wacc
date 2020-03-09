@@ -17,6 +17,14 @@ newtype Cluster<A,B,C,D,E,F,G,H,I,J> is
     J j;
 end
 
+instance int: Pure is
+    int pure() is return 42; end
+end
+
+instance char: Pure is
+    char pure() is return 'X'; end
+end
+
 instance Cluster<A,B,C,D,E,F,G,H,I,J>: Pure where
     A: Pure,
     B: Pure,
@@ -35,7 +43,15 @@ instance Cluster<A,B,C,D,E,F,G,H,I,J>: Pure where
 
 end
 
-exit -1;
+Cluster<int, int, int, int, int, int, int, int, int, int> c = pure();
+println c.a; # 42
+println c.b; # 42
+println c.c; # 42
+
+Cluster<int, char, char, int, int, char, int, char, char, int> d = pure();
+println d.a; # 42
+println d.b; # X
+println d.c; # X
 
 
 end

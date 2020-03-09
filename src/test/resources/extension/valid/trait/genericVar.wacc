@@ -5,12 +5,6 @@ newtype List<A> is union
     Node of (A elem, List<A> next);
 end
 
-trait A: Eq is
-    bool equals(A a, A b) is required
-    bool notEquals(A a, A b) is
-        return !equals(a, b);
-    end
-end
 
 List<int> nil = Nil();
 var node = Node(2 + 4, nil);

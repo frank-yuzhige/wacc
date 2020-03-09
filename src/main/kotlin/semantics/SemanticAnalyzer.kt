@@ -217,7 +217,7 @@ class SemanticAnalyzer() {
                             stmts.checkBlock(returnType, typeconstraints) {
                                 pattern.matchVars.withIndex().forEach { (i, match) ->
                                     symbolTable.defineVar(realFuncType.paramTypes[i], match, isConst = true)
-                                    match.type = realFuncType.paramTypes[i]
+                                    match.reifiedType = realFuncType.paramTypes[i]
                                 }
                             }
                         }
@@ -250,7 +250,7 @@ class SemanticAnalyzer() {
                 is ArrayElem -> {
                     val arrAttribute = symbolTable.lookupVar(arrIdent, false)
                             ?:throw UndefinedVarException(arrIdent.name)
-                    arrIdent.type = arrAttribute.type
+                    arrIdent.reifiedType = arrAttribute.type
                     val type = arrAttribute.type.unwrapArrayType(indices.size)
                             ?: throw NotEnoughArrayRankException(arrIdent.name)
                     indices.map { it.checkExpr(intType()) }
@@ -267,13 +267,13 @@ class SemanticAnalyzer() {
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
-            type
+            reifiedType
         } finally {
             if (isPush) {
                 treeStack.pop()
             }
         }
-        this.type = inferredType
+        this.reifiedType = inferredType
         return inferredType
     }
 
@@ -340,7 +340,7 @@ class SemanticAnalyzer() {
             System.err.println("$$> logging: ${sme.msg}")
             TypeVar("A")
         }
-        type = inferredType
+        reifiedType = inferredType
         System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
         if (!inferredType.isDetermined()) {
             logAction(listOf(UngroundTypeException(inferredType).msg))

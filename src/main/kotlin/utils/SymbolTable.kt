@@ -5,9 +5,14 @@ import ast.Expression.Identifier
 import ast.Function
 import ast.Type.*
 import ast.Type.Companion.arrayTypeOf
+import ast.Type.Companion.boolType
+import ast.Type.Companion.charType
+import ast.Type.Companion.intType
+import ast.Type.Companion.stringType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
 import utils.SymbolTable.TypeAttributes.Companion.arrayAttributes
+import utils.SymbolTable.TypeAttributes.Companion.baseTypeAttributes
 import java.util.*
 import kotlin.IllegalArgumentException
 
@@ -24,6 +29,10 @@ class SymbolTable {
 
     init {
         typedefs += "array" to arrayAttributes()
+        typedefs += "int" to baseTypeAttributes(intType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
+        typedefs += "bool" to baseTypeAttributes(boolType(), "Eq", "Ord", "Show", "Enum", "Read")
+        typedefs += "char" to baseTypeAttributes(charType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
+        typedefs += "string" to baseTypeAttributes(stringType(), "Eq", "Show")
         traitDefs += Trait("Eq") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
         traitDefs += Trait("Ord") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
         traitDefs += Trait("Malloc") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
@@ -115,7 +124,7 @@ class SymbolTable {
 
     fun implementTrait(instance: TraitInstance) {
         when(instance.targetType) {
-            is NewType -> {
+            is NewType, is BaseType -> {
                 val bindedType = instance.targetType.bindConstraints(instance.typeConstraints)
                 val traitEntry = traitDefs[instance.trait]
                         ?: throw UndefinedTraitException(instance.trait.traitName)
@@ -150,20 +159,26 @@ class SymbolTable {
                     definedFuncNames += funcHeader.name
 
                 }
-                val typeEntry = typedefs[instance.targetType.name]
-                        ?: throw UndefinedTypeException(instance.targetType.name)
-                val genericTraitsList = instance.targetType.generics.map { tvar ->
-                    when{
-                        tvar !is TypeVar -> throw InstanceWithGroundGenericTypeException(instance.targetType)
-                        else -> {
-                            instance.typeConstraints
-                                    .filter { it.typeVar == tvar.name }
-                                    .map { it.trait }
-                                    .toSet()
+                if (instance.targetType is NewType) {
+                    val typeEntry = typedefs[instance.targetType.name]
+                            ?: throw UndefinedTypeException(instance.targetType.name)
+                    val genericTraitsList = instance.targetType.generics.map { tvar ->
+                        when{
+                            tvar !is TypeVar -> throw InstanceWithGroundGenericTypeException(instance.targetType)
+                            else -> {
+                                instance.typeConstraints
+                                        .filter { it.typeVar == tvar.name }
+                                        .map { it.trait }
+                                        .toSet()
+                            }
                         }
                     }
+                    typeEntry.traitDependencies[instance.trait] = genericTraitsList
+                } else { // base type
+                    val typeEntry = typedefs.getValue(instance.targetType.toString())
+                    typeEntry.traitDependencies[instance.trait] = emptyList()
                 }
-                typeEntry.traitDependencies[instance.trait] = genericTraitsList
+
                 for (impl in instance.functions) {
                     if (impl.name in traitEntry.implementations) {
                         traitEntry.implementations[impl.name]!! += impl
@@ -240,12 +255,9 @@ class SymbolTable {
 
     fun isInstance(type: Type, trait: Trait): Boolean {
         return when(type) {
-            is BaseType -> when(type.kind) {
-                BaseTypeKind.INT -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
-                BaseTypeKind.BOOL -> trait.traitName in setOf("Eq", "Ord", "Show", "Enum")
-                BaseTypeKind.CHAR -> trait.traitName in setOf("Eq", "Ord", "Show", "Num", "Enum", "Read")
-                BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show", "Read")
-                BaseTypeKind.ANY -> throw IllegalArgumentException("Base type ANY is deprecated, only used in var")
+            is BaseType -> {
+                val entry = typedefs[type.toString()]!!
+                trait in entry.traitDependencies.keys
             }
             is PairType -> TODO()
             is NewType -> {
@@ -332,7 +344,7 @@ class SymbolTable {
         fun addOccurrence(): VarAttributes = this.also { occurrences++ }
     }
     data class TypeAttributes(
-            val typeWhenDef: NewType,
+            val typeWhenDef: Type,
             val isUnion: Boolean,
             val traitDependencies: MutableMap<Trait, List<Set<Trait>>>,
             val constructors: Set<String>,
@@ -347,6 +359,10 @@ class SymbolTable {
                         Trait("Malloc") to listOf(emptySet())
                 )
                 return TypeAttributes(arrayTypeOf(TypeVar("A")),false, impls, emptySet(), -1 to -1)
+            }
+            fun baseTypeAttributes(type: Type, vararg traits: String): TypeAttributes {
+                val impls = traits.map { Trait(it) to emptyList<Set<Trait>>() }.toMap().toMutableMap()
+                return TypeAttributes(type, false, impls, emptySet(), -1 to -1)
             }
         }
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }

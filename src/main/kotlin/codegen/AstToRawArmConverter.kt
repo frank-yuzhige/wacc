@@ -112,12 +112,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         }
     }
 
-    private fun defineConstructor(name: String, funcType: FuncType, isTaggedUnion: Boolean) {
-        funcLabelMap += name to getConstructorLabel(name, funcType)
+    private fun defineConstructor(name: String, constructorType: FuncType, isTaggedUnion: Boolean) {
+        funcLabelMap += name to getConstructorLabel(name, constructorType)
 
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
-        callMalloc(mallocSize(name, isTaggedUnion))
+        callMalloc(mallocSize(constructorType, isTaggedUnion))
 
         var structOffsetAcc = 0
         if (isTaggedUnion) {
@@ -126,12 +126,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             structOffsetAcc += 4
         }
         var paramOffsetAcc = 4
-        funcType.paramTypes.forEach { t ->
+        constructorType.paramTypes.forEach { t ->
             val size = sizeof(t)
             load(Reg(1), Offset(sp(), paramOffsetAcc), size)
             store(Reg(1), Offset(Reg(0), structOffsetAcc), size)
-            structOffsetAcc += sizeof(t)
-            paramOffsetAcc += sizeof(t)
+            structOffsetAcc += size
+            paramOffsetAcc += size
         }
         packBlock(PopPC)
         addDirective(LTORG)
@@ -165,7 +165,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is Declaration -> {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
-                alloca(variable, reg, sizeof(rhs.type))
+                alloca(variable, reg, sizeof(rhs.getType()))
             }
 
             is Assignment -> {
@@ -305,7 +305,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun Expression.toARM(): Operand {
         this.ground(currentGrounding)
-        assert(type.isGround())
         return when (this) {
             NullLit -> immNull()
             is IntLit -> {
@@ -431,7 +430,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 if (!this.isConstructor() && funcAttr.type.isGround()) {
                     bl(AL, funcLabelMap.getValue(ident))
                 } else {
-                    val actualFuncType = FuncType(type, args.map { it.type })
+                    val actualFuncType = FuncType(getType(), args.map { it.getType() })
                     val fLabel = groundGenericFunc(ident, actualFuncType)
                     bl(AL, fLabel)
                 }
@@ -944,7 +943,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun getConstructorLabel(name: String, type: FuncType): Label =
             Label("constructor_${type.printAsLabel()}")
 
-    private fun Expression.getType(): Type = this.type
+    private fun Expression.getType(): Type = this.groundedType
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1
@@ -953,19 +952,22 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         else -> 4
     }
 
-    private fun mallocSize(constructor: String, isTaggedUnion: Boolean = false): Int {
-        val s = symbolTable.functions[constructor]!!.members.sumBy { sizeof(it.first) }
+    private fun mallocSize(constructorType: FuncType, isTaggedUnion: Boolean = false): Int {
+        val s = constructorType.paramTypes.sumBy { sizeof(it) }
         return s + if (isTaggedUnion) 4 else 0
     }
 
     private fun getMemberOffset(name: String, type: Type): Int {
         if (type is NewType) {
             var acc = 0
-            for (member in symbolTable.functions.getValue(type.name).members) {
+            val constructorFunc = symbolTable.functions.getValue(type.name)
+            val sub = type.findUnifier(constructorFunc.type.retType)
+            val groundFuncType = constructorFunc.type.substitutes(sub) as FuncType
+            for ((i, member) in constructorFunc.members.withIndex()) {
                 if (member.second.name == name) {
                     return acc
                 }
-                acc += sizeof(member.first)
+                acc += sizeof(groundFuncType.paramTypes[i])
             }
         }
         throw SemanticException.UndefinedFuncException(type.toString()) // should never reach here

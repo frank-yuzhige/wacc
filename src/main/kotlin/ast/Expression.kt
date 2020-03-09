@@ -6,10 +6,12 @@ import utils.VarWithSID
 
 interface Literal
 
-sealed class Expression(var type: Type = Type.TypeVar("A", emptyList()), var inParens: Boolean = false) : WaccAST() {
+sealed class Expression(var reifiedType: Type = Type.TypeVar("A"), // reified type, decided during semantic check. Not changed after that.
+                        var groundedType: Type = Type.TypeVar("A"),// grounded type (for codegen only), to avoid re-use of expression
+                        var inParens: Boolean = false) : WaccAST() {
 
     fun ground(grounding: Grounding): Expression {
-        return this.also { type = type.substitutes(grounding) }
+        return this.also { groundedType = reifiedType.substitutes(grounding) }
     }
 
     override fun tellIdentity(): String = "an expression"
