@@ -10,15 +10,16 @@ ident   : IDENT;
 capIdent: CAP_IDENT;
 boolLit : TRUE | FALSE;
 
-type        : arrayType | baseType | pairType | capIdent generics?;
-arrayType   : (baseType | pairType | capIdent generics?) (LBRA RBRA)+;
+type        : arrayType | baseType | pairType | newType;
+arrayType   : (baseType | pairType | newType) (LBRA RBRA)+;
 pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
 pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
+newType     : capIdent generics?;
 generics    : LT type (COMMA type)* GT;
 
 member: type ident;
-newtype: structType | taggedUnion;
+newTypeDef: structType | taggedUnion;
 genericTVars: LT tvar=capIdent (COMMA tvar=capIdent)* GT;
 structType: NEWTYPE capIdent genericTVars? IS (member SEMICOLON)* END;
 
@@ -80,7 +81,7 @@ constraintList: (constraint|forallConstraint) (COMMA (constraint|forallConstrain
 func: type ident LPAR paramList? RPAR (WHERE constraintList)? IS stats END;
 
 requiredFunc: type ident LPAR paramList? RPAR (WHERE constraintList)? IS REQUIRED;
-traitDef: TRAIT tvar=capIdent COLON trait=capIdent (WHERE constraintList)? IS requiredFunc+ func* END;
+traitDef: TRAIT tvar=capIdent COLON trait=capIdent (WHERE constraintList)? IS requiredFunc+ END;
 
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
@@ -130,4 +131,4 @@ typeMember: expr DOT ident;
 typeConstructor: capIdent LPAR argList? RPAR;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN (newtype|func|traitDef|traitInstance)* stats? END EOF;
+prog: BEGIN (newTypeDef|func|traitDef|traitInstance)* stats? END EOF;

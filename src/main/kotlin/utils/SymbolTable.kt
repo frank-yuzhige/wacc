@@ -8,6 +8,7 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import exceptions.SemanticException
 import exceptions.SemanticException.*
+import utils.SymbolTable.TypeAttributes.Companion.arrayAttributes
 import java.lang.IllegalArgumentException
 import java.util.*
 
@@ -21,6 +22,10 @@ class SymbolTable {
     val collect: MutableMap<VarWithSID, VarAttributes> = hashMapOf()
     val scopeDefs: MutableMap<Int, Set<String>> = hashMapOf()
     private var scopeIdGen = 0
+
+    init {
+        typedefs += "array" to arrayAttributes()
+    }
 
     fun defineVar(type: Type, identNode: Identifier, isConst: Boolean): VarAttributes? {
         val name = identNode.name
@@ -90,8 +95,7 @@ class SymbolTable {
         traitDefs[trait] = TraitAttributes(
                 traitDef.traitVar,
                 traitDef.typeConstraints.map { it.trait }.toSet(),
-                traitDef.requiredFuncs,
-                traitDef.defaultFuncs
+                traitDef.requiredFuncs
         )
         traitDef.requiredFuncs.forEach { header ->
             functions[header.name] = FuncAttributes(header.getFuncType(), header.args, trait, header.startIndex)
@@ -100,7 +104,6 @@ class SymbolTable {
 
     fun implementTrait(instance: TraitInstance) {
         when(instance.targetType) {
-            is ArrayType -> TODO()
             is PairType -> TODO()
             is TypeVar -> TODO()
             is NewType -> {
@@ -118,22 +121,19 @@ class SymbolTable {
                 }
                 // check if required are all defined.
                 val sub = mapOf((traitEntry.traitVar to false) to instance.targetType)
-                val remainingRequired = traitEntry.requiredFuncs
+                val required = traitEntry.requiredFuncs
                         .map { it.name to it.getFuncType().substitutes(sub) as FuncType }
                         .toMap().toMutableMap()
-                val totalFuncs = traitEntry.defaultFuncs
-                                .map { it.name to it.getFuncType().substitutes(sub) }
-                                .toMap().toMutableMap() + remainingRequired
                 val definedFuncNames = mutableSetOf<String>()
                 instance.functions.forEach { func ->
                     val funcHeader = func.extractHeader()
-                    if (funcHeader.name !in totalFuncs) {
+                    if (funcHeader.name !in required) {
                         throw UndefinedFuncException(funcHeader.name)
                     }
                     if (funcHeader.name in definedFuncNames) {
                         throw MultipleFuncDefException(funcHeader.name, funcHeader.getFuncType(), 1 to 1)
                     }
-                    val requiredType = remainingRequired.getValue(funcHeader.name)
+                    val requiredType = required.getValue(funcHeader.name)
                     if (requiredType != funcHeader.getFuncType()) {
                         throw TraitRequiredFuncTypeError(instance.trait.traitName, funcHeader.name, requiredType, funcHeader.getFuncType())
                     }
@@ -237,18 +237,29 @@ class SymbolTable {
                 BaseTypeKind.STRING -> trait.traitName in setOf("Eq", "Ord", "Show", "Read")
                 BaseTypeKind.ANY -> throw IllegalArgumentException("Base type ANY is deprecated, only used in var")
             }
-            is ArrayType -> isInstance(type.type, trait) && trait.traitName in setOf("Eq", "Show")
             is PairType -> TODO()
             is NewType -> {
                 val entry = lookupType(type)?:throw UndefinedTypeException(type.name)
-                trait in entry.implementations && type.generics.withIndex().all { (i, type) ->
+                trait in getAllDependencies(entry.implementations.keys) && type.generics.withIndex().all { (i, type) ->
                     val traits = entry.implementations.getValue(trait)[i]
                     traits.all { isInstance(type, it) }
                 }
             }
-            is TypeVar -> trait in type.traits
+            is TypeVar -> trait in getAllDependencies(type.traits)
             is FuncType -> false
         }
+    }
+
+    fun getAllDependencies(traits: Iterable<Trait>): Set<Trait> {
+        val set = mutableSetOf<Trait>()
+        fun dfs(trait: Trait) {
+            if(trait !in set) {
+                set += trait
+                traitDefs.getValue(trait).dependencies.map { dfs(it) }
+            }
+        }
+        traits.map { dfs(it) }
+        return set
     }
 
     /* Find the correct trait func def for the given ground type. */
@@ -337,13 +348,21 @@ class SymbolTable {
             val index: Index,
             var occurrences: Int = 1
     ) {
+        companion object {
+            fun arrayAttributes(): TypeAttributes {
+                val impls = mutableMapOf(
+                        Trait("Eq") to listOf(setOf(Trait("Eq"))),
+                        Trait("Show") to listOf(setOf(Trait("Show")))
+                )
+                return TypeAttributes(false, impls, emptySet(), -1 to -1)
+            }
+        }
         fun addOccurrence(): TypeAttributes = this.also { occurrences++ }
     }
     data class TraitAttributes(
             val traitVar: String,
             val dependencies: Set<Trait>,
             val requiredFuncs: List<FunctionHeader>,
-            val defaultFuncs: List<Function>,
             val implementations: MutableMap<String, MutableList<Function>> = mutableMapOf()
     )
 

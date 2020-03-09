@@ -13,6 +13,7 @@ import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
+import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
@@ -204,7 +205,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                         val reg = expr.toARM().toReg()
                         mov(Reg(0), reg)
                         when (expr.getType()) {
-                            is ArrayType -> callPrelude(FREE_ARRAY)
+                            is NewType -> callPrelude(FREE_STRUCT)
                             is PairType -> callPrelude(FREE_PAIR)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
                         }
@@ -551,7 +552,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     setBlock(notNullLabel)
                     pop(SpecialReg(PC))
                 }
-                FREE_ARRAY -> {
+                FREE_STRUCT -> {
                     push(SpecialReg(LR))
                     bl(AL, CHECK_NULL_PTR.getLabel())
                     bl(AL, Label("free"))
@@ -859,7 +860,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 binop(ADD, Reg(0), Reg(0), ImmNum(4), false)
             }
             stringType(),
-            ArrayType(charType()) -> {
+            arrayTypeOf(charType()) -> {
                 mov(Reg(1), operand)
                 binop(ADD, Reg(1), Reg(1), ImmNum(4), false)
                 load(Reg(0), defString(getFormatString(exprType, newline)))
@@ -930,7 +931,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 STRING -> "%s"
                 else -> "%p"
             }
-            ArrayType(charType()) -> "%s"
+            arrayTypeOf(charType()) -> "%s"
             else -> "%p"
         }
         return format + if (newline) "\\n" else ""

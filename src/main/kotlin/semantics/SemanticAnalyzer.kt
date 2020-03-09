@@ -10,6 +10,7 @@ import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
+import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
@@ -311,7 +312,7 @@ class SemanticAnalyzer() {
                         if(temp.isNotEmpty()) {
                             logAction(temp)
                         }
-                        ArrayType(fstType)
+                        arrayTypeOf(fstType)
                     }
                 }
                 is NewPair -> TODO()

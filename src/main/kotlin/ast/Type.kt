@@ -19,11 +19,12 @@ sealed class Type {
     }
 
     companion object {
-        fun anyArrayType(): ArrayType = ArrayType(anyType())
+        fun anyArrayType() = arrayTypeOf(anyType())
+        fun arrayTypeOf(type: Type) = NewType("array", type)
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
 
-        fun anyType(): Type = TypeVar("A")
+        fun anyType(): Type = TypeVar("T")
 
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
@@ -34,23 +35,6 @@ sealed class Type {
 
     data class BaseType(val kind: BaseTypeKind) : Type() {
         override fun toString(): String = kind.symbol
-    }
-
-    data class ArrayType(val type: Type) : Type() {
-        override fun toString(): String = "$type[]"
-        override fun printAsLabel(): String = "arr_${type.printAsLabel()}_"
-        override fun bindConstraints(constraints: List<TypeConstraint>): Type {
-            return ArrayType(type.bindConstraints(constraints))
-        }
-
-        override fun substitutes(substitutions: Map<Pair<String, Boolean>, Type>): Type {
-            return ArrayType(type.substitutes(substitutions))
-        }
-
-        override fun isDetermined(): Boolean = type.isDetermined()
-        override fun isGround(): Boolean = type.isGround()
-
-        override fun reified(constraints: List<TypeConstraint>): Type = ArrayType(type.reified(constraints))
     }
 
     data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
@@ -185,10 +169,6 @@ sealed class Type {
         val actual = this.substitutes(oldMgu)
         return when(original) {
             is BaseType -> if(actual == original) emptyMap() else throw NoUnificationFoundForTypesException(actual, original)
-            is ArrayType -> when {
-                actual is ArrayType -> actual.type.findUnifier(original.type)
-                else -> throw NoUnificationFoundForTypesException(actual, original)
-            }
             is PairType -> throw NoUnificationFoundForTypesException(actual, original)
             is NewType -> when {
                 actual is NewType && actual.name == original.name -> {
@@ -231,11 +211,6 @@ sealed class Type {
         return when(expecting) {
             is BaseType -> when(actual) {
                 is BaseType -> if (expecting == actual) actual else throw SemanticException.TypeMismatchException(expecting, actual)
-                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
-                else -> throw SemanticException.TypeMismatchException(expecting, actual)
-            }
-            is ArrayType -> when(actual) {
-                is ArrayType -> ArrayType(actual.type.inferFrom(expecting.type, symbolTable))
                 is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
                 else -> throw SemanticException.TypeMismatchException(expecting, actual)
             }
@@ -288,8 +263,8 @@ sealed class Type {
         }.also { System.err.println("We get: $it") }
     }
 
-    fun unwrapArrayType(): Type? = when (this) {
-        is ArrayType -> type
+    fun unwrapArrayType(): Type? = when {
+        this is NewType && name == "array" -> generics[0]
         else -> null
     }
 

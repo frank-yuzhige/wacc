@@ -8,7 +8,7 @@ enum class PreludeFunc(val needs: List<PreludeFunc> = emptyList()) {
     CHECK_DIV_BY_ZERO(listOf(RUNTIME_ERROR)),
     CHECK_NULL_PTR(listOf(RUNTIME_ERROR)),
     CHECK_ARR_BOUND(listOf(CHECK_NULL_PTR)),
-    FREE_ARRAY(listOf(CHECK_NULL_PTR)),
+    FREE_STRUCT(listOf(CHECK_NULL_PTR)),
     FREE_PAIR(listOf(CHECK_NULL_PTR));
 
     fun getLabel(): Operand.Label {

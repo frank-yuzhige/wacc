@@ -7,6 +7,7 @@ import ast.Type
 import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.BaseTypeKind.STRING
+import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.charType
 import ast.Type.Companion.stringType
 
@@ -47,7 +48,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
             BaseType(ANY) -> pass()
             BaseType(STRING) -> TypeChecker { actual ->
                 when (actual) {
-                    ArrayType(charType()), stringType() -> emptyList()
+                    arrayTypeOf(charType()), stringType() -> emptyList()
                     else -> listOf(typeMismatchError(expected, actual))
                 }
             }
@@ -58,15 +59,6 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
                         match(expected.firstElemType).test(actual.firstElemType) +
                                 match(expected.secondElemType).test(actual.secondElemType)
                     }
-                    else -> listOf(typeMismatchError(expected, actual))
-                }
-            }
-            is ArrayType -> TypeChecker { actual ->
-                when(actual) {
-                    BaseType(ANY) -> emptyList()
-                    is ArrayType -> match(expected.type)
-                            .withError(typeMismatchError(expected, actual))
-                            .test(actual.type)
                     else -> listOf(typeMismatchError(expected, actual))
                 }
             }
@@ -103,7 +95,7 @@ class TypeChecker private constructor(val test: (Type) -> List<String>) {
 
         /* Unwrap the given 'array-checker' @tc, to check the base type of the array (1-rank lower) */
         fun unwrapArray(tc: TypeChecker): TypeChecker = TypeChecker { actual ->
-            tc.test(ArrayType(actual))
+            tc.test(arrayTypeOf(actual))
         }
     }
 

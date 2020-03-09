@@ -71,6 +71,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPairType(WaccParser.PairTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#newType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNewType(WaccParser.NewTypeContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#generics}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -83,11 +89,11 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMember(WaccParser.MemberContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link WaccParser#newtype}.
+	 * Visit a parse tree produced by {@link WaccParser#newTypeDef}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitNewtype(WaccParser.NewtypeContext ctx);
+	T visitNewTypeDef(WaccParser.NewTypeDefContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#genericTVars}.
 	 * @param ctx the parse tree

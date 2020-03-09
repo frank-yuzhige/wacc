@@ -10,6 +10,7 @@ import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
+import ast.Type.Companion.arrayTypeOf
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
@@ -35,7 +36,7 @@ class RuleContextConverter() {
     fun ProgContext.toAST(): ProgramAST {
         stack.push(this)
         val programAST = ProgramAST(
-                newtype()?.map { it.toAST() }?: emptyList(),
+                newTypeDef()?.map { it.toAST() }?: emptyList(),
                 traitDef()?.map { it.toAST() } ?: emptyList(),
                 traitInstance()?.map { it.toAST() } ?: emptyList(),
                 func()?.map { it.toAST() }?: emptyList(),
@@ -87,8 +88,7 @@ class RuleContextConverter() {
                 trait.text,
                 dependentConstraints,
                 tvar.text,
-                requiredFunc()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList(),
-                func()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList()
+                requiredFunc()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList()
         ).records(start(), end())
         stack.pop()
         return result
@@ -188,16 +188,9 @@ class RuleContextConverter() {
 
     private fun TypeContext.toAST(typeVars: Set<String> = emptySet()): Type = when {
         baseType() != null -> baseType().toAST()
-        arrayType() != null -> arrayType().toAST()
-        pairType() != null -> pairType().toAST()
-        capIdent() != null -> {
-            val str = capIdent().text
-            if (capIdent().text in typeVars) {
-                TypeVar(capIdent().text, emptyList(), false) // add traits later
-            } else {
-                NewType(capIdent().text, generics()?.toAST(typeVars)?: emptyList())
-            }
-        }
+        arrayType() != null -> arrayType().toAST(typeVars)
+        pairType() != null -> pairType().toAST(typeVars)
+        newType() != null -> newType().toAST(typeVars)
         else -> throw IllegalArgumentException("Unrecognized type: $text")
     }
 
@@ -211,32 +204,42 @@ class RuleContextConverter() {
         else -> throw IllegalArgumentException("Unknown base type: $text")
     }
 
-    private fun ArrayTypeContext.toAST(): ArrayType {
+    private fun ArrayTypeContext.toAST(typeVars: Set<String>): Type {
         val dimension = LBRA().size
-        var tau = ArrayType(when {
+        var tau = arrayTypeOf(when {
             baseType() != null -> baseType().toAST()
-            pairType() != null -> pairType().toAST()
+            pairType() != null -> pairType().toAST(typeVars)
+            newType() != null -> newType().toAST(typeVars)
             else -> {
                 logError(UnsupportedArrayBaseTypeException(this.text))
                 BaseType(ANY)
             }
         })
         for (i in 1 until dimension) {
-            tau = ArrayType(tau)
+            tau = arrayTypeOf(tau)
         }
         return tau
     }
 
-    private fun PairTypeContext.toAST(): PairType {
+    private fun PairTypeContext.toAST(typeVars: Set<String>): PairType {
         fun pairElemTypeToAST(context: PairElemTypeContext): Type = when {
             context.baseType() != null -> context.baseType().toAST()
-            context.arrayType() != null -> context.arrayType().toAST()
+            context.arrayType() != null -> context.arrayType().toAST(typeVars)
             else -> anyPairType()
         }
         return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
-    private fun NewtypeContext.toAST(): NewTypeDef {
+    private fun NewTypeContext.toAST(typeVars: Set<String>): Type {
+        val str = capIdent().text
+        return if (capIdent().text in typeVars) {
+            TypeVar(capIdent().text, emptyList(), false) // add traits later
+        } else {
+            NewType(capIdent().text, generics()?.toAST(typeVars)?: emptyList())
+        }
+    }
+
+    private fun NewTypeDefContext.toAST(): NewTypeDef {
         return when {
             structType() != null -> structType().toAST()
             taggedUnion() != null -> taggedUnion().toAST()
