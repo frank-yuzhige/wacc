@@ -25,6 +25,10 @@ class SymbolTable {
 
     init {
         typedefs += "array" to arrayAttributes()
+        traitDefs += Trait("Eq") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
+        traitDefs += Trait("Ord") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
+        traitDefs += Trait("Malloc") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
+        traitDefs += Trait("Show") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
     }
 
     fun defineVar(type: Type, identNode: Identifier, isConst: Boolean): VarAttributes? {
@@ -55,7 +59,10 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException(def.name(), entry.type, entry.index)
                 }
-                typedefs[def.type.name] = TypeAttributes(false, mutableMapOf(), setOf(def.name()), def.startIndex)
+                val defaultMallocMap = mutableMapOf(
+                        Trait("Malloc") to (1..def.type.generics.size).map { emptySet<Trait>() }
+                )
+                typedefs[def.type.name] = TypeAttributes(false, defaultMallocMap, setOf(def.name()), def.startIndex)
                 functions[def.name()] = FuncAttributes(def.constructorFuncType(), def.members, null, def.startIndex)
             }
 
@@ -64,7 +71,10 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException("def.name()", def.type, entry.index)
                 }
-                typedefs[def.type.name] = TypeAttributes(true, mutableMapOf(), def.memberMap.keys, def.startIndex)
+                val defaultMallocMap = mutableMapOf(
+                        Trait("Malloc") to (1..def.type.generics.size).map { emptySet<Trait>() }
+                )
+                typedefs[def.type.name] = TypeAttributes(true, defaultMallocMap, def.memberMap.keys, def.startIndex)
                 var unionId = 0
                 def.memberMap.forEach { (constructor, params) ->
                     val fentry = functions[constructor]
@@ -352,7 +362,8 @@ class SymbolTable {
             fun arrayAttributes(): TypeAttributes {
                 val impls = mutableMapOf(
                         Trait("Eq") to listOf(setOf(Trait("Eq"))),
-                        Trait("Show") to listOf(setOf(Trait("Show")))
+                        Trait("Show") to listOf(setOf(Trait("Show"))),
+                        Trait("Malloc") to listOf(emptySet())
                 )
                 return TypeAttributes(false, impls, emptySet(), -1 to -1)
             }

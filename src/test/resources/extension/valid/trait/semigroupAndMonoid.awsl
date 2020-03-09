@@ -111,5 +111,7 @@ println miProduct.i;   # 1600
 AndBool[] abs = [];
 var abAnd = concat(abs);
 println abAnd.b;       # true - same as epsilon()
+free abs;
+free abAnd;
 
 end
