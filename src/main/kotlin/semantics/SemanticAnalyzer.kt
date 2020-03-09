@@ -15,6 +15,7 @@ import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.stringType
+import ast.Type.TypeVar.Companion.newTypeVar
 import exceptions.SemanticException
 import exceptions.SemanticException.*
 import utils.*
@@ -249,6 +250,7 @@ class SemanticAnalyzer() {
                 is ArrayElem -> {
                     val arrAttribute = symbolTable.lookupVar(arrIdent, false)
                             ?:throw UndefinedVarException(arrIdent.name)
+                    arrIdent.type = arrAttribute.type
                     val type = arrAttribute.type.unwrapArrayType(indices.size)
                             ?: throw NotEnoughArrayRankException(arrIdent.name)
                     indices.map { it.checkExpr(intType()) }
@@ -305,14 +307,12 @@ class SemanticAnalyzer() {
                     elements.isEmpty() -> anyArrayType() inferFrom expecting
                     else -> {
                         val temp: MutableList<String> = mutableListOf()
-                        val elemExpecting = expecting.unwrapArrayType()
-                                ?: throw TypeMismatchException(expecting, anyArrayType())
-                        val fstType = elements.first().checkExpr(elemExpecting) { temp += it }
+                        val fstType = elements.first().checkExpr(newTypeVar()) { temp += it }
                         elements.drop(1).forEach { elem -> elem.checkExpr(fstType) { temp += it } }
                         if(temp.isNotEmpty()) {
                             logAction(temp)
                         }
-                        arrayTypeOf(fstType)
+                        arrayTypeOf(fstType) inferFrom expecting
                     }
                 }
                 is NewPair -> TODO()

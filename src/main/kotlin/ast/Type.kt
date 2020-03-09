@@ -55,6 +55,9 @@ sealed class Type {
     data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
         constructor(name: String, vararg generics: Type): this(name, generics.asList())
         override fun toString(): String {
+            if(name == "array") {
+                return "${generics[0]}[]"
+            }
             return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
         }
 
@@ -79,6 +82,11 @@ sealed class Type {
 
     data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
         constructor(name: String, vararg traits: Trait): this(name, traits.toList())
+
+        companion object {
+            var nameGen = 0
+            fun newTypeVar() = TypeVar("N${nameGen++}")
+        }
 
         override fun toString(): String = if(isReified) "@_$name" else "_$name"
         override fun reified(constraints: List<TypeConstraint>): Type =
@@ -265,6 +273,7 @@ sealed class Type {
 
     fun unwrapArrayType(): Type? = when {
         this is NewType && name == "array" -> generics[0]
+        this is TypeVar && !this.isReified -> TypeVar(name + 1)
         else -> null
     }
 

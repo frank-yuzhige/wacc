@@ -336,7 +336,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is ArrayElem -> {
                 var result = load(getReg(), findVar(arrIdent))
                 for (expr in indices) {
-                    val currType = arrIdent.getType().unwrapArrayType()!!
+                    val currType = arrIdent.ground(currentGrounding).getType().unwrapArrayType()!!
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
@@ -944,7 +944,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1
-        is TypeVar -> sizeof(currentGrounding[type.name to true]!!)
+        is TypeVar -> sizeof(currentGrounding[type.name to true]
+                ?: throw IllegalArgumentException("type var ${type.name} not found in grounding $currentGrounding"))
         else -> 4
     }
 }
