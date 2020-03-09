@@ -52,6 +52,8 @@ Cluster<int, char, char, int, int, char, int, char, char, int> d = pure();
 println d.a; # 42
 println d.b; # X
 println d.c; # X
+println d.h; # X
+println d.j; # 42
 
 
 end

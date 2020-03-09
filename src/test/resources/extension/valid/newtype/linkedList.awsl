@@ -8,7 +8,7 @@ end
 LinkedList fromArray(int[] arr) is
     LinkedList curr = End();
     int size = len(arr);
-    while(size >= 0) do
+    while(size > 0) do
         size = size - 1;
         curr = Node(arr[size], curr);
     done;
@@ -20,7 +20,7 @@ int length(LinkedList list) is
     while(true) do
         when list:
             is End -> return acc;
-            is Node(x, succ) -> acc = acc + 1;
+            is Node(x, succ) -> acc = acc + 1; list = succ;
         end;
     done;
     return 0;
@@ -30,8 +30,9 @@ int printAll(LinkedList list) is
     when list:
         is End -> return 0;
         is Node(x, succ) ->
-            println(x);
-            int y = call printAll(x);
+            print(x);
+            print(',');
+            int y = call printAll(succ);
             return y;
     end;
 end
@@ -42,6 +43,7 @@ LinkedList list = fromArray(arr);
 int length = length(list);
 println(length);
 
-call printAll(list);
+int x = printAll(list);
+println "";
 
 end

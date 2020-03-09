@@ -177,7 +177,7 @@ sealed class Type {
     fun findUnifier(original: Type, oldMgu: Map<Pair<String, Boolean>, Type> = mutableMapOf()): Map<Pair<String, Boolean>, Type> {
         val actual = this.substitutes(oldMgu)
         return when(original) {
-            is BaseType -> if(actual == original) emptyMap() else throw NoUnificationFoundForTypesException(actual, original)
+            is BaseType -> if(actual == original) oldMgu else throw NoUnificationFoundForTypesException(actual, original)
             is PairType -> throw NoUnificationFoundForTypesException(actual, original)
             is NewType -> when {
                 actual is NewType && actual.name == original.name -> {

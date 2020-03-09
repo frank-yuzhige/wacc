@@ -251,7 +251,7 @@ class RuleContextConverter() {
         return if (unionEntry() == null || unionEntry().isEmpty()) {
             UnionTypeDef(this.capIdent().text)
         } else {
-            val typeVars = this.genericTVars().toAST()
+            val typeVars = this.genericTVars()?.toAST() ?: emptyList()
             UnionTypeDef(
                     this.capIdent().text,
                     typeVars,

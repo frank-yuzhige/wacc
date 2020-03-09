@@ -150,7 +150,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         var offsetAcc = -4
         args.map { arg ->
             markParam(arg.second, offsetAcc)
-            offsetAcc -= sizeof(arg.first)
+            offsetAcc -= sizeof(arg.first.reified(emptyList()))
         }
         body.map { it.toARM() }
         if (!blockComplete) {
@@ -169,6 +169,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
 
             is Assignment -> {
+                lhs.ground(currentGrounding)
                 val reg = rhs.toARM().toReg()
                 when (lhs) {
                     is Identifier -> {
@@ -386,7 +387,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType()) } ?: 0
+                val elemSize = elements.getOrNull(0)?.let { sizeof(it.ground(currentGrounding).getType()) } ?: 0
                 val totalSize = elements.size * elemSize + 4
 
                 val baseAddressReg = mov(getReg(), callMalloc(totalSize))
@@ -474,7 +475,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         val members = symbolTable.functions.getValue(constructor).members
         matchVars.zip(members).forEach { (ident, param) ->
             scopeEnterDef(ident)
-            val type = ident.getType().substitutes(currentGrounding)
+            val type = ident.ground(currentGrounding).getType()
             val value = load(AL, getReg(), Offset(unionAtReg, offsetAcc), sizeof(type))
             alloca(ident, value, sizeof(type))
             offsetAcc += sizeof(type)

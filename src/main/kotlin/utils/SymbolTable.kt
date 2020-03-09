@@ -34,9 +34,11 @@ class SymbolTable {
         typedefs += "char" to baseTypeAttributes(charType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
         typedefs += "string" to baseTypeAttributes(stringType(), "Eq", "Show")
         traitDefs += Trait("Eq") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
-        traitDefs += Trait("Ord") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
+        traitDefs += Trait("Ord") to TraitAttributes("A", setOf(Trait("Eq")), emptyList(), mutableMapOf())
         traitDefs += Trait("Malloc") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
         traitDefs += Trait("Show") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())
+        traitDefs += Trait("Num") to TraitAttributes("A", setOf(Trait("Ord")), emptyList(), mutableMapOf())
+        traitDefs += Trait("Enum") to TraitAttributes("A", setOf(Trait("Ord")), emptyList(), mutableMapOf())
     }
 
     fun defineVar(type: Type, identNode: Identifier, isConst: Boolean): VarAttributes? {
