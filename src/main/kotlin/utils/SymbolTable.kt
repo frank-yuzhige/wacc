@@ -13,6 +13,7 @@ import exceptions.SemanticException
 import exceptions.SemanticException.*
 import utils.SymbolTable.TypeAttributes.Companion.arrayAttributes
 import utils.SymbolTable.TypeAttributes.Companion.baseTypeAttributes
+import utils.SymbolTable.TypeAttributes.Companion.pairAttributes
 import java.util.*
 import kotlin.IllegalArgumentException
 
@@ -29,6 +30,7 @@ class SymbolTable {
 
     init {
         typedefs += "array" to arrayAttributes()
+        typedefs += "pair" to pairAttributes()
         typedefs += "int" to baseTypeAttributes(intType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
         typedefs += "bool" to baseTypeAttributes(boolType(), "Eq", "Ord", "Show", "Enum", "Read")
         typedefs += "char" to baseTypeAttributes(charType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
@@ -358,6 +360,13 @@ class SymbolTable {
                 val impls = mutableMapOf(
                         Trait("Eq") to listOf(setOf(Trait("Eq"))),
                         Trait("Show") to listOf(setOf(Trait("Show"))),
+                        Trait("Malloc") to listOf(emptySet())
+                )
+                return TypeAttributes(arrayTypeOf(TypeVar("A")),false, impls, emptySet(), -1 to -1)
+            }
+            fun pairAttributes(): TypeAttributes {
+                val impls = mutableMapOf(
+                        Trait("Eq") to listOf(setOf(Trait("Eq")), setOf(Trait("Eq"))),
                         Trait("Malloc") to listOf(emptySet())
                 )
                 return TypeAttributes(arrayTypeOf(TypeVar("A")),false, impls, emptySet(), -1 to -1)

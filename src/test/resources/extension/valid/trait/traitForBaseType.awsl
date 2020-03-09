@@ -1,0 +1,39 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+instance int: Pure is
+    int pure() is return 42; end
+end
+
+instance bool: Pure is
+    bool pure() is return true; end
+end
+
+instance char: Pure is
+    char pure() is return 'V'; end
+end
+
+instance string: Pure is
+    string pure() is return "GO is the worst language of all!"; end
+end
+
+instance A[]: Pure where forall A is
+    A[] pure() is A[] a = []; return a; end
+end
+
+int a = pure();
+bool b = pure();
+char c = pure();
+string d = pure();
+int[] e = pure();
+
+println a;
+println b;
+println c;
+println d;
+println (len e);
+
+end

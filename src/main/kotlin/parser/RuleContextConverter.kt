@@ -11,6 +11,7 @@ import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
 import ast.Type.Companion.arrayTypeOf
+import ast.Type.Companion.pairTypeOf
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
@@ -221,13 +222,13 @@ class RuleContextConverter() {
         return tau
     }
 
-    private fun PairTypeContext.toAST(typeVars: Set<String>): PairType {
+    private fun PairTypeContext.toAST(typeVars: Set<String>): Type {
         fun pairElemTypeToAST(context: PairElemTypeContext): Type = when {
             context.baseType() != null -> context.baseType().toAST()
             context.arrayType() != null -> context.arrayType().toAST(typeVars)
             else -> anyPairType()
         }
-        return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
+        return pairTypeOf(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
     private fun NewTypeContext.toAST(typeVars: Set<String>): Type {

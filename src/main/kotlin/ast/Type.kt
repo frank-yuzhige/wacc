@@ -22,8 +22,8 @@ sealed class Type {
     companion object {
         fun anyArrayType() = arrayTypeOf(anyType())
         fun arrayTypeOf(type: Type) = NewType("array", type)
-        fun anyPairType(): PairType =
-                PairType(BaseType(ANY), BaseType(ANY))
+        fun pairTypeOf(left: Type, right: Type) = NewType("pair", left, right)
+        fun anyPairType() = pairTypeOf(anyType(), anyType())
 
         fun anyType(): Type = newTypeVar()
 
@@ -46,11 +46,6 @@ sealed class Type {
                     "pair"
                 }
 
-        override fun normalize(): Type {
-            val t1 = when(firstElemType) { is PairType -> anyPairType(); else -> firstElemType }
-            val t2 = when(secondElemType) { is PairType -> anyPairType(); else -> secondElemType }
-            return PairType(t1, t2)
-        }
     }
 
     data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
@@ -58,6 +53,8 @@ sealed class Type {
         override fun toString(): String {
             if(name == "array") {
                 return "${generics[0]}[]"
+            } else if(name == "pair") {
+                return "pair(${generics[0]}, ${generics[1]})"
             }
             return "${name}${if(generics.isEmpty())"" else "<${generics.joinToString(", ")}>"}"
         }
@@ -157,8 +154,6 @@ sealed class Type {
         override fun isDetermined(): Boolean = (paramTypes + retType).all { it.isDetermined() }
         override fun isGround(): Boolean = (paramTypes + retType).all { it.isGround() }
     }
-
-    open fun normalize(): Type = this
 
     open fun reified(constraints: List<TypeConstraint>): Type = this
 

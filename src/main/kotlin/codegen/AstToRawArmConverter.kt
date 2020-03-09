@@ -201,9 +201,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is BuiltinFuncCall -> {
                 when (func) {
                     RETURN -> {
-                        val reg = expr.toARM()
+                        val op = expr.toARM()
                         moveSP(spOffset, false)
-                        mov(Reg(0), reg)
+                        op.toReg(Reg(0))
                         pop(SpecialReg(PC))
                     }
                     FREE -> {
