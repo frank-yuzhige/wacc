@@ -1,4 +1,12 @@
-# A simple demonstration for Semigroup and Monoid trait.
+#     A simple demonstration for Semigroup and Monoid trait.
+# Suppose there exists a type T, and a transformation * :: (T, T) -> T,
+# then S with * is said to be a semigroup, if, for all t1, t2, t3 in T,
+#               t1 * (t2 * t3) = (t1 * t2) * t3
+# Furthermore, S with * is said to be a monoid, if there exists i in T,
+# such that for all t in T:
+#                          i * t = t
+#                          t * i = t
+
 begin
 
 trait A: Semigroup where forall A is
@@ -6,11 +14,11 @@ trait A: Semigroup where forall A is
 end
 
 trait A: Monoid where A: Semigroup is
-    A epsilon() is required
+    A identity() is required
 end
 
 T concat(T[] arr) where T: Monoid is
-    T base = epsilon();
+    T base = identity();
     int l = len arr;
     int i = 0;
     while (i < l) do
@@ -43,7 +51,7 @@ instance AndBool: Semigroup is
 end
 
 instance AndBool: Monoid is
-    AndBool epsilon() is
+    AndBool identity() is
         return AndBool(true);
     end
 end
@@ -55,7 +63,7 @@ instance OrBool: Semigroup is
 end
 
 instance OrBool: Monoid is
-    OrBool epsilon() is
+    OrBool identity() is
         return OrBool(false);
     end
 end
@@ -67,7 +75,7 @@ instance PlusInt: Semigroup is
 end
 
 instance PlusInt: Monoid is
-    PlusInt epsilon() is
+    PlusInt identity() is
         return PlusInt(0);
     end
 end
@@ -79,15 +87,44 @@ instance MulInt: Semigroup is
 end
 
 instance MulInt: Monoid is
-    MulInt epsilon() is
+    MulInt identity() is
         return MulInt(1);
     end
 end
 
-AndBool abe = epsilon();
-OrBool  obe = epsilon();
-PlusInt pie = epsilon();
-MulInt  mie = epsilon();
+instance T[]: Semigroup where T: Semigroup is
+    T[] append(T[] a, T[] b) is
+        return a;
+    end
+end
+
+instance K[]: Monoid where K: Monoid is
+    K[] identity() is
+        K[] r = [];
+        return r;
+    end
+end
+
+newtype MBox<M> is
+    M value;
+end
+
+instance MBox<M>: Semigroup where M: Semigroup is
+    MBox<M> append(MBox<M> a, MBox<M> b) is
+        return MBox(append(a.value, b.value));
+    end
+end
+
+instance MBox<M>: Monoid where M: Monoid is
+    MBox<M> identity() is
+        return MBox(identity());
+    end
+end
+
+AndBool abe = identity();
+OrBool  obe = identity();
+PlusInt pie = identity();
+MulInt  mie = identity();
 
 var ab = AndBool(false);
 ab = append(abe, ab);
@@ -110,8 +147,19 @@ println miProduct.i;   # 1600
 
 AndBool[] abs = [];
 var abAnd = concat(abs);
-println abAnd.b;       # true - same as epsilon()
+
+println abAnd.b;       # true - same as identity()
 free abs;
 free abAnd;
+
+var box = MBox(mi40);
+var box2 = MBox(mi10);
+box = append(box, box2);
+var value = box.value;
+println value.i;       # 400
+
+box = identity();
+value = box.value;
+println value.i;       # 1
 
 end

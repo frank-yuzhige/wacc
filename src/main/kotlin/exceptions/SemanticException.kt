@@ -68,5 +68,6 @@ open class SemanticException(val msg: String) : Exception(msg) {
             SemanticException("Trait $currentTrait requires $missingTrait, yet $type is not an instance of $missingTrait!")
 
     class InstanceWithGroundGenericTypeException(type: Type):
-            SemanticException("Unsupported operation of implementing a trait for a type $type with a ground generic type")
+            SemanticException("Unsupported operation of implementing a trait for a type $type with a ground generic type\n" +
+                    "        (perhaps you forget to add a type-variable binding after the instance declaration? (e.g: where forall ...))")
 }

@@ -4,6 +4,7 @@ import ast.Expression.PairElemFunction
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Type.BaseTypeKind.*
+import ast.Type.TypeVar.Companion.newTypeVar
 import exceptions.SemanticException
 import exceptions.SemanticException.NoUnificationFoundForTypesException
 import utils.SymbolTable
@@ -24,7 +25,7 @@ sealed class Type {
         fun anyPairType(): PairType =
                 PairType(BaseType(ANY), BaseType(ANY))
 
-        fun anyType(): Type = TypeVar("T")
+        fun anyType(): Type = newTypeVar()
 
         fun intType(): BaseType = BaseType(INT)
         fun boolType(): BaseType = BaseType(BOOL)
