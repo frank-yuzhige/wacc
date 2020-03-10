@@ -1,4 +1,4 @@
-#     A simple demonstration for Semigroup and Monoid trait.
+#       A simple demonstration for Semigroup and Monoid trait.
 # Suppose there exists a type T, and a transformation * :: (T, T) -> T,
 # then S with * is said to be a semigroup, if, for all t1, t2, t3 in T,
 #               t1 * (t2 * t3) = (t1 * t2) * t3

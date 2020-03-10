@@ -1,0 +1,14 @@
+begin
+
+trait A: Matryoshka where A: Matryoshka is
+    A doll(A some) is required
+end
+
+instance int: Matryoshka is
+    int doll(int k) is return k - 1; end
+end
+
+int x = doll(100);
+println x;
+
+end

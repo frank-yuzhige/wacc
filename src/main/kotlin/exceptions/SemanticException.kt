@@ -3,6 +3,7 @@ package exceptions
 import ast.Trait
 import ast.Type
 import ast.Type.FuncType
+import ast.TypeConstraint
 import semantics.accessToUndefinedFunc
 import semantics.accessToUndefinedVar
 import semantics.typeMismatchError
@@ -73,4 +74,13 @@ open class SemanticException(val msg: String) : Exception(msg) {
 
     class ImplToTraitForTypeUnsupoortedException(type: Type):
             SemanticException("Implement trait for type \"$type\" is not supported!")
+
+    class IrrelevantTraitFuncException(trait: String, fName: String, typeVar: String, fType: FuncType):
+            SemanticException("Function $fName :: $fType in trait \"$trait\" is irrelevant to type variable \"$typeVar\"")
+
+    class IrrelevantTraitDependencyVarException(typeVar: String, irrelevantEntry: TypeConstraint):
+            SemanticException("Constraint $irrelevantEntry is irrelevant to type variable \"$typeVar\"")
+
+    class TraitDependOnSelfException(traitName: String):
+            SemanticException("Trait \"$traitName\" cannot depend on itself!")
 }

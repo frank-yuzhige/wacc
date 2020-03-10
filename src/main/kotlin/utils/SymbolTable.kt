@@ -107,12 +107,13 @@ class SymbolTable {
         if (entry != null) {
             throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
         }
-        if(traitDef.typeConstraints.any { it.typeVar != traitDef.traitVar }) {
-            throw MultipleTraitDefException(traitDef.traitName, traitDef.startIndex)
-        }
-        val dups = traitDef.typeConstraints.countDuplicates()
-        if(dups.isNotEmpty()) {
-            TODO() //error: duplicate dependencies.
+        for (tc in traitDef.typeConstraints) {
+            if(tc.typeVar != traitDef.traitVar) {
+                throw IrrelevantTraitDependencyVarException(traitDef.traitVar, tc)
+            }
+            if (tc.trait.traitName == traitDef.traitName) {
+                throw TraitDependOnSelfException(traitDef.traitName)
+            }
         }
         // add trait def entry
         traitDefs[trait] = TraitAttributes(
@@ -122,7 +123,11 @@ class SymbolTable {
         )
         // Add required functions
         traitDef.requiredFuncs.forEach { header ->
-            functions[header.name] = FuncAttributes(header.getFuncType(), header.args, trait, header.startIndex)
+            val funcType = header.getFuncType()
+            if (!funcType.containsTypeVar(traitDef.traitVar)) {
+                throw IrrelevantTraitFuncException(trait.traitName, header.name, traitDef.traitVar, funcType)
+            }
+            functions[header.name] = FuncAttributes(funcType, header.args, trait, header.startIndex)
         }
     }
 
@@ -272,6 +277,7 @@ class SymbolTable {
             }
             is TypeVar -> trait in getAllDependencies(type.traits)
             is FuncType -> false
+            is ErrorType -> true
         }
     }
 

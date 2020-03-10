@@ -1,0 +1,9 @@
+begin
+
+X someFunc() where X: Num is
+    return 1;  # 1 is an int, semantic error here!
+end
+
+exit -1;
+
+end

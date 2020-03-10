@@ -1,0 +1,21 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+trait B: MorePure where B: Pure is
+    B morePure() is required
+end
+
+instance A[]: Pure where A: Pure is
+    A[] pure() is A[] a = [pure()]; return a; end
+end
+                                            # [A: Pure]  => A[] is a instance of Pure
+instance A[]: MorePure where forall A is    # [forall A] => A[] is not a instance of Pure, error!
+    A[] morePure() is A[] a = []; return a; end
+end
+
+exit -1;
+
+end

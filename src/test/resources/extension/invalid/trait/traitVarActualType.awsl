@@ -1,0 +1,9 @@
+begin
+
+trait int: SomeTrait is
+    int someFunc(int a) is required
+end
+
+exit -1;
+
+end

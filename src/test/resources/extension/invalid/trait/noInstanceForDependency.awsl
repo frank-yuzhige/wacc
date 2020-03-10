@@ -1,21 +1,21 @@
 begin
 
-trait A: SomeTrait where forall A is
+trait A: SomeTrait is
     A someFunc(A a) is required
 end
 
-trait B: SomeMoreTrait where A: SomeTrait is
-    A someMoreFunc(A a) is required
+trait B: SomeMoreTrait where B: SomeTrait is
+    B someMoreFunc(B b) is required
 end
 
 newtype Some is
     int x;
 end
 
-instance Some: SomeMoreTrait where
+instance Some: SomeMoreTrait is
     Some someMoreFunc(Some a) is
         return a;
-    end;
+    end
 end
 
 var s = Some(100);

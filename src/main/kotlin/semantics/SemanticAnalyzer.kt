@@ -12,6 +12,7 @@ import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
+import ast.Type.Companion.arrLitConstructorType
 import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
@@ -270,7 +271,7 @@ class SemanticAnalyzer() {
                 }
                 is TypeMember -> {
                     val exprType = expr.checkExpr(anyType())
-                    if (exprType !is NewType) throw NotAStructTypeException(exprType)
+                    if (exprType !is NewType && exprType !is ErrorType) throw NotAStructTypeException(exprType)
                     val memberType = symbolTable.getTypeMemberType(exprType, memberName)
                     memberType inferFrom expecting
                 }
@@ -278,7 +279,7 @@ class SemanticAnalyzer() {
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
-            reifiedType
+            ErrorType
         } finally {
             if (isPush) {
                 treeStack.pop()
@@ -302,36 +303,21 @@ class SemanticAnalyzer() {
                 is Identifier, is ArrayElem, is PairElem, is TypeMember ->
                     checkLhsExpr(expecting, isPush = false, isWrite = false, logAction = logAction)
                 is BinExpr -> {
-                    val funcType = BinaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
-                    val lt = left.checkExpr(funcType.paramTypes[0], logAction)
-                    val rt = right.checkExpr(funcType.paramTypes[1], logAction)
-                    val sub = FuncType(funcType.retType, listOf(lt, rt)).findUnifier(funcType)
-                    funcType.retType.substitutes(sub)
+                    val funcType = BinaryOperator.funcTypeMap.getValue(op)
+                    unifyFuncType(expecting, funcType, listOf(left, right), logAction)
                 }
                 is UnaryExpr -> {
-                    val funcType = UnaryOperator.funcTypeMap.getValue(op) unifyReturn expecting
-                    val childType = expr.checkExpr(funcType.paramTypes[0], logAction)
-                    val sub = FuncType(funcType.retType, listOf(childType)).findUnifier(funcType)
-                    funcType.retType.substitutes(sub)
+                    val funcType = UnaryOperator.funcTypeMap.getValue(op)
+                    unifyFuncType(expecting, funcType, listOf(expr), logAction)
                 }
                 is ArrayLiteral -> when {
                     elements.isEmpty() -> anyArrayType() inferFrom expecting
                     else -> {
-                        val temp: MutableList<String> = mutableListOf()
-                        val fstType = elements.first().checkExpr(newTypeVar()) { temp += it }
-                        elements.drop(1).forEach { elem -> elem.checkExpr(fstType) { temp += it } }
-                        if(temp.isNotEmpty()) {
-                            logAction(temp)
-                        }
-                        arrayTypeOf(fstType) inferFrom expecting
+                        unifyFuncType(expecting, arrLitConstructorType(elements.size), elements, logAction)
                     }
                 }
                 is NewPair -> {
-                    val funcType = newPairConstructorType() unifyReturn expecting
-                    val argsGrounds = listOf(first, second)
-                            .zip(funcType.paramTypes) { arg, type -> arg.checkExpr(type)}
-                    val sub =  FuncType(funcType.retType, argsGrounds).findUnifier(funcType)
-                    funcType.retType.substitutes(sub)
+                    unifyFuncType(expecting, newPairConstructorType(), listOf(first, second), logAction)
                 }
                 is EnumRange -> TODO()
                 is IfExpr -> {
@@ -343,19 +329,16 @@ class SemanticAnalyzer() {
                 is FunctionCall -> {
                     val funcType = symbolTable.lookupFunc(ident)?.type
                             ?: throw UndefinedFuncException(ident)
-                    val newFuncType = funcType unifyReturn expecting
-                    if (args.size != newFuncType.paramTypes.size) {
-                        throw FuncCallArgsMismatchException(ident, newFuncType.paramTypes.size, args.size)
+                    if (args.size != funcType.paramTypes.size) {
+                        throw FuncCallArgsMismatchException(ident, funcType.paramTypes.size, args.size)
                     }
-                    val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
-                    val sub: Grounding = FuncType(newFuncType.retType, argsGrounds).findUnifier(newFuncType)
-                    newFuncType.retType.substitutes(sub)
+                    unifyFuncType(expecting, funcType, args, logAction)
                 }
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
             System.err.println("$$> logging: ${sme.msg}")
-            TypeVar("A")
+            ErrorType
         }
         reifiedType = inferredType
         System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
@@ -364,6 +347,19 @@ class SemanticAnalyzer() {
         }
         treeStack.pop()
         return inferredType
+    }
+
+    /* Unifies the given function type, by the expected return type, and the arguments provided.
+    *  This method calls checkExpr on all arguments, then unifies the given func type by types of args.
+    *  Returns the actual return type */
+    private fun unifyFuncType(expecting: Type,
+                              funcType: FuncType,
+                              args: List<Expression>,
+                              logAction: (List<String>) -> Unit): Type {
+        val newFuncType = funcType unifyReturn expecting
+        val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
+        val sub: Grounding = FuncType(newFuncType.retType, argsGrounds).findUnifier(newFuncType)
+        return newFuncType.retType.substitutes(sub)
     }
 
     private infix fun FuncType.unifyReturn(expecting: Type): FuncType {

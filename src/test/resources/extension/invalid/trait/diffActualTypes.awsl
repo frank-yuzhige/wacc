@@ -1,0 +1,9 @@
+begin
+
+bool equals(A a, A b) where A: Eq is
+    return a == b;
+end
+
+var b = equals('C', 1); # char and int both by default implements Eq.
+
+end

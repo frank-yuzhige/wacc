@@ -29,6 +29,10 @@ sealed class Type {
             val snd = anyType()
             return FuncType(pairTypeOf(fst, snd), listOf(fst, snd))
         }
+        fun arrLitConstructorType(length: Int): FuncType {
+            val elemType = anyType()
+            return FuncType(arrayTypeOf(elemType), (1..length).map { elemType })
+        }
 
         fun anyType(): Type = newTypeVar()
 
@@ -39,8 +43,10 @@ sealed class Type {
         fun rangeTypeOf(type: Type) = NewType("Range", type)
     }
 
+
     data class BaseType(val kind: BaseTypeKind) : Type() {
         override fun toString(): String = kind.symbol
+        override fun containsTypeVar(name: String): Boolean = false
     }
 
     data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
@@ -71,6 +77,7 @@ sealed class Type {
         override fun reified(constraints: List<TypeConstraint>): Type {
             return NewType(name, generics.map { it.reified(constraints) })
         }
+        override fun containsTypeVar(name: String): Boolean = generics.any { it.containsTypeVar(name) }
     }
 
     data class TypeVar(val name: String, val traits: List<Trait>, val isReified: Boolean = false): Type() {
@@ -102,6 +109,14 @@ sealed class Type {
 
         override fun isDetermined(): Boolean = isReified
         override fun isGround(): Boolean = false
+        override fun containsTypeVar(name: String): Boolean = name == this.name
+    }
+
+    object ErrorType: Type() {
+        override fun toString(): String = "_error"
+        override fun isDetermined(): Boolean = true
+        override fun isGround(): Boolean = true
+        override fun containsTypeVar(name: String): Boolean = true
     }
 
     data class FuncType(val retType: Type,
@@ -119,6 +134,8 @@ sealed class Type {
         override fun printAsLabel(): String {
             return "${paramTypes.joinToString("_") { it.printAsLabel() } }__${retType.printAsLabel()}"
         }
+
+        override fun containsTypeVar(name: String): Boolean = (paramTypes + retType).any { it.containsTypeVar(name) }
 
         override fun reified(constraints: List<TypeConstraint>): Type = FuncType(
                 retType.reified(constraints),
@@ -166,6 +183,9 @@ sealed class Type {
     *  Throws a semantic error when unable to find such unifier. */
     fun findUnifier(original: Type, oldMgu: Map<Pair<String, Boolean>, Type> = mutableMapOf()): Map<Pair<String, Boolean>, Type> {
         val actual = this.substitutes(oldMgu)
+        if (actual == ErrorType) {
+            return oldMgu
+        }
         return when(original) {
             is BaseType -> if(actual == original) oldMgu else throw NoUnificationFoundForTypesException(actual, original)
             is NewType -> when {
@@ -190,6 +210,7 @@ sealed class Type {
                 }
                 else -> throw NoUnificationFoundForTypesException(actual, original)
             }
+            is ErrorType -> oldMgu
         }
     }
 
@@ -205,6 +226,9 @@ sealed class Type {
     /* Infer the current type from the provided expecting type. */
     fun inferFrom(expecting: Type, symbolTable: SymbolTable): Type {
         val actual = this
+        if (actual is ErrorType) {
+            return actual
+        }
         System.err.println("Inferring expected: $expecting <==> actual: $actual")
         return when(expecting) {
             is BaseType -> when(actual) {
@@ -250,6 +274,7 @@ sealed class Type {
                 }
                 else -> throw SemanticException.TypeMismatchException(expecting, actual)
             }
+            ErrorType -> actual
         }.also { System.err.println("We get: $it") }
     }
 
@@ -269,5 +294,7 @@ sealed class Type {
         }
         return t
     }
+
+     abstract fun containsTypeVar(name: String): Boolean
 }
 
