@@ -38,6 +38,9 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class TypeNotSatisfyingTraitsException(type: Type, traits: Iterable<Trait>):
             SemanticException("$type does not implement ${traits.joinToString(", ") { it.toString() }}")
 
+    class TypeDefEmptyBodyException(type: Type):
+            SemanticException("Empty definition body for type \"$type\"")
+
     class NoUnificationFoundForTypesException(actual: Type, expected: Type):
             SemanticException("Unable to deduce a unification for '$actual' against '$expected'")
 

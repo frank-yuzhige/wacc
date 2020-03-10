@@ -1,0 +1,22 @@
+begin
+
+pair p(pair a) is
+    var n = fst a;   # able to get elem from a, but nothing more can be deduced from the context.
+    println n;       # still able to print though... (print does not require any constraint)
+    return null;
+end
+
+pair(int, char)p = newpair(1, 'a');
+p = p(p);
+
+pair(bool, int) p2 = newpair(true, 123);
+p2 = p(p2);
+
+pair(int, char) pp1 = newpair(40, 'k');
+pair(bool, int) pp2 = newpair(false, -23);
+pair pp = newpair(pp1, pp2);
+p = p(pp);
+
+
+
+end

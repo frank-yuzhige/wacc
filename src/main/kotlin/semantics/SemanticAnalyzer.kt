@@ -13,13 +13,11 @@ import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
 import ast.Type.Companion.arrLitConstructorType
-import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.newPairConstructorType
 import ast.Type.Companion.stringType
-import ast.Type.TypeVar.Companion.newTypeVar
 import exceptions.SemanticException
 import exceptions.SemanticException.*
 import utils.*
@@ -119,8 +117,8 @@ class SemanticAnalyzer() {
             }
             treeStack.pop()
         }
-        instances.map { it.functions.map { f -> f.reified().checkFunc() } }
-        functions.map { it.reified().checkFunc() }
+        instances.map { it.functions.map { f -> f.reifiedFunc().checkFunc() } }
+        functions.map { it.reifiedFunc().checkFunc() }
         isInMain = true
         mainProgram.checkBlock()
     }
@@ -275,7 +273,7 @@ class SemanticAnalyzer() {
                     val memberType = symbolTable.getTypeMemberType(exprType, memberName)
                     memberType inferFrom expecting
                 }
-                else -> TODO()
+                else -> error("Unreachable - not a lhs")
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))

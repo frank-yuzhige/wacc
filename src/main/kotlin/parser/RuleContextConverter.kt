@@ -223,12 +223,11 @@ class RuleContextConverter() {
     }
 
     private fun PairTypeContext.toAST(typeVars: Set<String>): Type {
-        fun pairElemTypeToAST(context: PairElemTypeContext): Type = when {
-            context.baseType() != null -> context.baseType().toAST()
-            context.arrayType() != null -> context.arrayType().toAST(typeVars)
-            else -> anyPairType()
+        return if(LPAR() != null) {
+            pairTypeOf(first.toAST(typeVars), second.toAST(typeVars))
+        } else {
+            anyPairType()
         }
-        return pairTypeOf(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
     private fun NewTypeContext.toAST(typeVars: Set<String>): Type {

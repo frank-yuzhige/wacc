@@ -20,10 +20,10 @@ int printAll(List<A> list) where forall A is
 end
 
 var a = fromTwo(1, 2);
-List<int> e = Nil();
-var x = printAll(a);
+var x1 = printAll(a);
 
+println "here!";
 var b = fromTwo('A', 'B');
-x = printAll(b);
+var x2 = printAll(b);
 
 end

@@ -71,6 +71,9 @@ class SymbolTable {
                 if (entry != null) {
                     throw MultipleFuncDefException(def.name(), entry.type, entry.index)
                 }
+                if (def.members.isEmpty()) {
+                    throw TypeDefEmptyBodyException(def.type)
+                }
                 val defaultMallocMap = mutableMapOf(
                         Trait("Malloc") to (1..def.type.generics.size).map { emptySet<Trait>() }
                 )
@@ -82,6 +85,9 @@ class SymbolTable {
                 val entry = typedefs[def.type.name]
                 if (entry != null) {
                     throw MultipleFuncDefException("def.name()", def.type, entry.index)
+                }
+                if (def.memberMap.isEmpty()) {
+                    throw TypeDefEmptyBodyException(def.type)
                 }
                 val defaultMallocMap = mutableMapOf(
                         Trait("Malloc") to (1..def.type.generics.size).map { emptySet<Trait>() }

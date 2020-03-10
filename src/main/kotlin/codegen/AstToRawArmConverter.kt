@@ -89,7 +89,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         functions.filter { it.getFuncType().isGround() }.map { it.toARM() }
         while (groundFunctionList.isNotEmpty()) {
             val curr = groundFunctionList.removeAt(0)
-            currentGrounding = curr.groundType.findUnifier(curr.function.getFuncType().reified(curr.function.typeConstraints))
+            currentGrounding = curr.groundType.findUnifier(curr.function.getFuncType().reified(curr.function.typeConstraints, true))
             curr.function.toARM(curr.groundType)
         }
         while (groundConstructorList.isNotEmpty()) {
@@ -140,6 +140,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun Function.toARM(type: FuncType? = null) {
         spOffset = 0
         currScopeOffset = 0
+        firstDefReachedScopes.clear() // functions don't share scopes, safe to clear.
         if(type == null) {
             setBlock(funcLabelMap.getValue(this.name))
         } else {
@@ -283,6 +284,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val wEnd = getLabel("when_end")
                 val wLabels = whenCases.map { (pattern, _) -> getLabel("when_${pattern.constructor}") } + wEnd
                 val matching = expr.toARM().toReg()
+                matching.toReg(Reg(0))
+                callPrelude(CHECK_NULL_PTR)
                 packBlock()
                 for (i in whenCases.indices) {
                     whenCases[i].let { (pattern, stats) ->
@@ -352,7 +355,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val temp = expr.toARM().toReg()
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                val offset = Offset(temp, when (func) { FST -> 0; SND -> 4 })
+                val fstElemType = (expr.getType() as NewType).generics[0]
+                val offset = Offset(temp, when (func) { FST -> 0; SND -> sizeof(fstElemType) })
                 load(temp, offset, sizeof(getType()))
             }
             is TypeMember -> {
@@ -403,7 +407,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is NewPair -> {
                 first.ground(currentGrounding)
                 second.ground(currentGrounding)
-                // malloc 8-bytes for 2 ptrs
                 val fstSize = sizeof(first.getType())
                 val sndSize = sizeof(second.getType())
                 callMalloc(fstSize + sndSize)
@@ -508,8 +511,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     packBlock()
                 }
                 OVERFLOW_ERROR -> {
-                    callPrintf(StringLit("OverflowError: " +
-                            "the result is too small/large to store in a 4-byte signed-integer."),
+                    printString("OverflowError: " +
+                            "the result is too small/large to store in a 4-byte signed-integer.",
                             true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                 }
@@ -519,14 +522,13 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     push(SpecialReg(LR))
                     cmp(Reg(0), ImmNum(0))
                     branch(GE, label1)
-                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: negative index"),
-                            true)
+                    printString("ArrayIndexOutOfBoundsError: negative index", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label1)
                     load(Reg(1), Offset(Reg(1)))
                     cmp(Reg(0), Reg(1))
                     branch(Condition.LT, label2)
-                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
+                    printString("ArrayIndexOutOfBoundsError: index too large", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label2)
                     pop(SpecialReg(PC))
@@ -536,8 +538,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     push(SpecialReg(LR))
                     cmp(Reg(1), immFalse())
                     branch(NE, noErr)
-                    callPrintf(StringLit("DivideByZeroError: divide or modulo by zero"),
-                            true)
+                    printString("DivideByZeroError: divide or modulo by zero", true)
                     bl(Condition.EQ, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(noErr)
                     pop(SpecialReg(PC))
@@ -547,7 +548,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     val notNullLabel = getLabel("not_null")
                     cmp(Reg(0), immNull())
                     branch(NE, notNullLabel)
-                    callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
+                    printString("NullReferenceError: dereference a null reference", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(notNullLabel)
                     pop(SpecialReg(PC))
@@ -846,6 +847,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         bl(AL, Label("scanf"))
     }
 
+    private fun printString(str: String, newline: Boolean) {
+        callPrintf(StringLit(str).also {
+            it.reifiedType = stringType()
+            it.groundedType = stringType()
+        }, newline)
+    }
 
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
@@ -884,43 +891,46 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     /* Get the address of a lhs expression, returns an offset. */
-    private fun getLhsAddress(lhs: Expression): Offset = when (lhs) {
-        is Identifier -> findVar(lhs)
-        is ArrayElem -> {
-            var result = findVar(lhs.arrIdent)
-            val arrReg = getReg()
-            var currType = lhs.arrIdent.ground(currentGrounding).getType()
-            for (expr in lhs.indices) {
-                val indexReg = expr.toARM().toReg()
-                load(AL, arrReg, result)
-                callCheckArrBound(indexReg, arrReg)
-                currType = currType.unwrapArrayType()!!
-                binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
-                binop(ADD, indexReg, indexReg, ImmNum(4))
-                binop(ADD, arrReg, arrReg, indexReg)
-                result = Offset(arrReg)
+    private fun getLhsAddress(lhs: Expression): Offset {
+        lhs.ground(currentGrounding)
+        return when (lhs) {
+            is Identifier -> findVar(lhs)
+            is ArrayElem -> {
+                var result = findVar(lhs.arrIdent)
+                val arrReg = getReg()
+                var currType = lhs.arrIdent.ground(currentGrounding).getType()
+                for (expr in lhs.indices) {
+                    val indexReg = expr.toARM().toReg()
+                    load(AL, arrReg, result)
+                    callCheckArrBound(indexReg, arrReg)
+                    currType = currType.unwrapArrayType()!!
+                    binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
+                    binop(ADD, indexReg, indexReg, ImmNum(4))
+                    binop(ADD, arrReg, arrReg, indexReg)
+                    result = Offset(arrReg)
+                }
+                result
             }
-            result
-        }
-        is PairElem -> {
-            val pairAddr = lhs.expr.toARM().toReg()
-            mov(Reg(0), pairAddr)
-            callPrelude(CHECK_NULL_PTR)
-            // lhs type in codegen is guaranteed to be a "pair" NewType
-            val lhsType = lhs.expr.getType() as NewType
-            Offset(pairAddr, when (lhs.func) {
-                FST -> 0; SND -> sizeof(lhsType.generics[0])
-            })
-        }
-        is TypeMember -> {
-            val addr = lhs.expr.toARM().toReg()
-            mov(Reg(0), addr)
-            callPrelude(CHECK_NULL_PTR)
-            val offset = getMemberOffset(lhs.memberName, lhs.expr.getType())
-            Offset(addr, offset)
-        }
-        else -> {
-            throw IllegalArgumentException("Target has to be a left-hand-side expression")
+            is PairElem -> {
+                val pairAddr = lhs.expr.toARM().toReg()
+                mov(Reg(0), pairAddr)
+                callPrelude(CHECK_NULL_PTR)
+                // lhs type in codegen is guaranteed to be a "pair" NewType
+                val lhsType = lhs.expr.getType() as NewType
+                Offset(pairAddr, when (lhs.func) {
+                    FST -> 0; SND -> sizeof(lhsType.generics[0])
+                })
+            }
+            is TypeMember -> {
+                val addr = lhs.expr.toARM().toReg()
+                mov(Reg(0), addr)
+                callPrelude(CHECK_NULL_PTR)
+                val offset = getMemberOffset(lhs.memberName, lhs.expr.getType())
+                Offset(addr, offset)
+            }
+            else -> {
+                throw IllegalArgumentException("Target has to be a left-hand-side expression")
+            }
         }
     }
 

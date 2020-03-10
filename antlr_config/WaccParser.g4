@@ -12,9 +12,8 @@ boolLit : TRUE | FALSE;
 
 type        : arrayType | baseType | pairType | newType;
 arrayType   : (baseType | pairType | newType) (LBRA RBRA)+;
-pairElemType: arrayType | baseType | PAIR;
 baseType    : BASE_TYPE;
-pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
+pairType    : PAIR (LPAR first=type COMMA second=type RPAR)?;
 newType     : capIdent generics?;
 generics    : LT type (COMMA type)* GT;
 
@@ -102,7 +101,7 @@ stat: SKIP_STAT                                         #skip
 pattern:  capIdent (LPAR ident (COMMA ident)* RPAR)?;
 whenCase: IS pattern ARROW stats;
 
-stats: stat SEMICOLON (stat SEMICOLON)*;
+stats: stat (SEMICOLON stat)* SEMICOLON?;
 
 assignLhs: ident
          | arrayElem

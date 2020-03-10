@@ -5,7 +5,7 @@ newtype Tuple is
     char b;
 end
 
-const Tuple t = Tuple(a, b);
+const Tuple t = Tuple(1, 'b');
 println t.a;
 println t.b;
 

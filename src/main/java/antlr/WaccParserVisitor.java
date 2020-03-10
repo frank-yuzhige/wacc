@@ -53,12 +53,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArrayType(WaccParser.ArrayTypeContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link WaccParser#pairElemType}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPairElemType(WaccParser.PairElemTypeContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link WaccParser#baseType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
