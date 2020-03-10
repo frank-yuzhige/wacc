@@ -92,20 +92,20 @@ fun main(args: Array<String>) {
         val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
         ast = astOptimizer.doOptimize(ast)
     }
-    var arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
-    println(arm.printWithIndex())
-    if (optLevel > 1) {
-        val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
-        arm = armOptimizer.doOptimize(arm)
-        println("\n=== Code After Dead Code Elimination ===")
-        println(arm.printWithIndex())
-    }
-    val betterArm = RegisterAllocator(arm).run()
+    val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
+    println(arm.toString())
+    var betterArm = RegisterAllocator(arm).run()
     if (debug) {
         println("=== Improved ARM ===")
         println(betterArm)
     }
-    println(betterArm.printWithIndex())
+    if (optLevel > 1) {
+        val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
+        betterArm = armOptimizer.doOptimize(betterArm)
+        println("\n=== Code After Peephole Optimization ===")
+        println(betterArm.toString())
+    }
+    println(betterArm.toString())
     val output = File(asmPath)
     output.writeText(betterArm.toString())
 

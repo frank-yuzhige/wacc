@@ -3,11 +3,14 @@ import codegen.InstructionBlock
 import codegen.arm.ArmProgram
 import codegen.arm.Instruction
 import codegen.arm.Instruction.*
+import codegen.arm.Instruction.Terminator.*
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.*
 import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
 import codegen.arm.SpecialRegName.*
 import utils.TablePrinter
+import kotlin.math.log
+import kotlin.math.min
 
 typealias Liveness = Pair<MutableSet<Register>, MutableSet<Register>>
 typealias LivenessList = MutableList<Pair<Instruction, Liveness>>
@@ -19,13 +22,120 @@ class ArmOptimizer(option: OptimizationOption) {
         val separatedBlocks = separateBlocks(armProgram)
         val nonPreludeBlocks = separatedBlocks.first
         val preludeBlocks = separatedBlocks.second
+        /*
         nonPreludeBlocks.forEach {
             it.initialize()
             it.performLivenessAnalysis()
         }
         dumpLivenessMap()
-        return ArmProgram(armProgram.stringConsts, nonPreludeBlocks.map { it.sweepDeadCode() } + preludeBlocks)
+        */
+        return ArmProgram(armProgram.stringConsts, nonPreludeBlocks.map { it.doPeepHoleOptimize() } + preludeBlocks)
     }
+
+    private fun InstructionBlock.doPeepHoleOptimize(): InstructionBlock {
+        val optimizedInstrs: MutableList<Instruction> = this.instructions.toMutableList()
+        var changed: Boolean
+        do {
+            changed = false
+            val tempInstrs = optimizedInstrs.toMutableList()
+            var index = 0
+            optimizedInstrs.clear()
+            while (index < tempInstrs.size) {
+                var optimized = false
+                fun identifyPattern(patternFun: (List<Instruction>) -> List<Instruction>,
+                                    patternSize: Int): List<Instruction> {
+                    val lastIndex = min(tempInstrs.size, index + patternSize)
+                    return if (!optimized && lastIndex == index + patternSize) {
+                        val instrs = tempInstrs.subList(index, lastIndex)
+                        patternFun(instrs).also {
+                            if (it.isNotEmpty()) {
+                                optimized = true
+                                changed = true
+                                index += instrs.size
+                            }
+                        }
+                    } else {
+                        emptyList()
+                    }
+                }
+                optimizedInstrs += identifyPattern(::divideByPowerOfTwo, 5)
+                optimizedInstrs += identifyPattern(::redundantLoad, 3)
+                optimizedInstrs += identifyPattern(::redundantLoadAfterStore, 2)
+                if (!optimized) {
+                    optimizedInstrs += tempInstrs[index]
+                    index++
+                }
+            }
+        } while (changed)
+        return InstructionBlock(this.label, optimizedInstrs, this.terminator, this.tails);
+    }
+
+    /**
+     * Functions for checking patterns in peep hole optimization
+     */
+    private fun divideByPowerOfTwo(instrs: List<Instruction>): List<Instruction> {
+        var satisfied = true
+        val instr0 = instrs[0]
+        var num = 0
+        satisfied = instr0 is Mov && instr0.dest == Reg(0)
+        val instr1 = instrs[1]
+        satisfied = if (satisfied && ((instr1 is Mov && instr1.dest == Reg(1) && instr1.opr is ImmNum) ||
+                        (instr1 is Ldr && instr1.dest == Reg(1) && instr1.opr is ImmNum))) {
+            num = (((instr1 as? Mov)?.opr ?: (instr1 as Ldr).opr) as ImmNum).num
+            satisfied && (num > 0 && (num and (num - 1)) == 0)
+        } else { false }
+        val instr2 = instrs[2]
+        satisfied = satisfied && (instr2 is BL && instr2.label.name == "p_check_div_by_zero")
+        val instr3 = instrs[3]
+        satisfied = satisfied && (instr3 is BL && instr3.label.name == "__aeabi_idiv")
+        val instr4 = instrs[4]
+        satisfied = satisfied && (instr4 is Mov && instr4.opr == Reg(0))
+        return if (satisfied) {
+            val dest = (instr1 as? Mov)?.dest ?: (instr1 as Ldr).dest
+            instrs.subList(0, 3) + Lsr(dest, dest, ImmNum(log(num.toDouble(), 2.toDouble()).toInt()))
+        } else { emptyList() }
+    }
+
+    private fun redundantLoad(instrs: List<Instruction>): List<Instruction> {
+        var satisfied = true
+        val instr0 = instrs[0]
+        var num = ImmNum(0)
+        var tempReg= Reg(0)
+        satisfied = if (instr0 is Ldr && instr0.dest is Reg && instr0.opr is ImmNum) {
+            num = instr0.opr
+            tempReg = instr0.dest
+            true
+        } else { false }
+
+        val instr1 = instrs[1]
+        if (satisfied && (instr1 is Mov && instr1.opr == tempReg)) {
+            return listOf(Ldr(Condition.AL, instr1.dest, num), instrs[2])
+        }
+
+        val instr2 = instrs[2]
+        if (satisfied && (instr2 is Mov && instr2.opr == tempReg)) {
+            return listOf(instr1, Ldr(Condition.AL, instr2.dest, num))
+        }
+        return emptyList()
+    }
+
+    private fun redundantLoadAfterStore(instrs: List<Instruction>): List<Instruction> {
+        var satisfied = true
+        val instr0 = instrs[0]
+        var reg: Register = Reg(0)
+        var offset: Offset = Offset(SpecialReg(SP), 0)
+        satisfied = if (instr0 is Str && instr0.dst is Offset && instr0.dst.src == SpecialReg(SP)) {
+            reg = instr0.src
+            offset = instr0.dst
+            true
+        } else { false }
+        val instr1 = instrs[1]
+        satisfied = satisfied && (instr1 is Ldr && instr1.dest == reg && instr1.opr == offset)
+        return if (satisfied) {
+            instrs.subList(0, 1)
+        } else { emptyList() }
+    }
+
 
     /**
      * Separate the instruction blocks in the arm program into two sets: the ones that are prelude functions, and
@@ -35,19 +145,20 @@ class ArmOptimizer(option: OptimizationOption) {
         if (arm.blocks.size == 1) {
             return arm.blocks to emptyList()
         }
-        var separationIndex = 1
+        var separationIndex = arm.blocks.size - 1
         for ((index, instrBlock) in arm.blocks.withIndex()) {
             if (instrBlock.label.name.startsWith("p_")) {
                 separationIndex = index
                 break;
             }
         }
-        return arm.blocks.subList(0, separationIndex) to arm.blocks.subList(separationIndex, arm.blocks.lastIndex)
+        return arm.blocks.subList(0, separationIndex) to arm.blocks.subList(separationIndex, arm.blocks.size)
     }
 
     /**
      * Performs liveness analysis on the given code block
      */
+    /*
     private fun InstructionBlock.performLivenessAnalysis() {
         var currLiveness: LivenessList = blockLivenessMap[this.label.name]!!
         var preLiveness: LivenessList
@@ -56,6 +167,7 @@ class ArmOptimizer(option: OptimizationOption) {
             analyze(currLiveness)
         } while (currLiveness != preLiveness)
     }
+    */
 
     private fun analyze(livenessList: LivenessList) {
         livenessList.forEachIndexed { i, (instr, liveness) ->
@@ -168,10 +280,10 @@ class ArmOptimizer(option: OptimizationOption) {
         return emptyList()
     }
 
-    private fun clone(livenessList: LivenessList): LivenessList {
-        val newList: LivenessList = mutableListOf()
-        livenessList.forEach {
-            newList += it.first to (it.second.first.toMutableSet() to it.second.second.toMutableSet())
+    private fun clone(originalList: List<Instruction>): MutableList<Instruction> {
+        val newList = mutableListOf<Instruction>()
+        for (instr in originalList) {
+            newList.add(instr)
         }
         return newList
     }

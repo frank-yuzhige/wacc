@@ -66,6 +66,13 @@ sealed class Instruction {
         }
     }
 
+    /** Shift Operations **/
+    data class Lsr(val dest: Register, val rn: Register, var opr: Operand): Instruction() {
+        override fun toString(): String = "LSR $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
+    }
+
     /** Logical Operations **/
     data class Mov(val cond: Condition, val dest: Register, var opr: Operand): Instruction() {
         override fun toString(): String = "MOV$cond $dest, ${opr.inMOV()}"
