@@ -29,19 +29,19 @@ class ArmProgram(val stringConsts: List<StringConst>, val blocks: List<Instructi
                 ".global main\n"
         val sb = StringBuilder().append(header.prependIndent())
         blocks.forEach { block ->
-            sb.append(block.label.toString().prependIndent())
+            sb.append(" " + block.label.toString().prependIndent())
             sb.append(":\n")
             block.instructions.forEach { instr ->
-                sb.append("${index.toString().padEnd(4)}$instr\n")
+                sb.append("${index.toString().padEnd(5)}$instr\n")
                 index++
             }
             if (block.terminator !is Instruction.Terminator.FallThrough
                     && block.terminator !is Instruction.Terminator.Unreachable) {
-                sb.append("${index.toString().padEnd(4)}${block.terminator}\n")
+                sb.append("${index.toString().padEnd(5)}${block.terminator}\n")
                 index++
             }
             block.tails.forEach { tail ->
-                sb.append("    $tail\n")
+                sb.append("     $tail\n")
             }
         }
         return sb.toString()

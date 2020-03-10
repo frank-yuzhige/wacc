@@ -6,7 +6,6 @@ import ast.Expression.*
 import ast.Expression.PairElemFunction.*
 import ast.Function
 import ast.Statement.*
-import ast.Statement.BuiltinFunc.*
 import ast.UnaryOperator.*
 import utils.Statements
 import java.lang.IllegalArgumentException
@@ -16,8 +15,9 @@ class AstOptimizer(option: OptimizationOption) {
     private var optLevel = OptimizationOption.values().indexOf(option)
     private val programState = ProgramState()
     private var overflowOccurred = false
-    private var hasIO = false
+    private var hasFuncCall = false
     private var hasArrayAssignment = false
+    private var deleteVar = false
     fun doOptimize(ast: ProgramAST): ProgramAST {
         if (optLevel > 0) {
             var currAst = ast
@@ -61,7 +61,7 @@ class AstOptimizer(option: OptimizationOption) {
             val lhsIdent = lhs.getIdentifier()
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0) {
-                if (rhsOptimized is Literal) {
+                if (rhsOptimized is Literal && !deleteVar) {
                     when (lhs) {
                         is ArrayElem -> {
                             hasArrayAssignment = true
@@ -87,7 +87,7 @@ class AstOptimizer(option: OptimizationOption) {
         is BuiltinFuncCall -> {
             if (optLevel > 0) {
                 val exprOptimized = expr.optimize()
-                when (func) { PRINT, PRINTLN -> hasIO = true }
+                hasFuncCall = true
                 if (exprOptimized.isPrimitiveLiteral()) {
                     BuiltinFuncCall(func, exprOptimized)
                 } else { this }
@@ -103,9 +103,10 @@ class AstOptimizer(option: OptimizationOption) {
                 if (first != null && first.let { (expr, _) -> expr is BoolLit && expr.b }) {
                     Block(first.second)
                 } else {
+                    deleteVar = true
                     val optimizedBranches = condsOptimized.map { (expr, stats) ->
                         expr to stats.optimize()
-                    }
+                    }.also { deleteVar = false }
                     CondBranch(optimizedBranches, elseBody.optimize())
                 }
             } else {
@@ -121,8 +122,9 @@ class AstOptimizer(option: OptimizationOption) {
                  * A while loop is only optimized when all of the following conditions are satisfied:
                  * 1. The loop's condition can be evaluated to a BoolLit
                  * 2. No overflow occurs when evaluating the expressions inside the loop body.
-                 * 3. There is no IO statements inside the loop body.
-                 * 4. There is no array assignment inside the loop body.
+                 * 4. There are no array assignments inside the loop body.
+                 * 5. There are function calls (including calls to built-in functions and user-defined functions)
+                 *    inside the loop body.
                  * If any of the conditions fails, the loop body will be optimized with optimization level 0.
                  */
                 var exprOptimized = expr.optimize()
@@ -136,7 +138,7 @@ class AstOptimizer(option: OptimizationOption) {
                             bodyOptimized = body.optimize()
                             exprOptimized = expr.optimize()
                         }
-                        if (!overflowOccurred && !hasIO && !hasArrayAssignment) {
+                        if (!overflowOccurred && !hasFuncCall && !hasArrayAssignment) {
                             WhileLoop(exprOptimized, bodyOptimized)
                         } else {
                             optLevel = 0
@@ -156,7 +158,7 @@ class AstOptimizer(option: OptimizationOption) {
         is Read -> {
             if (optLevel > 0) {
                 val targetIdent = target.getIdentifier()
-                hasIO = true
+                hasFuncCall = true
                 when (target) {
                     is ArrayElem -> if (target.canBeEvaluated()) {
                         try {
@@ -179,9 +181,7 @@ class AstOptimizer(option: OptimizationOption) {
             val varLiteral = programState.lookupVar(this)
             if (optLevel > 0 && varLiteral != null) {
                 varLiteral as Expression
-            } else {
-                this
-            }
+            } else { this }
         }
         is ArrayElem -> {
             if (optLevel > 0) {
@@ -195,20 +195,14 @@ class AstOptimizer(option: OptimizationOption) {
                     if (expr is IntLit) {
                         if (expr.x < currentArray.size && expr.x >= 0) {
                             currentElem = currentArray[expr.x]
-                        } else {
-                            this
-                        }
+                        } else { this }
                         if (currentElem is ArrayLiteral) {
                             currentArray = currentElem.elements
                         }
-                    } else {
-                        this
-                    }
+                    } else { this }
                 }
                 currentElem
-            } else {
-                this
-            }
+            } else { this }
         }
         is ArrayLiteral -> ArrayLiteral(elements.map {
             val exprOptimized = it.optimize()
@@ -238,6 +232,7 @@ class AstOptimizer(option: OptimizationOption) {
         }
         is BinExpr -> this.optimize()
         is UnaryExpr -> this.optimize()
+        is FunctionCall -> this.also { hasFuncCall = true }
         else -> this
     }
 
@@ -276,6 +271,9 @@ class AstOptimizer(option: OptimizationOption) {
 
 
     private fun BinExpr.optimize(): Expression {
+        if (left is Identifier && left.name == "turnCount") {
+            println("HERE")
+        }
         val leftOptimized = left.optimize()
         val rightOptimized = right.optimize()
         // val optLevel = OptimizationOption.values().indexOf(option)
@@ -336,7 +334,7 @@ class AstOptimizer(option: OptimizationOption) {
             }
         }
 
-        if (leftOptimized::class == rightOptimized::class) {
+        if (leftOptimized::class == rightOptimized::class && leftOptimized is Literal) {
             result = when (op) {
                 EQ -> BoolLit(leftOptimized == rightOptimized)
                 NEQ -> BoolLit(leftOptimized != rightOptimized)
@@ -363,7 +361,8 @@ class AstOptimizer(option: OptimizationOption) {
     private fun Expression.isPrimitiveLiteral(): Boolean =
             this is Literal && this !is ArrayLiteral && this !is NewPair
 
-    private fun ArrayElem.canBeEvaluated(): Boolean = this.indices.all { it.optimize() is IntLit }
+    private fun ArrayElem.canBeEvaluated(): Boolean =
+            this.indices.all { it.optimize() is IntLit } && programState.lookupVar(this.arrIdent) != null
 
     private inline fun inScopeDo(action: () -> WaccAST): WaccAST {
         programState.enterScope()
@@ -373,7 +372,7 @@ class AstOptimizer(option: OptimizationOption) {
     }
 
     private fun resetLoopOptConditions() {
-        hasIO = false
+        hasFuncCall = false
         overflowOccurred = false
         hasArrayAssignment = false
     }

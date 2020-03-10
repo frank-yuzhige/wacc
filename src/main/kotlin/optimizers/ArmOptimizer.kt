@@ -15,22 +15,53 @@ import kotlin.math.min
 typealias Liveness = Pair<MutableSet<Register>, MutableSet<Register>>
 typealias LivenessList = MutableList<Pair<Instruction, Liveness>>
 
-class ArmOptimizer(option: OptimizationOption) {
+class ArmOptimizer {
+    enum class PeepholePattern(val patternSize: Int) {
+        MULTIPLY_BY_POWER_OF_TWO(5),
+        DIVIDE_BY_POWER_OF_TWO(5),
+        LOAD_LARGE_IMM_NUM(3),
+        REDUNDANT_LOAD_AFTER_STORE(2)
+    }
+
     private val blockLivenessMap: MutableMap<String, LivenessList> = mutableMapOf()
     private val regToOffsetMap: MutableMap<Offset, Register> = mutableMapOf()
+    private val patternToFunc: Map<PeepholePattern, (List<Instruction>) -> List<Instruction>> = mapOf(
+            PeepholePattern.MULTIPLY_BY_POWER_OF_TWO to ::multiplyByPowerOfTwo,
+            PeepholePattern.DIVIDE_BY_POWER_OF_TWO to ::divideByPowerOfTwo,
+            PeepholePattern.LOAD_LARGE_IMM_NUM to ::loadLargeImmNum,
+            PeepholePattern.REDUNDANT_LOAD_AFTER_STORE to ::redundantLoadAfterStore
+    )
+
+    private val MAX_SHIFT = 32
+    var linesReduced = 0
+
     fun doOptimize(armProgram: ArmProgram): ArmProgram {
         val separatedBlocks = separateBlocks(armProgram)
         val nonPreludeBlocks = separatedBlocks.first
         val preludeBlocks = separatedBlocks.second
-        /*
-        nonPreludeBlocks.forEach {
-            it.initialize()
-            it.performLivenessAnalysis()
-        }
-        dumpLivenessMap()
-        */
-        return ArmProgram(armProgram.stringConsts, nonPreludeBlocks.map { it.doPeepHoleOptimize() } + preludeBlocks)
+        val optimizedBlocks = nonPreludeBlocks.map { it.doPeepHoleOptimize() }
+        val usedLabels = optimizedBlocks.flatMap { it.getUsedLabels() }
+                                                   .let { preludeBlocks.getLabelTransitiveClosure(it) }
+        return ArmProgram(armProgram.stringConsts,
+                          optimizedBlocks + preludeBlocks.removeUnusedBlocks(usedLabels))
     }
+
+    private fun List<InstructionBlock>.removeUnusedBlocks(usedLabels: List<Label>): List<InstructionBlock> =
+            this.filter { usedLabels.contains(it.label).also { used -> if(!used) { linesReduced += it.getInstrCount() } } }
+
+    private fun List<InstructionBlock>.getLabelTransitiveClosure(usedLabels: List<Label>): List<Label> {
+        val result = usedLabels.toMutableList()
+        this.forEach {
+            if (usedLabels.contains(it.label)) {
+                result.addAll(it.getUsedLabels())
+            }
+        }
+        return result
+    }
+
+    private fun InstructionBlock.getUsedLabels(): List<Label> = (this.instructions + this.terminator)
+                    .filter { it is BL || it is B }
+                    .map { ((it as? BL)?.label ?: (it as? B)?.label)!! }
 
     private fun InstructionBlock.doPeepHoleOptimize(): InstructionBlock {
         val optimizedInstrs: MutableList<Instruction> = this.instructions.toMutableList()
@@ -52,15 +83,16 @@ class ArmOptimizer(option: OptimizationOption) {
                                 optimized = true
                                 changed = true
                                 index += instrs.size
+                                linesReduced += (instrs.size - it.size)
                             }
                         }
                     } else {
                         emptyList()
                     }
                 }
-                optimizedInstrs += identifyPattern(::divideByPowerOfTwo, 5)
-                optimizedInstrs += identifyPattern(::redundantLoad, 3)
-                optimizedInstrs += identifyPattern(::redundantLoadAfterStore, 2)
+                PeepholePattern.values().forEach {
+                    optimizedInstrs += identifyPattern(patternToFunc[it]!!, it.patternSize)
+                }
                 if (!optimized) {
                     optimizedInstrs += tempInstrs[index]
                     index++
@@ -73,11 +105,60 @@ class ArmOptimizer(option: OptimizationOption) {
     /**
      * Functions for checking patterns in peep hole optimization
      */
-    private fun divideByPowerOfTwo(instrs: List<Instruction>): List<Instruction> {
+    private fun multiplyByPowerOfTwo(instrs: List<Instruction>): List<Instruction> {
+        /**
+         * Pattern:
+         * 0: MOV rn, #n             or 0: LDR rn, =n
+         * 1: SMULL rm, rn, rm, rn
+         * 2: CMP rn, rm, ASR #31
+         * 3: BLNE p_overflow_error
+         * 4: STR rm, [offset]
+         * where n is a number that is power of two
+         */
         var satisfied = true
         val instr0 = instrs[0]
         var num = 0
-        satisfied = instr0 is Mov && instr0.dest == Reg(0)
+        var dest: Register = Reg(0)
+        satisfied = if ((instr0 is Mov && instr0.dest is Reg && instr0.opr is ImmNum) ||
+                        (instr0 is Ldr && instr0.dest is Reg && instr0.opr is ImmNum)) {
+            num = (((instr0 as? Mov)?.opr ?: (instr0 as Ldr)?.opr) as ImmNum).num
+            num > 0 && (num and (num - 1)) == 0
+        } else { false }
+        val instr1 = instrs[1]
+        satisfied = if (satisfied && (instr1 is Smull)) {
+            dest = instr1.rn
+            true
+        } else { false }
+        val instr2 = instrs[2]
+        satisfied = satisfied && (instr2 is Cmp)
+        val instr3 = instrs[3]
+        satisfied = satisfied && (instr3 is BL && instr3.label.name == "p_overflow_error")
+        val instr4 = instrs[4]
+        satisfied = satisfied && (instr4 is Str && instr4.src == dest)
+
+        return if (satisfied) {
+            val power = log(num.toDouble(), 2.toDouble()).toInt()
+            if (power < MAX_SHIFT) {
+                listOf(Lsl(Condition.S, dest, dest, ImmNum(power)),
+                        BL(Condition.E, Label("p_overflow_error"))) + instr4
+            } else { emptyList() }
+        } else { emptyList() }
+    }
+
+    private fun divideByPowerOfTwo(instrs: List<Instruction>): List<Instruction> {
+        /**
+         * Pattern:
+         * 0: MOV r0, rm
+         * 1: MOV r1, #n                or 1: LDR r1, =n
+         * 2: BL p_check_div_by_zero
+         * 3: BL __aeabi_idiv
+         * 4: MOV rx, r0
+         * where n is a number that is power of two
+         */
+        var satisfied = true
+        val instr0 = instrs[0]
+        var num = 0
+        satisfied = instr0 is Mov && instr0.dest == Reg(0) && instr0.opr is Register
         val instr1 = instrs[1]
         satisfied = if (satisfied && ((instr1 is Mov && instr1.dest == Reg(1) && instr1.opr is ImmNum) ||
                         (instr1 is Ldr && instr1.dest == Reg(1) && instr1.opr is ImmNum))) {
@@ -91,12 +172,21 @@ class ArmOptimizer(option: OptimizationOption) {
         val instr4 = instrs[4]
         satisfied = satisfied && (instr4 is Mov && instr4.opr == Reg(0))
         return if (satisfied) {
-            val dest = (instr1 as? Mov)?.dest ?: (instr1 as Ldr).dest
-            instrs.subList(0, 3) + Lsr(dest, dest, ImmNum(log(num.toDouble(), 2.toDouble()).toInt()))
+            val dest: Register = ((instr0 as? Mov)?.opr ?: (instr0 as Ldr).opr) as Register
+            val power= log(num.toDouble(), 2.toDouble()).toInt()
+            if (power < MAX_SHIFT) {
+                listOf(Lsr(dest, dest, ImmNum(power)))
+            } else { emptyList() }
         } else { emptyList() }
     }
 
-    private fun redundantLoad(instrs: List<Instruction>): List<Instruction> {
+    private fun loadLargeImmNum(instrs: List<Instruction>): List<Instruction> {
+        /**
+         * Pattern:
+         * 0: LDR rn, =n       0: LDR rn, =n
+         * 1: MOV rx, rn  or   1: MOV rx, rm
+         * 2: MOV ry, rm       2: MOV ry, rn
+         */
         var satisfied = true
         val instr0 = instrs[0]
         var num = ImmNum(0)
@@ -120,6 +210,11 @@ class ArmOptimizer(option: OptimizationOption) {
     }
 
     private fun redundantLoadAfterStore(instrs: List<Instruction>): List<Instruction> {
+        /**
+         * Pattern:
+         * 0: LDR rn, [offset]
+         * 1: STR rn, [offset]
+         */
         var satisfied = true
         val instr0 = instrs[0]
         var reg: Register = Reg(0)

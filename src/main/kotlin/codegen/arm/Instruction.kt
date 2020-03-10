@@ -73,6 +73,12 @@ sealed class Instruction {
         override fun getUses(): List<Register> = opr.getAllRegs() + rn
     }
 
+    data class Lsl(val cond: Condition, val dest: Register, val rn: Register, var opr: Operand): Instruction() {
+        override fun toString(): String = "LSL$cond $dest, $rn, ${opr.inMOV()}"
+        override fun getDefs(): List<Register> = listOf(dest)
+        override fun getUses(): List<Register> = opr.getAllRegs() + rn
+    }
+
     /** Logical Operations **/
     data class Mov(val cond: Condition, val dest: Register, var opr: Operand): Instruction() {
         override fun toString(): String = "MOV$cond $dest, ${opr.inMOV()}"
@@ -178,6 +184,8 @@ sealed class Instruction {
         AL {
             override fun toString(): String = ""
         },
+        S,
+        E,
         EQ,
         NE,
         GT,
