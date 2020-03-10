@@ -211,7 +211,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                         mov(Reg(0), reg)
                         when (expr.getType()) {
                             is NewType -> callPrelude(FREE_STRUCT)
-                            is PairType -> callPrelude(FREE_PAIR)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
                         }
                     }
@@ -353,10 +352,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val temp = expr.toARM().toReg()
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                load(temp, Offset(temp, when (func) {
-                    FST -> 0; SND -> 4
-                }))
-                load(temp, Offset(temp), sizeof(this.getType()))
+                val offset = Offset(temp, when (func) { FST -> 0; SND -> 4 })
+                load(temp, offset, sizeof(getType()))
             }
             is TypeMember -> {
                 val reg = expr.toARM().toReg()
@@ -404,17 +401,17 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 baseAddressReg
             }
             is NewPair -> {
+                first.ground(currentGrounding)
+                second.ground(currentGrounding)
                 // malloc 8-bytes for 2 ptrs
-                callMalloc(8)
+                val fstSize = sizeof(first.getType())
+                val sndSize = sizeof(second.getType())
+                callMalloc(fstSize + sndSize)
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst = first.toARM().toReg()
-                callMalloc(sizeof(first.getType()))
-                store(fst, Offset(Reg(0)), sizeof(first.getType()))
-                store(Reg(0), Offset(pairAddr))
+                store(fst, Offset(pairAddr), fstSize)
                 val snd = second.toARM().toReg()
-                callMalloc(sizeof(second.getType()))
-                store(snd, Offset(Reg(0)), sizeof(second.getType()))
-                store(Reg(0), Offset(pairAddr, 4))
+                store(snd, Offset(pairAddr, fstSize), sndSize)
                 pairAddr
             }
             is FunctionCall -> {
@@ -472,8 +469,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
 
     private fun Pattern.defineConsts(unionAtReg: Register) {
         var offsetAcc = 4
-        val members = symbolTable.functions.getValue(constructor).members
-        matchVars.zip(members).forEach { (ident, param) ->
+        matchVars.forEach { ident ->
             scopeEnterDef(ident)
             val type = ident.ground(currentGrounding).getType()
             val value = load(AL, getReg(), Offset(unionAtReg, offsetAcc), sizeof(type))
@@ -893,7 +889,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         is ArrayElem -> {
             var result = findVar(lhs.arrIdent)
             val arrReg = getReg()
-            var currType = lhs.arrIdent.getType()
+            var currType = lhs.arrIdent.ground(currentGrounding).getType()
             for (expr in lhs.indices) {
                 val indexReg = expr.toARM().toReg()
                 load(AL, arrReg, result)
@@ -910,8 +906,10 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             val pairAddr = lhs.expr.toARM().toReg()
             mov(Reg(0), pairAddr)
             callPrelude(CHECK_NULL_PTR)
+            // lhs type in codegen is guaranteed to be a "pair" NewType
+            val lhsType = lhs.expr.getType() as NewType
             Offset(pairAddr, when (lhs.func) {
-                FST -> 0; SND -> 4
+                FST -> 0; SND -> sizeof(lhsType.generics[0])
             })
         }
         is TypeMember -> {
@@ -942,7 +940,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun getConstructorLabel(name: String, type: FuncType): Label =
-            Label("constructor_${type.printAsLabel()}")
+            Label("c_${name}_${type.printAsLabel()}")
 
     private fun Expression.getType(): Type = this.groundedType
 

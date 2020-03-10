@@ -263,7 +263,6 @@ class SymbolTable {
                 val entry = typedefs[type.toString()]!!
                 trait in entry.traitDependencies.keys
             }
-            is PairType -> TODO()
             is NewType -> {
                 val entry = lookupType(type)?:throw UndefinedTypeException(type.name)
                 trait in entry.traitDependencies.keys && type.generics.withIndex().all { (i, type) ->
@@ -367,7 +366,7 @@ class SymbolTable {
             fun pairAttributes(): TypeAttributes {
                 val impls = mutableMapOf(
                         Trait("Eq") to listOf(setOf(Trait("Eq")), setOf(Trait("Eq"))),
-                        Trait("Malloc") to listOf(emptySet())
+                        Trait("Malloc") to listOf(emptySet(), emptySet())
                 )
                 return TypeAttributes(arrayTypeOf(TypeVar("A")),false, impls, emptySet(), -1 to -1)
             }

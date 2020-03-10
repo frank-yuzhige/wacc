@@ -24,6 +24,11 @@ sealed class Type {
         fun arrayTypeOf(type: Type) = NewType("array", type)
         fun pairTypeOf(left: Type, right: Type) = NewType("pair", left, right)
         fun anyPairType() = pairTypeOf(anyType(), anyType())
+        fun newPairConstructorType(): FuncType {
+            val fst = anyType()
+            val snd = anyType()
+            return FuncType(pairTypeOf(fst, snd), listOf(fst, snd))
+        }
 
         fun anyType(): Type = newTypeVar()
 
@@ -36,16 +41,6 @@ sealed class Type {
 
     data class BaseType(val kind: BaseTypeKind) : Type() {
         override fun toString(): String = kind.symbol
-    }
-
-    data class PairType(val firstElemType: Type, val secondElemType: Type) : Type() {
-        override fun toString(): String =
-                if (firstElemType != BaseType(ANY) || secondElemType != BaseType(ANY)) {
-                    "pair($firstElemType, $secondElemType)"
-                } else {
-                    "pair"
-                }
-
     }
 
     data class NewType(val name: String, val generics: List<Type> = emptyList()): Type() {
@@ -173,7 +168,6 @@ sealed class Type {
         val actual = this.substitutes(oldMgu)
         return when(original) {
             is BaseType -> if(actual == original) oldMgu else throw NoUnificationFoundForTypesException(actual, original)
-            is PairType -> throw NoUnificationFoundForTypesException(actual, original)
             is NewType -> when {
                 actual is NewType && actual.name == original.name -> {
                     actual.generics.zip(original.generics)
@@ -215,14 +209,6 @@ sealed class Type {
         return when(expecting) {
             is BaseType -> when(actual) {
                 is BaseType -> if (expecting == actual) actual else throw SemanticException.TypeMismatchException(expecting, actual)
-                is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
-                else -> throw SemanticException.TypeMismatchException(expecting, actual)
-            }
-            is PairType -> when(actual) {
-                is PairType -> PairType(
-                        actual.firstElemType.inferFrom(expecting.firstElemType, symbolTable),
-                        actual.secondElemType.inferFrom(expecting.secondElemType, symbolTable)
-                )
                 is TypeVar -> expecting.instanceOf(actual.traits, symbolTable)
                 else -> throw SemanticException.TypeMismatchException(expecting, actual)
             }
@@ -282,13 +268,6 @@ sealed class Type {
             }
         }
         return t
-    }
-    fun unwrapPairType(elem: PairElemFunction): Type? = when (this) {
-        is PairType -> when (elem) {
-            FST -> this.firstElemType
-            SND -> this.secondElemType
-        }
-        else -> null
     }
 }
 

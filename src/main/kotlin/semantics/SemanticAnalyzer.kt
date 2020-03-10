@@ -2,6 +2,8 @@ package semantics
 
 import ast.*
 import ast.Expression.*
+import ast.Expression.PairElemFunction.FST
+import ast.Expression.PairElemFunction.SND
 import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
@@ -14,6 +16,7 @@ import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
+import ast.Type.Companion.newPairConstructorType
 import ast.Type.Companion.stringType
 import ast.Type.TypeVar.Companion.newTypeVar
 import exceptions.SemanticException
@@ -256,7 +259,15 @@ class SemanticAnalyzer() {
                     indices.map { it.checkExpr(intType()) }
                     type inferFrom expecting
                 }
-                is PairElem -> TODO()
+                is PairElem -> {
+                    val exprType = expr.checkExpr(anyPairType())
+                    if (exprType !is NewType) throw TypeMismatchException(anyPairType(), exprType)
+                    val memberType = when(func) {
+                        FST -> exprType.generics[0]
+                        SND -> exprType.generics[1]
+                    }
+                    memberType inferFrom expecting
+                }
                 is TypeMember -> {
                     val exprType = expr.checkExpr(anyType())
                     if (exprType !is NewType) throw NotAStructTypeException(exprType)
@@ -315,7 +326,13 @@ class SemanticAnalyzer() {
                         arrayTypeOf(fstType) inferFrom expecting
                     }
                 }
-                is NewPair -> TODO()
+                is NewPair -> {
+                    val funcType = newPairConstructorType() unifyReturn expecting
+                    val argsGrounds = listOf(first, second)
+                            .zip(funcType.paramTypes) { arg, type -> arg.checkExpr(type)}
+                    val sub =  FuncType(funcType.retType, argsGrounds).findUnifier(funcType)
+                    funcType.retType.substitutes(sub)
+                }
                 is EnumRange -> TODO()
                 is IfExpr -> {
                     val conds = condStatsList.map { it.first }
@@ -332,7 +349,7 @@ class SemanticAnalyzer() {
                     }
                     val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
                     val sub: Grounding = FuncType(newFuncType.retType, argsGrounds).findUnifier(newFuncType)
-                    newFuncType.retType.substitutes(sub).also { System.err.println(it) }
+                    newFuncType.retType.substitutes(sub)
                 }
             }
         } catch (sme: SemanticException) {
