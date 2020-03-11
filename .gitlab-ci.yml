@@ -17,8 +17,8 @@ front_end_test:
   stage: front_end_test
   script:
     - echo "frontend test"
-#    - ./gradlew test -i --tests parser.*
-#    - ./gradlew test -i --tests semantics.*
+    - ./gradlew test -i --tests parser.*
+    - ./gradlew test -i --tests semantics.*
   tags:
     - wacc
 
@@ -26,7 +26,7 @@ back_end_test:
   stage: back_end_test
   script:
     - echo "backend test"
-#    - ./gradlew test -i --tests codegen.*
+    - ./gradlew test -i --tests codegen.*
   tags:
     - wacc
 
