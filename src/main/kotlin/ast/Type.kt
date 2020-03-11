@@ -40,7 +40,6 @@ sealed class Type {
         fun boolType(): BaseType = BaseType(BOOL)
         fun charType(): BaseType = BaseType(CHAR)
         fun stringType(): BaseType = BaseType(STRING)
-        fun rangeTypeOf(type: Type) = NewType("Range", type)
     }
 
 
@@ -235,7 +234,6 @@ sealed class Type {
         if (actual is ErrorType) {
             return actual
         }
-        System.err.println("Inferring expected: $expecting <==> actual: $actual")
         return when(expecting) {
             is BaseType -> when {
                 actual is BaseType -> if (expecting == actual) actual else throw SemanticException.TypeMismatchException(expecting, actual)
@@ -281,7 +279,7 @@ sealed class Type {
                 else -> throw SemanticException.TypeMismatchException(expecting, actual)
             }
             ErrorType -> actual
-        }.also { System.err.println("We get: $it") }
+        }
     }
 
     fun unwrapArrayType(): Type? = when {

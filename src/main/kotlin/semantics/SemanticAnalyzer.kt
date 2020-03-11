@@ -304,7 +304,6 @@ class SemanticAnalyzer() {
     private fun Expression.checkExpr(expecting: Type,
                                      logAction: (List<String>) -> Unit = { logError(it) }): Type {
         treeStack.push(this)
-        System.err.println("**** checking: ${this.prettyPrint()} against: $expecting")
         val inferredType = try {
             when(this) {
                 NullLit -> anyPairType() inferFrom expecting
@@ -348,11 +347,9 @@ class SemanticAnalyzer() {
             }
         } catch (sme: SemanticException) {
             logAction(listOf(sme.msg))
-            System.err.println("$$> logging: ${sme.msg}")
             ErrorType
         }
         reifiedType = inferredType
-        System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
         if (!inferredType.isDetermined()) {
             logAction(listOf(UngroundTypeException(inferredType).msg))
         }

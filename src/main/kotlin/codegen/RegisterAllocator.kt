@@ -18,7 +18,7 @@ import java.util.*
 *  will also be corrected accordingly. */
 class RegisterAllocator(val program: ArmProgram) {
     private val availableRealRegs: TreeSet<Int> = normalRegs().map { it.id }.toCollection(TreeSet())
-    private val liveRangeMap: LiveRangeMap = generateLiveRangeMap().also { it.dump() }
+    private val liveRangeMap: LiveRangeMap = generateLiveRangeMap()
     private val freeRegMap: Map<Int, MutableList<Reg>>
     init {
         freeRegMap = mutableMapOf()
