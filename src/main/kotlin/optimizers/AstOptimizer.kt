@@ -18,8 +18,9 @@ class AstOptimizer(option: OptimizationOption) {
     private var hasFuncCall = false
     private var hasArrayAssignment = false
     private var deleteVar = false
+    private val MAX_LOOP_ITERATION = 1000;
     fun doOptimize(ast: ProgramAST): ProgramAST {
-        if (optLevel > 0) {
+        if (optLevel >= 0) {
             var currAst = ast
             var preAst: ProgramAST
             do {
@@ -55,7 +56,7 @@ class AstOptimizer(option: OptimizationOption) {
                 if (rhsOptimized.isPrimitiveLiteral()) {
                     Declaration(isConst, type, variable, rhsOptimized)
                 } else { this }
-            } else { this }
+            } else { Declaration(isConst, type, variable, rhsOptimized) }
         }
         is Assignment -> {
             val lhsIdent = lhs.getIdentifier()
@@ -117,28 +118,31 @@ class AstOptimizer(option: OptimizationOption) {
             }
         }
         is WhileLoop -> {
+            var exprOptimized = expr.optimize()
             if (optLevel > 0) {
                 /**
                  * A while loop is only optimized when all of the following conditions are satisfied:
                  * 1. The loop's condition can be evaluated to a BoolLit
                  * 2. No overflow occurs when evaluating the expressions inside the loop body.
-                 * 4. There are no array assignments inside the loop body.
-                 * 5. There are function calls (including calls to built-in functions and user-defined functions)
+                 * 3. There are no array assignments inside the loop body.
+                 * 4. There are function calls (including calls to built-in functions and user-defined functions)
                  *    inside the loop body.
+                 * 5. It terminates before reaching MAX_LOOP_ITERATION
                  * If any of the conditions fails, the loop body will be optimized with optimization level 0.
                  */
-                var exprOptimized = expr.optimize()
                 if (exprOptimized is BoolLit) {
                     if (!exprOptimized.b) {
                         Block(emptyList())
                     } else {
                         var bodyOptimized = body
                         resetLoopOptConditions()
-                        while (exprOptimized is BoolLit && exprOptimized.b) {
+                        var iterCount = 0; // To avoid evaluating a loop that does not terminate
+                        while (exprOptimized is BoolLit && exprOptimized.b && iterCount < MAX_LOOP_ITERATION) {
                             bodyOptimized = body.optimize()
                             exprOptimized = expr.optimize()
+                            iterCount++
                         }
-                        if (!overflowOccurred && !hasFuncCall && !hasArrayAssignment) {
+                        if (!overflowOccurred && !hasFuncCall && !hasArrayAssignment && iterCount != MAX_LOOP_ITERATION) {
                             WhileLoop(exprOptimized, bodyOptimized)
                         } else {
                             optLevel = 0
@@ -152,7 +156,7 @@ class AstOptimizer(option: OptimizationOption) {
                     optLevel = 0
                     WhileLoop(expr, body.optimize()).also { optLevel = 1 }
                 }
-            } else { this }
+            } else { WhileLoop(exprOptimized, body) }
         }
         is Block -> Block(body.optimize())
         is Read -> {
@@ -162,7 +166,8 @@ class AstOptimizer(option: OptimizationOption) {
                 when (target) {
                     is ArrayElem -> if (target.canBeEvaluated()) {
                         try {
-                            programState.removeArrayElemAtIndex(targetIdent, target.indices.map { (it.optimize() as IntLit).x })
+                            programState.removeArrayElemAtIndex(targetIdent,
+                                    target.indices.map { (it.optimize() as IntLit).x })
                         } catch (ex: IndexOutOfBoundsException) {}
                     }
                     is PairElem -> programState.removePairElem(target.func, targetIdent)
@@ -269,13 +274,9 @@ class AstOptimizer(option: OptimizationOption) {
 
 
     private fun BinExpr.optimize(): Expression {
-        if (left is Identifier && left.name == "turnCount") {
-            println("HERE")
-        }
         val leftOptimized = left.optimize()
         val rightOptimized = right.optimize()
-        // val optLevel = OptimizationOption.values().indexOf(option)
-        var result: Expression = this
+        var result: Expression = BinExpr(leftOptimized, this.op, rightOptimized)
 
         if (leftOptimized is IntLit && rightOptimized is IntLit) {
             val x = leftOptimized.x
