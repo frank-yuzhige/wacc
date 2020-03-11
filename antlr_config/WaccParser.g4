@@ -90,8 +90,8 @@ stat: SKIP_STAT                                         #skip
     | assignLhs ASSIGN assignRhs                        #assignment
     | READ assignLhs                                    #readCall
     | builtinFunc expr                                  #builtinFuncCall
-    | IF expr THEN stats?
-        ((ELSE IF expr THEN stats)* ELSE stats?)? FI    #condBranch
+    | IF expr THEN stats
+        (ELSE IF expr THEN stats)* (ELSE stats)? FI     #condBranch
     | WHILE expr DO stats? DONE                         #whileLoop
     | FOR (type|VAR)? ident IN enumRange DO stats? DONE #forLoop
     | WHEN expr COLON whenCase* END                     #whenClause

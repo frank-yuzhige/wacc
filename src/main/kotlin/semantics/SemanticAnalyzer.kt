@@ -181,10 +181,6 @@ class SemanticAnalyzer() {
                 EXIT -> expr.checkExpr(intType())
                 RETURN -> expr.checkExpr(returnType)
             }
-            is IfThen -> {
-                expr.checkExpr(boolType())
-                thenBody.checkBlock(returnType, typeconstraints)
-            }
             is CondBranch -> {
                 condStatsList.forEach { (expr, stats) ->
                     expr.checkExpr(boolType())

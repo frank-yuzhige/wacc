@@ -304,11 +304,11 @@ class RuleContextConverter() {
             is BuiltinFuncCallContext ->
                 BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
             is CondBranchContext -> {
-                if (ELSE() == null) {
-                    IfThen(expr(0).toAST(), stats(0).toAST())
-                } else {
-                    val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                if (expr().size != stats().size) {
                     CondBranch(list, stats().last().toAST())
+                } else {
+                    CondBranch(list, listOf(Skip))
                 }
             }
             is ForLoopContext -> {

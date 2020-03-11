@@ -225,18 +225,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 }
             }
 
-            is IfThen -> {
-                val ifThen = getLabel("if_then")
-                val ifEnd = getLabel("if_end")
-                val cond = expr.toARM().toReg()
-                cmp(cond, immFalse())
-                branch(Condition.EQ, ifEnd)
-                setBlock(ifThen)
-                inScopeDo { thenBody.map { it.toARM() } }
-                branch(ifEnd)
-                setBlock(ifEnd)
-            }
-
             is CondBranch -> {
                 val ifend = getLabel("if_end")
                 var nextCase = getLabel("if_case")

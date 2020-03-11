@@ -40,13 +40,6 @@ sealed class Statement : WaccAST() {
         override fun prettyPrint(): String = "${func.functionName} ${expr.prettyPrint()}"
     }
 
-    data class IfThen(val expr: Expression, val thenBody: Statements): Statement() {
-        override fun tellIdentity(): String = "an if-statement"
-        override fun prettyPrint(): String = "if ${expr.prettyPrint()} then\n" +
-                    "${thenBody.prettyPrint().prependIndent()}\n" +
-                    "fi"
-    }
-
     data class CondBranch(val condStatsList: List<Pair<Expression, Statements>>, val elseBody: Statements) : Statement() {
         override fun tellIdentity(): String = "an if-statement"
         override fun prettyPrint(): String {
