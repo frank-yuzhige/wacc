@@ -16,6 +16,24 @@
   for future development. You may also wish to address the performance
   characteristics of your compiler.}
 
+  We deemed our implementation of the WACC compiler to have completed the
+  functional requirements of the specification to a satisfactory degree, as
+  evidenced by the test results, in addition to which we also included
+  additional test cases for edge cases that were not covered by the original set.
+  Our implementation of the WACC compiler also provided us with a expandable
+  platform from with additional functionalities, and language features can be
+  added. The lexer and parser can easily be expanded to include new language
+  features. The syntactic and semantic analysis, owing to our design choices in
+  the implementation of errors as bundles, allows for the easy addition of new
+  syntax and semantic error types, under new conditions, whilst maintaining the
+  ability to gather all thrown error messages in one compilation attempt.
+  Our design choice surrounding machine code generation also allows for
+  additional arm instructions to be implemented into the compiler, whether it is
+  to replace previous implementations or as part of a new language feature.
+
+  \hl{Performance characteristics of our compiler?}
+
+
   \subsection*{2. Project Management}
   \textit{An analysis of the organization of your group and your use of project
   management tools (such as Git). You should describe how your group was

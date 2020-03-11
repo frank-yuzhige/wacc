@@ -29,3 +29,11 @@ node_modules/
 libraries/tools/kotlin-test-js-runner/lib/
 libraries/tools/kotlin-source-map-loader/lib/
 local.properties
+
+#ignore latex generated files
+report/report.log
+report/report.pdf
+report/report.aux
+report/report.fls
+report/report.fdb_latexmk
+report/report.synctex.gz
