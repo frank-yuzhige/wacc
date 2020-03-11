@@ -100,7 +100,7 @@ fun main(args: Array<String>) {
         println(betterArm)
     }
     if (optLevel > 1) {
-        val armOptimizer = ArmOptimizer(OptimizationOption.values()[optLevel])
+        val armOptimizer = ArmOptimizer()
         betterArm = armOptimizer.doOptimize(betterArm)
         println("\n=== Code After Peephole Optimization ===")
         println(betterArm.toString())
