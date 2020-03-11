@@ -10,22 +10,24 @@ ident   : IDENT;
 capIdent: CAP_IDENT;
 boolLit : TRUE | FALSE;
 
-type        : arrayType | baseType | pairType | capIdent;
-arrayType   : (baseType | pairType) (LBRA RBRA)+;
-pairElemType: arrayType | baseType | PAIR;
+type        : arrayType | baseType | pairType | newType;
+arrayType   : (baseType | pairType | newType) (LBRA RBRA)+;
 baseType    : BASE_TYPE;
-pairType    : PAIR LPAR first=pairElemType COMMA second=pairElemType RPAR;
+pairType    : PAIR (LPAR first=type COMMA second=type RPAR)?;
+newType     : capIdent generics?;
+generics    : LT type (COMMA type)* GT;
 
 member: type ident;
-newtype: structType | taggedUnion;
-structType: NEWTYPE capIdent IS (member SEMICOLON)* END;
+newTypeDef: structType | taggedUnion;
+genericTVars: LT tvar=capIdent (COMMA tvar=capIdent)* GT;
+structType: NEWTYPE capIdent genericTVars? IS (member SEMICOLON)* END;
 
 unionEntry: capIdent (OF LPAR member (COMMA member)* RPAR)?;
-taggedUnion: NEWTYPE capIdent IS UNION (unionEntry SEMICOLON)* END;
+taggedUnion: NEWTYPE capIdent genericTVars? IS UNION (unionEntry SEMICOLON)* END;
 
-enumRange: from=expr DOTDOT to=expr                 #rangeFromTo
-         | from=expr COMMA then=expr DOTDOT to=expr #rangeFromThenTo
-         ;
+traitInstance: INSTANCE type COLON trait=capIdent (WHERE constraintList)? IS func+ END;
+
+enumRange: from=expr DOTDOT to=expr;
 
 unaryOp: NOT
        | LEN
@@ -51,7 +53,11 @@ expr: left=expr binop1 right=expr    #exprBinop
     | left=expr binop5 right=expr    #exprBinop
     | left=expr binop6 right=expr    #exprBinop
     | LPAR expr RPAR                 #exprParens
-    | ident LPAR argList RPAR        #exprFuncCall
+    | v=ident DOT m=ident            #exprVarMember
+    | ident LPAR argList? RPAR       #exprFuncCall
+    | typeConstructor                #exprTypeConstructor
+    | arrayLiter                        #exprArrayLiter
+    | NEWPAIR LPAR expr COMMA expr RPAR #exprNewPair
     | IF cond=expr THEN tr=expr ELSE fl=expr FI #exprIf
     | integer                        #exprInt
     | boolLit                        #exprBool
@@ -66,7 +72,15 @@ expr: left=expr binop1 right=expr    #exprBinop
 param    : type ident;
 paramList: param (COMMA param)*;
 
-func: type ident LPAR paramList? RPAR IS stats END;
+
+constraint: capIdent COLON capIdent;
+forallConstraint: FORALL capIdent;
+constraintList: (constraint|forallConstraint) (COMMA (constraint|forallConstraint))*;
+
+func: type ident LPAR paramList? RPAR (WHERE constraintList)? IS stats END;
+
+requiredFunc: type ident LPAR paramList? RPAR (WHERE constraintList)? IS REQUIRED;
+traitDef: TRAIT tvar=capIdent COLON trait=capIdent (WHERE constraintList)? IS requiredFunc+ END;
 
 builtinFunc: FREE | RETURN | EXIT | PRINT | PRINTLN;
 
@@ -76,18 +90,19 @@ stat: SKIP_STAT                                         #skip
     | assignLhs ASSIGN assignRhs                        #assignment
     | READ assignLhs                                    #readCall
     | builtinFunc expr                                  #builtinFuncCall
-    | IF expr THEN stats?
-        ((ELSE IF expr THEN stats)* ELSE stats?)? FI    #condBranch
+    | IF expr THEN stats
+        (ELSE IF expr THEN stats)* (ELSE stats)? FI     #condBranch
     | WHILE expr DO stats? DONE                         #whileLoop
     | FOR (type|VAR)? ident IN enumRange DO stats? DONE #forLoop
     | WHEN expr COLON whenCase* END                     #whenClause
+    | CALL ident LPAR argList? RPAR                     #voidFuncCall
     | BEGIN stats? END                                  #block
     ;
 
 pattern:  capIdent (LPAR ident (COMMA ident)* RPAR)?;
 whenCase: IS pattern ARROW stats;
 
-stats: stat SEMICOLON (stat SEMICOLON)*;
+stats: stat (SEMICOLON stat)* SEMICOLON?;
 
 assignLhs: ident
          | arrayElem
@@ -100,7 +115,6 @@ assignRhs: expr                              #rhsExpr
          | NEWPAIR LPAR expr COMMA expr RPAR #rhsNewPair
          | pairElem                          #rhsPairElem
          | typeMember                        #rhsTypeMember
-         | typeConstructor                   #rhsTypeConstructor
          | CALL ident LPAR argList? RPAR     #rhsFuncCall
          ;
 
@@ -117,4 +131,4 @@ typeMember: expr DOT ident;
 typeConstructor: capIdent LPAR argList? RPAR;
 
 // EOF indicates that the program must consume to the end of the input.
-prog: BEGIN newtype* func* stats? END EOF;
+prog: BEGIN (newTypeDef|func|traitDef|traitInstance)* stats? END EOF;

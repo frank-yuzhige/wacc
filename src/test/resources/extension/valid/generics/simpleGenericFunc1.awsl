@@ -1,0 +1,13 @@
+begin
+
+K sum(K k1, K k2) where K: Num is
+    return k1 + k2;
+end
+
+var three = sum(-1, 4);
+println three;
+
+var c = sum (' ', 'A');
+println c;
+
+end

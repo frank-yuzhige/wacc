@@ -1,0 +1,32 @@
+begin
+
+newtype ElectronicMusic is union
+    House;
+    Trance;
+    Techno;
+    Dubstep;
+    DrumAndBass;
+    Garage;
+end
+
+int shout(ElectronicMusic m) is
+    when m:
+        is House       -> println "House!";
+        is Trance      -> println "Trance!";
+        is Techno      -> println "Techno!";
+        is Dubstep     -> println "Dubstep!";
+        is DrumAndBass -> println "DNB!";
+        is Garage      -> println "Garage!";
+    end;
+    return 0;
+end
+
+ElectronicMusic myChoice = Techno();
+ElectronicMusic myChoice2 = House();
+
+int x = shout(myChoice);
+x = shout(myChoice2);
+
+
+
+end

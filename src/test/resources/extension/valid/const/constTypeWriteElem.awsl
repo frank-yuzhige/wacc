@@ -1,0 +1,12 @@
+begin
+
+newtype Tuple is
+    int a;
+    char b;
+end
+
+const Tuple t = Tuple(1, 'b');
+println t.a;
+println t.b;
+
+end

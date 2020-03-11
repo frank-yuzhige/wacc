@@ -1,0 +1,165 @@
+#       A simple demonstration for Semigroup and Monoid trait.
+# Suppose there exists a type T, and a transformation * :: (T, T) -> T,
+# then S with * is said to be a semigroup, if, for all t1, t2, t3 in T,
+#               t1 * (t2 * t3) = (t1 * t2) * t3
+# Furthermore, S with * is said to be a monoid, if there exists i in T,
+# such that for all t in T:
+#                          i * t = t
+#                          t * i = t
+
+begin
+
+trait A: Semigroup where forall A is
+    A append(A a, A b) is required
+end
+
+trait A: Monoid where A: Semigroup is
+    A identity() is required
+end
+
+T concat(T[] arr) where T: Monoid is
+    T base = identity();
+    int l = len arr;
+    int i = 0;
+    while (i < l) do
+        base = append(base, arr[i]);
+        i = i + 1;
+    done;
+    return base;
+end
+
+newtype AndBool is
+    bool b;
+end
+
+newtype OrBool is
+    bool b;
+end
+
+newtype PlusInt is
+    int i;
+end
+
+newtype MulInt is
+    int i;
+end
+
+instance AndBool: Semigroup is
+    AndBool append(AndBool a, AndBool b) is
+        return AndBool(a.b && b.b);
+    end
+end
+
+instance AndBool: Monoid is
+    AndBool identity() is
+        return AndBool(true);
+    end
+end
+
+instance OrBool: Semigroup is
+    OrBool append(OrBool a, OrBool b) is
+        return OrBool(a.b || b.b);
+    end
+end
+
+instance OrBool: Monoid is
+    OrBool identity() is
+        return OrBool(false);
+    end
+end
+
+instance PlusInt: Semigroup is
+    PlusInt append(PlusInt a, PlusInt b) is
+        return PlusInt(a.i + b.i);
+    end
+end
+
+instance PlusInt: Monoid is
+    PlusInt identity() is
+        return PlusInt(0);
+    end
+end
+
+instance MulInt: Semigroup is
+    MulInt append(MulInt a, MulInt b) is
+        return MulInt(a.i * b.i);
+    end
+end
+
+instance MulInt: Monoid is
+    MulInt identity() is
+        return MulInt(1);
+    end
+end
+
+instance T[]: Semigroup where T: Semigroup is
+    T[] append(T[] a, T[] b) is
+        return a;
+    end
+end
+
+instance K[]: Monoid where K: Monoid is
+    K[] identity() is
+        K[] r = [];
+        return r;
+    end
+end
+
+newtype MBox<M> is
+    M value;
+end
+
+instance MBox<M>: Semigroup where M: Semigroup is
+    MBox<M> append(MBox<M> a, MBox<M> b) is
+        return MBox(append(a.value, b.value));
+    end
+end
+
+instance MBox<M>: Monoid where M: Monoid is
+    MBox<M> identity() is
+        return MBox(identity());
+    end
+end
+
+AndBool abe = identity();
+OrBool  obe = identity();
+PlusInt pie = identity();
+MulInt  mie = identity();
+
+var ab = AndBool(false);
+ab = append(abe, ab);
+println ab.b;         # false
+ab = append(ab, abe);
+println ab.b;         # false
+
+var mi4 = MulInt(4);
+var mi10 = MulInt(10);
+var mi40 = append(mi4, mi10);
+
+println mi40.i;       # 40
+
+var mi0 = append(mie, mi40);
+println mi0.i;         # 40
+
+var mis = [mi4,mi10,mi40];
+var miProduct = concat(mis);
+println miProduct.i;   # 1600
+
+AndBool[] abs = [];
+var abAnd = concat(abs);
+
+println abAnd.b;       # true - same as identity()
+free abs;
+free abAnd;
+
+var box = MBox(mi40);
+var box2 = MBox(mi10);
+box = append(box, box2);
+var value = box.value;
+println value.i;       # 400
+
+box = identity();
+value = box.value;
+println value.i;       # 1
+
+end

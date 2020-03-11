@@ -1,0 +1,8 @@
+begin
+
+const int[] arr = [1,2,3,4];
+arr[2] = 0;
+
+println arr[2];
+
+end

@@ -6,8 +6,6 @@ if x - 1 == 2 then
     println "print me!";
 else if x == 3 then
     println "don\'t print me!";
-else
-    skip;
 fi;
 
 end

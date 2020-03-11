@@ -2,13 +2,8 @@ package semantics
 
 import ast.Expression.Identifier
 import ast.Type
-import ast.Type.ArrayType
 import utils.Index
 
-fun insufficientArrayRankError(name: String, type: Type, rank: Int): String = when (type) {
-    is ArrayType -> "Variable \"$name\" is of type '$type', which does not have $rank ranks"
-    else -> "Expecting an array, yet \"$name\" is of type '$type'"
-}
 
 fun typeMismatchError(expected: Type, actual: Type) =
         "Couldn't match expected type '$expected' with actual type '$actual'"

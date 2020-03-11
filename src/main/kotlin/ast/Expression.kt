@@ -1,6 +1,7 @@
 package ast
 
 import utils.EscapeCharMap.Companion.fromEscape
+import utils.Grounding
 import utils.VarWithSID
 
 interface Literal
@@ -8,7 +9,14 @@ interface HeapType {
     var reference: String
 }
 
-sealed class Expression(var inParens: Boolean = false) : WaccAST() {
+sealed class Expression(var reifiedType: Type = Type.TypeVar("A"), // reified type, decided during semantic check. Not changed after that.
+                        var groundedType: Type = Type.TypeVar("A"),// grounded type (for codegen only), to avoid re-use of expression
+                        var inParens: Boolean = false) : WaccAST() {
+
+    fun ground(grounding: Grounding): Expression {
+        return this.also { groundedType = reifiedType.substitutes(grounding) }
+    }
+
     override fun tellIdentity(): String = "an expression"
     enum class PairElemFunction(val value: String) {
         FST("fst"), SND("snd")
@@ -81,20 +89,6 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
         override fun tellIdentity(): String = "a newpair declaration"
     }
 
-    data class EnumRange(val from: Expression, val then: Expression?, val to: Expression): Expression() {
-        constructor(from: Expression, to: Expression): this(from, null, to)
-        override fun prettyPrint(): String {
-            return if (then != null) {
-                "${from.prettyPrint()}, ${then.prettyPrint()}..${to.prettyPrint()}"
-            } else {
-                "${from.prettyPrint()}..${to.prettyPrint()}"
-            }
-        }
-        override fun tellIdentity(): String {
-            return super.tellIdentity()
-        }
-    }
-
     data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseExpr: Expression) : Expression() {
         override fun tellIdentity(): String = "an if-expression"
         override fun prettyPrint(): String {
@@ -107,7 +101,7 @@ sealed class Expression(var inParens: Boolean = false) : WaccAST() {
     }
 
     data class FunctionCall(val ident: String, val args: List<Expression>) : Expression() {
-        override fun prettyPrint(): String = "call $ident(${args.joinToString(", ") { it.prettyPrint() }})"
+        override fun prettyPrint(): String = "$ident(${args.joinToString(", ") { it.prettyPrint() }})"
         override fun tellIdentity(): String = "a function call"
         fun isConstructor(): Boolean = ident[0].isUpperCase()
     }

@@ -1,0 +1,5 @@
+begin
+
+var x = [];  # unable to infer a ground type for any array.
+
+end

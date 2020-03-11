@@ -16,4 +16,12 @@ else
     println "x > 2";
 fi;
 
+int y = 4;
+
+if y == 4 then
+    println "four";
+else if y == 4 then
+    println "noooo!";
+fi
+
 end

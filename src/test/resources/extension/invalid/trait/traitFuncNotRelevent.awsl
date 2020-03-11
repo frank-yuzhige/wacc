@@ -1,0 +1,18 @@
+begin
+
+trait A: What is
+    int whyImATrait(int x) is required
+end
+
+instance int: What is
+    int whyImATrait(int x) is return 42; end
+end
+
+instance char: What is
+    int whyImATrait(int x) is return 100; end
+end
+
+int x = whyImATrait(33);
+println x;
+
+end

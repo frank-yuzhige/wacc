@@ -11,6 +11,7 @@ data class Function(
         val typeConstraints: List<TypeConstraint>,
         val body: Statements
 ) : WaccAST() {
+
     override fun prettyPrint(): String =
             "${extractHeader().showHeader()} is\n" +
                     "${body.prettyPrint().prependIndent()}\n" +
@@ -24,7 +25,15 @@ data class Function(
 
     fun isGenericFunc(): Boolean = typeConstraints.isNotEmpty()
 
+    fun reifiedFunc(): Function = Function(
+            returnType.reified(typeConstraints, true),
+            name,
+            args.map { (type, arg) -> type.reified(typeConstraints, true) to arg },
+            typeConstraints,
+            body
+    )
+
     fun getFuncType(): Type.FuncType {
-        return Type.FuncType(returnType, args.map { it.first }, typeConstraints)
+        return Type.FuncType(returnType, args.map { it.first })
     }
 }

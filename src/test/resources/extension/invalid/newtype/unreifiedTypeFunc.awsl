@@ -1,0 +1,10 @@
+begin
+
+int foo(A[] arr) where forall A is
+    B bar = 1;
+    return bar;
+end
+
+exit -1;
+
+end

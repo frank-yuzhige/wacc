@@ -1,0 +1,19 @@
+begin
+
+for var x in "hello".."world" do
+    println x;
+done;
+
+for int x in 1..'4' do
+    println x;
+done;
+
+for var x in 1..'4' do
+    println x;
+done;
+
+for var x in 1.."one" do
+    println x;
+done;
+
+end

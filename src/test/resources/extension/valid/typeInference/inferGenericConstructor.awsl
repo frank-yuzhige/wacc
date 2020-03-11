@@ -1,0 +1,13 @@
+begin
+
+newtype Pure<A> is
+    A a;
+end
+
+var p = Pure(7);
+var pp = Pure(p);
+var ppp = Pure(pp);
+var pppp = Pure(ppp);
+var ppppp = Pure(pppp);
+
+end

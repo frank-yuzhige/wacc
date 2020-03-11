@@ -1,0 +1,22 @@
+begin
+
+trait A: MobiusA where A:MobiusB is
+    A ma() is required
+end
+
+trait B: MobiusB where B: MobiusA is
+    B mb(B some) is required
+end
+
+instance int: MobiusA is
+    int ma() is return 100; end
+end
+
+instance int: MobiusB is
+    int mb(int some) is return ma(); end
+end
+
+println mb(1);
+println ma();
+
+end

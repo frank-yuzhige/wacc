@@ -1,0 +1,23 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+instance int: Pure is
+    int pure() is
+        return 100;
+    end
+end
+
+instance A[]: Pure where A: Pure is
+    A[] pure() is
+        A[] a = [pure()];
+        return a;
+    end
+end
+
+int[] a = pure();
+println a[0];
+
+end

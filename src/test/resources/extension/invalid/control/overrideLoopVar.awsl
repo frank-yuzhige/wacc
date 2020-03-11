@@ -1,0 +1,7 @@
+begin
+
+for int i in 1..10 do
+    int i = 10; # error!
+done
+
+end

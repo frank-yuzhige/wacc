@@ -1,0 +1,7 @@
+begin
+
+for int k in 0..-1 do  # not looping since 0 > -1
+    print "ha";
+done;
+
+end

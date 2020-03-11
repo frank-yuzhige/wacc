@@ -1,0 +1,32 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+newtype List<A> is union
+    Nil;
+    Node of (A elem, List<A> next);
+end
+
+instance List<A>: Pure where forall A is
+    List<A> pure() is
+        List<A> x = Nil();
+        return x;
+    end
+end
+
+A something() where A: Pure is
+    A a = pure();
+    return a;
+end
+
+List<int> a = Nil();
+var b = Node(1, a);
+b = pure();
+when b:
+    is Nil -> println "yes!";
+    is Node(a, b) -> println "no!";
+end;
+
+end

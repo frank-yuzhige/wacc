@@ -1,0 +1,10 @@
+begin
+
+int f() is
+    println "hello, world!";
+    return 0;
+end
+
+call f();
+
+end

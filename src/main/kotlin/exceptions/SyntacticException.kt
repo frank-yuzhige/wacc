@@ -36,6 +36,9 @@ sealed class SyntacticException(var msg: String) : Exception() {
             SyntacticException("The last statement should be a return, exit, " +
                     "\n  or an if-statement with both branches end with a terminator")
 
+    class MultipleTVarsWithSameNameException:
+            SyntacticException("Found multiple type variables with the same name!")
+
     class AntlrParserGivenException(antlrMsg: String) :
             SyntacticException("Parse Error $antlrMsg")
 

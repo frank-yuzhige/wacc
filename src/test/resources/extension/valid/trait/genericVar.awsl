@@ -1,0 +1,12 @@
+begin
+
+newtype List<A> is union
+    Nil;
+    Node of (A elem, List<A> next);
+end
+
+
+List<int> nil = Nil();
+var node = Node(2 + 4, nil);
+
+end

@@ -13,6 +13,7 @@ import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
 import ast.Type.*
 import ast.Type.BaseTypeKind.*
+import ast.Type.Companion.arrayTypeOf
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
@@ -33,6 +34,7 @@ import codegen.arm.Operand.Register.Reg
 import codegen.arm.Operand.Register.SpecialReg
 import codegen.arm.Operand.Register.SpecialReg.Companion.sp
 import codegen.arm.SpecialRegName.*
+import exceptions.SemanticException
 import utils.*
 import utils.EscapeCharMap.Companion.fromEscape
 import java.util.*
@@ -58,47 +60,64 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private val maxImmNum = 1024
     private var blockComplete = false
     private var virtualRegIdAcc = 4
+    private val groundFunctionList = mutableListOf<GroundFunction>()
+    private val groundConstructorList = mutableListOf<GroundConstructor>()
+    private var currentGrounding: Grounding = emptyMap()
+    private val constructorIsUnionMap = mutableMapOf<String, Boolean>()
 
     var currBlockLabel = Label("")
 
-    fun export(): ArmProgram = ArmProgram(StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts), blocks.toList())
+    fun export(): ArmProgram = ArmProgram(
+            StringConst.fromCodegenCollections(singletonStringConsts, commonStringConsts),
+            blocks.toList()
+    )
 
     fun translate(): AstToRawArmConverter = this.also { ast.toARM() }
 
     /** Converts WaccAst to ARM intermediate representation **/
     private fun ProgramAST.toARM() {
-        newTypes.map { it.toARM() }
+        newTypes.map { it.declareConstructors() }
         funcLabelMap += "main" to Label("main")
         functions.map { funcLabelMap += it.name to getLabel("f_${it.name}") }
         Function(returnType = intType(),
                 name = "main",
                 args = mutableListOf(),
-                typeConstraints = listOf<TypeConstraint>(),
-                body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0))
+                body = mainProgram + BuiltinFuncCall(RETURN, IntLit(0)),
+                typeConstraints = emptyList()
         ).toARM()
-        functions.map { it.toARM() }
+        /* generate all ground functions */
+        functions.filter { it.getFuncType().isGround() }.map { it.toARM() }
+        while (groundFunctionList.isNotEmpty()) {
+            val curr = groundFunctionList.removeAt(0)
+            currentGrounding = curr.groundType.findUnifier(curr.function.getFuncType().reified(curr.function.typeConstraints, true))
+            curr.function.toARM(curr.groundType)
+        }
+        while (groundConstructorList.isNotEmpty()) {
+            val curr = groundConstructorList.removeAt(0)
+            defineConstructor(curr.name, curr.constructorType, curr.isUnion)
+        }
         definePreludes()
     }
 
-    private fun NewTypeDef.toARM() {
+    private fun NewTypeDef.declareConstructors() {
         when(this) {
             is NewTypeDef.StructTypeDef -> {
-                defineConstructor(type.name, members, isTaggedUnion = false)
+                constructorIsUnionMap[name()] = false
             }
             is NewTypeDef.UnionTypeDef -> {
-                memberMap.forEach { (constructor, members) ->
-                    defineConstructor(constructor, members, isTaggedUnion = true)
+                memberMap.forEach { (constructor, _) ->
+                    constructorIsUnionMap[constructor] = true
                 }
             }
         }
     }
 
-    private fun defineConstructor(name: String, members: List<Parameter>, isTaggedUnion: Boolean) {
-        funcLabelMap += name to getLabel("constructor_$name")
+    private fun defineConstructor(name: String, constructorType: FuncType, isTaggedUnion: Boolean) {
+        funcLabelMap += name to getConstructorLabel(name, constructorType)
 
         setBlock(funcLabelMap.getValue(name))
         push(SpecialReg(LR))
-        callMalloc(symbolTable.mallocSize(name, isTaggedUnion))
+        callMalloc(mallocSize(constructorType, isTaggedUnion))
 
         var structOffsetAcc = 0
         if (isTaggedUnion) {
@@ -107,28 +126,32 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             structOffsetAcc += 4
         }
         var paramOffsetAcc = 4
-        members.forEach { (t, _) ->
+        constructorType.paramTypes.forEach { t ->
             val size = sizeof(t)
             load(Reg(1), Offset(sp(), paramOffsetAcc), size)
             store(Reg(1), Offset(Reg(0), structOffsetAcc), size)
-            structOffsetAcc += sizeof(t)
-            paramOffsetAcc += sizeof(t)
+            structOffsetAcc += size
+            paramOffsetAcc += size
         }
         packBlock(PopPC)
         addDirective(LTORG)
     }
 
-    private fun ast.Function.toARM() {
-        val originalOffset = spOffset
+    private fun Function.toARM(type: FuncType? = null) {
         spOffset = 0
         currScopeOffset = 0
-        setBlock(funcLabelMap.getValue(name))
+        firstDefReachedScopes.clear() // functions don't share scopes, safe to clear.
+        if(type == null) {
+            setBlock(funcLabelMap.getValue(this.name))
+        } else {
+            setBlock(funcLabelMap.getValue("f_" + name + "_" + type.printAsLabel()))
+        }
         push(SpecialReg(LR))
         args.firstOrNull()?.let { scopeEnterDef(it.second, args.toSet()) }
         var offsetAcc = -4
         args.map { arg ->
             markParam(arg.second, offsetAcc)
-            offsetAcc -= sizeof(arg.first)
+            offsetAcc -= sizeof(arg.first.reified(emptyList()))
         }
         body.map { it.toARM() }
         if (!blockComplete) {
@@ -143,10 +166,11 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is Declaration -> {
                 scopeEnterDef(variable)
                 val reg = rhs.toARM().toReg()
-                alloca(variable, reg, sizeof(type))
+                alloca(variable, reg, sizeof(rhs.getType()))
             }
 
             is Assignment -> {
+                lhs.ground(currentGrounding)
                 val reg = rhs.toARM().toReg()
                 when (lhs) {
                     is Identifier -> {
@@ -178,17 +202,16 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is BuiltinFuncCall -> {
                 when (func) {
                     RETURN -> {
-                        val reg = expr.toARM()
+                        val op = expr.toARM()
                         moveSP(spOffset, false)
-                        mov(Reg(0), reg)
+                        op.toReg(Reg(0))
                         pop(SpecialReg(PC))
                     }
                     FREE -> {
                         val reg = expr.toARM().toReg()
                         mov(Reg(0), reg)
                         when (expr.getType()) {
-                            is ArrayType -> callPrelude(FREE_ARRAY)
-                            is PairType -> callPrelude(FREE_PAIR)
+                            is NewType -> callPrelude(FREE_STRUCT)
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
                         }
                     }
@@ -200,18 +223,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     PRINT -> callPrintf(expr, false)
                     PRINTLN -> callPrintf(expr, true)
                 }
-            }
-
-            is IfThen -> {
-                val ifThen = getLabel("if_then")
-                val ifEnd = getLabel("if_end")
-                val cond = expr.toARM().toReg()
-                cmp(cond, immFalse())
-                branch(Condition.EQ, ifEnd)
-                setBlock(ifThen)
-                inScopeDo { thenBody.map { it.toARM() } }
-                branch(ifEnd)
-                setBlock(ifEnd)
             }
 
             is CondBranch -> {
@@ -255,12 +266,43 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 setBlock(lEnd)
             }
 
+            is ForLoop -> inScopeDo {
+                loopVar.ground(currentGrounding)
+                scopeEnterDef(loopVar)
+                val eval = from.toARM().toReg()
+                var varOffset = findVar(loopVar)
+                store(eval, varOffset, sizeof(loopVar.getType()))
+                val fCheck = getLabel("for_check")
+                val fBody = getLabel("for_body")
+                val fEnd = getLabel("for_end")
+                branch(fCheck)
+                setBlock(fBody)
+                body.map { it.toARM() }
+                varOffset = findVar(loopVar)
+                val loopVarValue = load(getReg(), varOffset, sizeof(loopVar.getType()))
+                binop(ADD, loopVarValue, loopVarValue, ImmNum(1))
+                store(loopVarValue, varOffset, sizeof(loopVar.getType()))
+                packBlock(FallThrough)
+
+                setBlock(fCheck)
+                val toEval = to.toARM()
+                val lVar = load(getReg(), findVar(loopVar), sizeof(loopVar.getType()))
+                cmp(lVar, toEval)
+                branch(Condition.LE, fBody)
+                setBlock(fEnd)
+
+            }
+
+            is VoidFuncCall -> function.toARM()
+
             is Block -> inScopeDo { body.map { it.toARM() } }
 
             is WhenClause -> {
                 val wEnd = getLabel("when_end")
                 val wLabels = whenCases.map { (pattern, _) -> getLabel("when_${pattern.constructor}") } + wEnd
                 val matching = expr.toARM().toReg()
+                matching.toReg(Reg(0))
+                callPrelude(CHECK_NULL_PTR)
                 packBlock()
                 for (i in whenCases.indices) {
                     whenCases[i].let { (pattern, stats) ->
@@ -282,6 +324,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun Expression.toARM(): Operand {
+        this.ground(currentGrounding)
         return when (this) {
             NullLit -> immNull()
             is IntLit -> {
@@ -316,7 +359,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is ArrayElem -> {
                 var result = load(getReg(), findVar(arrIdent))
                 for (expr in indices) {
-                    val currType = arrIdent.getType().unwrapArrayType()!!
+                    val currType = arrIdent.ground(currentGrounding).getType().unwrapArrayType()!!
                     val indexReg = expr.toARM().toReg()
                     callCheckArrBound(indexReg, result)
                     val offset = binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
@@ -329,16 +372,15 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 val temp = expr.toARM().toReg()
                 mov(Reg(0), temp)
                 callPrelude(CHECK_NULL_PTR)
-                load(temp, Offset(temp, when (func) {
-                    FST -> 0; SND -> 4
-                }))
-                load(temp, Offset(temp), sizeof(this.getType()))
+                val fstElemType = (expr.getType() as NewType).generics[0]
+                val offset = Offset(temp, when (func) { FST -> 0; SND -> sizeof(fstElemType) })
+                load(temp, offset, sizeof(getType()))
             }
             is TypeMember -> {
                 val reg = expr.toARM().toReg()
                 mov(Reg(0), reg)
                 callPrelude(CHECK_NULL_PTR)
-                val shift = symbolTable.getMemberOffset(memberName, expr.getType())
+                val shift = getMemberOffset(memberName, expr.getType())
                 val offset = Offset(reg, shift)
                 load(reg, offset, sizeof(getType()))
             }
@@ -363,7 +405,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             }
             is ArrayLiteral -> {
                 // Malloc the memory for each element in the array
-                val elemSize = elements.getOrNull(0)?.let { sizeof(it.getType()) } ?: 0
+                val elemSize = elements.getOrNull(0)?.let { sizeof(it.ground(currentGrounding).getType()) } ?: 0
                 val totalSize = elements.size * elemSize + 4
 
                 val baseAddressReg = mov(getReg(), callMalloc(totalSize))
@@ -380,17 +422,16 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 baseAddressReg
             }
             is NewPair -> {
-                // malloc 8-bytes for 2 ptrs
-                callMalloc(8)
+                first.ground(currentGrounding)
+                second.ground(currentGrounding)
+                val fstSize = sizeof(first.getType())
+                val sndSize = sizeof(second.getType())
+                callMalloc(fstSize + sndSize)
                 val pairAddr = mov(getReg(), Reg(0))
                 val fst = first.toARM().toReg()
-                callMalloc(sizeof(first.getType()))
-                store(fst, Offset(Reg(0)), sizeof(first.getType()))
-                store(Reg(0), Offset(pairAddr))
+                store(fst, Offset(pairAddr), fstSize)
                 val snd = second.toARM().toReg()
-                callMalloc(sizeof(second.getType()))
-                store(snd, Offset(Reg(0)), sizeof(second.getType()))
-                store(Reg(0), Offset(pairAddr, 4))
+                store(snd, Offset(pairAddr, fstSize), sndSize)
                 pairAddr
             }
             is FunctionCall -> {
@@ -403,21 +444,53 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     store(reg, Offset(SpecialReg(SP), -size, true), size)
                     spOffset += size
                 }
-                bl(AL, funcLabelMap.getValue(ident))
+                val funcAttr = symbolTable.lookupFunc(ident)!!
+                if (!this.isConstructor() && funcAttr.type.isGround()) {
+                    bl(AL, funcLabelMap.getValue(ident))
+                } else {
+                    val actualFuncType = FuncType(getType(), args.map { it.getType() })
+                    val fLabel = groundGenericFunc(ident, actualFuncType)
+                    bl(AL, fLabel)
+                }
                 moveSP(spOffset - oldSPOffset)
                 notifyCompiler(CompilerNotifier.CallerSavePop)
                 mov(getReg(), Reg(0))
             }
-            is EnumRange -> TODO()
+        }
+    }
+
+    /* Generate a ground function entry, push it to the queue. Return its label.*/
+    private fun groundGenericFunc(fname: String, actualFuncType: FuncType): Label {
+        if (fname[0].isUpperCase()) {
+            // constructor
+            assert(actualFuncType.isGround())
+            val label = getConstructorLabel(fname, actualFuncType)
+            if (label.name in funcLabelMap) {
+                return label
+            }
+            groundConstructorList += GroundConstructor(fname, actualFuncType, constructorIsUnionMap.getValue(fname))
+            funcLabelMap[label.name] = label
+            return label
+        } else {
+            // non-constructor
+            val labelName = "f_" + fname + "_" + actualFuncType.printAsLabel()
+            if(labelName in funcLabelMap) {
+                return Label(labelName)
+            }
+            val def = ast.functions.firstOrNull { it.name == fname }  // top-level normal function
+                    ?: symbolTable.findTraitFuncDef(fname, actualFuncType)     // trait impl
+            // normal function
+            groundFunctionList += GroundFunction(def, actualFuncType)
+            funcLabelMap[labelName] = Label(labelName)
+            return Label(labelName)
         }
     }
 
     private fun Pattern.defineConsts(unionAtReg: Register) {
         var offsetAcc = 4
-        val members = symbolTable.functions.getValue(constructor).members
-        matchVars.zip(members).forEach { (ident, param) ->
+        matchVars.forEach { ident ->
             scopeEnterDef(ident)
-            val type = param.getType()
+            val type = ident.ground(currentGrounding).getType()
             val value = load(AL, getReg(), Offset(unionAtReg, offsetAcc), sizeof(type))
             alloca(ident, value, sizeof(type))
             offsetAcc += sizeof(type)
@@ -454,8 +527,8 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     packBlock()
                 }
                 OVERFLOW_ERROR -> {
-                    callPrintf(StringLit("OverflowError: " +
-                            "the result is too small/large to store in a 4-byte signed-integer."),
+                    printString("OverflowError: " +
+                            "the result is too small/large to store in a 4-byte signed-integer.",
                             true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                 }
@@ -465,14 +538,13 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     push(SpecialReg(LR))
                     cmp(Reg(0), ImmNum(0))
                     branch(GE, label1)
-                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: negative index"),
-                            true)
+                    printString("ArrayIndexOutOfBoundsError: negative index", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label1)
                     load(Reg(1), Offset(Reg(1)))
                     cmp(Reg(0), Reg(1))
                     branch(Condition.LT, label2)
-                    callPrintf(StringLit("ArrayIndexOutOfBoundsError: index too large"), true)
+                    printString("ArrayIndexOutOfBoundsError: index too large", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(label2)
                     pop(SpecialReg(PC))
@@ -482,8 +554,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     push(SpecialReg(LR))
                     cmp(Reg(1), immFalse())
                     branch(NE, noErr)
-                    callPrintf(StringLit("DivideByZeroError: divide or modulo by zero"),
-                            true)
+                    printString("DivideByZeroError: divide or modulo by zero", true)
                     bl(Condition.EQ, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(noErr)
                     pop(SpecialReg(PC))
@@ -493,12 +564,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                     val notNullLabel = getLabel("not_null")
                     cmp(Reg(0), immNull())
                     branch(NE, notNullLabel)
-                    callPrintf(StringLit("NullReferenceError: dereference a null reference"), true)
+                    printString("NullReferenceError: dereference a null reference", true)
                     bl(AL, RUNTIME_ERROR.getLabel(), Unreachable)
                     setBlock(notNullLabel)
                     pop(SpecialReg(PC))
                 }
-                FREE_ARRAY -> {
+                FREE_STRUCT -> {
                     push(SpecialReg(LR))
                     bl(AL, CHECK_NULL_PTR.getLabel())
                     bl(AL, Label("free"))
@@ -792,6 +863,12 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         bl(AL, Label("scanf"))
     }
 
+    private fun printString(str: String, newline: Boolean) {
+        callPrintf(StringLit(str).also {
+            it.reifiedType = stringType()
+            it.groundedType = stringType()
+        }, newline)
+    }
 
     private fun callPrintf(expr: Expression, newline: Boolean) {
         val operand = expr.toARM().toReg()
@@ -806,7 +883,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 binop(ADD, Reg(0), Reg(0), ImmNum(4), false)
             }
             stringType(),
-            ArrayType(charType()) -> {
+            arrayTypeOf(charType()) -> {
                 mov(Reg(1), operand)
                 binop(ADD, Reg(1), Reg(1), ImmNum(4), false)
                 load(Reg(0), defString(getFormatString(exprType, newline)))
@@ -830,41 +907,46 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     /* Get the address of a lhs expression, returns an offset. */
-    private fun getLhsAddress(lhs: Expression): Offset = when (lhs) {
-        is Identifier -> findVar(lhs)
-        is ArrayElem -> {
-            var result = findVar(lhs.arrIdent)
-            val arrReg = getReg()
-            var currType = lhs.arrIdent.getType()
-            for (expr in lhs.indices) {
-                val indexReg = expr.toARM().toReg()
-                load(AL, arrReg, result)
-                callCheckArrBound(indexReg, arrReg)
-                currType = currType.unwrapArrayType()!!
-                binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
-                binop(ADD, indexReg, indexReg, ImmNum(4))
-                binop(ADD, arrReg, arrReg, indexReg)
-                result = Offset(arrReg)
+    private fun getLhsAddress(lhs: Expression): Offset {
+        lhs.ground(currentGrounding)
+        return when (lhs) {
+            is Identifier -> findVar(lhs)
+            is ArrayElem -> {
+                var result = findVar(lhs.arrIdent)
+                val arrReg = getReg()
+                var currType = lhs.arrIdent.ground(currentGrounding).getType()
+                for (expr in lhs.indices) {
+                    val indexReg = expr.toARM().toReg()
+                    load(AL, arrReg, result)
+                    callCheckArrBound(indexReg, arrReg)
+                    currType = currType.unwrapArrayType()!!
+                    binop(MUL, indexReg, indexReg, ImmNum(sizeof(currType)), op2Destructive = true)
+                    binop(ADD, indexReg, indexReg, ImmNum(4))
+                    binop(ADD, arrReg, arrReg, indexReg)
+                    result = Offset(arrReg)
+                }
+                result
             }
-            result
-        }
-        is PairElem -> {
-            val pairAddr = lhs.expr.toARM().toReg()
-            mov(Reg(0), pairAddr)
-            callPrelude(CHECK_NULL_PTR)
-            Offset(pairAddr, when (lhs.func) {
-                FST -> 0; SND -> 4
-            })
-        }
-        is TypeMember -> {
-            val addr = lhs.expr.toARM().toReg()
-            mov(Reg(0), addr)
-            callPrelude(CHECK_NULL_PTR)
-            val offset = symbolTable.getMemberOffset(lhs.memberName, lhs.expr.getType())
-            Offset(addr, offset)
-        }
-        else -> {
-            throw IllegalArgumentException("Target has to be a left-hand-side expression")
+            is PairElem -> {
+                val pairAddr = lhs.expr.toARM().toReg()
+                mov(Reg(0), pairAddr)
+                callPrelude(CHECK_NULL_PTR)
+                // lhs type in codegen is guaranteed to be a "pair" NewType
+                val lhsType = lhs.expr.getType() as NewType
+                Offset(pairAddr, when (lhs.func) {
+                    FST -> 0; SND -> sizeof(lhsType.generics[0])
+                })
+            }
+            is TypeMember -> {
+                val addr = lhs.expr.toARM().toReg()
+                mov(Reg(0), addr)
+                callPrelude(CHECK_NULL_PTR)
+                val offset = getMemberOffset(lhs.memberName, lhs.expr.getType())
+                Offset(addr, offset)
+            }
+            else -> {
+                throw IllegalArgumentException("Target has to be a left-hand-side expression")
+            }
         }
     }
 
@@ -877,16 +959,42 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 STRING -> "%s"
                 else -> "%p"
             }
-            ArrayType(charType()) -> "%s"
+            arrayTypeOf(charType()) -> "%s"
             else -> "%p"
         }
         return format + if (newline) "\\n" else ""
     }
 
-    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_CODE_GEN)
+    private fun getConstructorLabel(name: String, type: FuncType): Label =
+            Label("c_${name}_${type.printAsLabel()}")
+
+    private fun Expression.getType(): Type = this.groundedType
 
     private fun sizeof(type: Type): Int = when (type) {
         charType(), boolType() -> 1
+        is TypeVar -> sizeof(currentGrounding[type.name to true]
+                ?: throw IllegalArgumentException("type var ${type.name} not found in grounding $currentGrounding"))
         else -> 4
+    }
+
+    private fun mallocSize(constructorType: FuncType, isTaggedUnion: Boolean = false): Int {
+        val s = constructorType.paramTypes.sumBy { sizeof(it) }
+        return s + if (isTaggedUnion) 4 else 0
+    }
+
+    private fun getMemberOffset(name: String, type: Type): Int {
+        if (type is NewType) {
+            var acc = 0
+            val constructorFunc = symbolTable.functions.getValue(type.name)
+            val sub = type.findUnifier(constructorFunc.type.retType)
+            val groundFuncType = constructorFunc.type.substitutes(sub) as FuncType
+            for ((i, member) in constructorFunc.members.withIndex()) {
+                if (member.second.name == name) {
+                    return acc
+                }
+                acc += sizeof(groundFuncType.paramTypes[i])
+            }
+        }
+        throw SemanticException.UndefinedFuncException(type.toString()) // should never reach here
     }
 }

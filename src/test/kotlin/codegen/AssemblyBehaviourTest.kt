@@ -1,9 +1,11 @@
 package codegen
 import utils.CompilerEmulator
 import CompilerMode.*
+import utils.excludedFiles
 import java.io.*
 import java.util.concurrent.TimeoutException
 import kotlin.test.Test
+import kotlin.test.fail
 
 class AssemblyBehaviourTest {
     data class RefCompilerOutput(val output: String, val exitCode: Int)
@@ -53,36 +55,37 @@ class AssemblyBehaviourTest {
     fun assemblyBehaviourBatchTest() {
         var correctCount = 0
         var totalCount = 0
-        File("src/test/resources/valid/").walkTopDown().forEach { testFile ->
-            if (testFile.path.endsWith(".wacc") && testFile.path !in notApplicableCases) {
-                println("Current file $testFile")
-                try {
-                    val emulator = CompilerEmulator(testFile, EXECUTE)
-                    val inputData = requiresInput(testFile.nameWithoutExtension)
-                    val result = emulator.run(inputData)
-                    val expectedResult = getRefCompilerOutput(testFile, inputData)
-                    if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
-                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                                FailureType.OUTPUT_MISMATCH)
-                        println("Mismatched output: ${testFile.path}")
-                    } else {
-                        correctCount++
-                        println("All is good: ${testFile.path}")
-                    }
-                } catch (e: Throwable) {
-                    if (e is TimeoutException) {
-                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                                FailureType.TIMEOUT)
-                        println("Timeout: ${testFile.path}")
-                    } else {
-                        logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
-                                FailureType.EXECUTION_FAILURE)
-                        println(e.message)
-                        println("Execution failed: ${testFile.path}")
-                    }
-                } finally {
-                    totalCount++
+        File("src/test/resources/valid/").walkTopDown()
+                .filter { it.path.endsWith(".wacc") }
+                .filterNot { it.path in excludedFiles() }
+                .forEach { testFile ->
+            println("Current file $testFile")
+            try {
+                val emulator = CompilerEmulator(testFile, EXECUTE)
+                val inputData = requiresInput(testFile.nameWithoutExtension)
+                val result = emulator.run(inputData)
+                val expectedResult = getRefCompilerOutput(testFile, inputData)
+                if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
+                    logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                            FailureType.OUTPUT_MISMATCH)
+                    println("Mismatched output: ${testFile.path}")
+                } else {
+                    correctCount++
+                    println("All is good: ${testFile.path}")
                 }
+            } catch (e: Throwable) {
+                if (e is TimeoutException) {
+                    logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                            FailureType.TIMEOUT)
+                    println("Timeout: ${testFile.path}")
+                } else {
+                    logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
+                            FailureType.EXECUTION_FAILURE)
+                    println(e.message)
+                    println("Execution failed: ${testFile.path}")
+                }
+            } finally {
+                totalCount++
             }
         }
         cleanUp()
@@ -91,6 +94,7 @@ class AssemblyBehaviourTest {
             var errorMsg = ""
             failedTestsInfo.forEach {(file, cause) -> errorMsg += "$file: $cause\n"}
             println(errorMsg)
+            fail()
         }
     }
 

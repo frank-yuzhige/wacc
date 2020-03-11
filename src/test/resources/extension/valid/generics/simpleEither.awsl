@@ -1,0 +1,19 @@
+begin
+
+newtype Either<A, B> is union
+    Left of (A a);
+    Right of (B b);
+end
+
+
+
+Either<string, char> l = Left("left");
+Either<string, char> r = Right('c');
+r = l;
+
+when r:
+    is Left(a) -> println a;
+    is Right(b) -> println b;
+end;
+
+end

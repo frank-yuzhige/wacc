@@ -10,6 +10,8 @@ import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyPairType
 import ast.Type.Companion.anyType
+import ast.Type.Companion.arrayTypeOf
+import ast.Type.Companion.pairTypeOf
 import exceptions.SemanticException.ReturnInMainProgramException
 import exceptions.SyntacticException
 import exceptions.SyntacticException.*
@@ -35,8 +37,10 @@ class RuleContextConverter() {
     fun ProgContext.toAST(): ProgramAST {
         stack.push(this)
         val programAST = ProgramAST(
-                newtype().map { it.toAST() },
-                func().map { it.toAST() },
+                newTypeDef()?.map { it.toAST() }?: emptyList(),
+                traitDef()?.map { it.toAST() } ?: emptyList(),
+                traitInstance()?.map { it.toAST() } ?: emptyList(),
+                func()?.map { it.toAST() }?: emptyList(),
                 stats()?.toMainProgramAST()
                         ?: throw SyntacticExceptionBundle(listOf(EmptyMainProgramException()))
         ).records(start(), end())
@@ -57,26 +61,115 @@ class RuleContextConverter() {
         return result
     }
 
-    private fun StatsContext.toFuncBodyAST(): Statements {
+    private fun StatsContext.toFuncBodyAST(typeVars: Set<String> = emptySet()): Statements {
         fun StatContext.isTerminator(): Boolean = when (this) {
             is BuiltinFuncCallContext ->
                 this.builtinFunc().EXIT() != null || this.builtinFunc().RETURN() != null
             is CondBranchContext ->
                 this.stats().all { it.stat().last()?.isTerminator() ?: false }
+            is WhenClauseContext ->
+                this.whenCase().all { it.stats().stat().last()?.isTerminator() ?: false }
             else -> false
         }
 
         if (!this.stat().last().isTerminator()) {
             logError(LastStatIsNotTerminatorException())
         }
-        return this.toAST()
+        return this.toAST(typeVars)
     }
 
-    fun FuncContext.toAST(): Function {
+    private fun TraitDefContext.toAST(): TraitDef {
         stack.push(this)
-        val result = Function(type().toAST(), ident().text,
-                paramList()?.toAST() ?: emptyList(), emptyList(),
-                stats().toFuncBodyAST()).records(start(), end())
+        val dependentConstraints = constraintList()?.collectConstraints()?: emptyList()
+        val typeVars = constraintList()?.collectTypeVars() ?: mutableSetOf()
+        typeVars += tvar.text
+        val defaultConstraint = TypeConstraint(Trait(trait.text), tvar.text)
+        val totalConstraints = dependentConstraints + defaultConstraint
+        val result = TraitDef(
+                trait.text,
+                dependentConstraints,
+                tvar.text,
+                requiredFunc()?.map { it.toAST(totalConstraints, typeVars) }?: emptyList()
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    private fun TraitInstanceContext.toAST(): TraitInstance {
+        stack.push(this)
+        val topConstraints = constraintList()?.collectConstraints() ?: emptyList()
+        val typeVars = constraintList()?.collectTypeVars() ?: mutableSetOf()
+        val thisTrait = Trait(trait.text)
+        val thisType = type().toAST(typeVars)
+        val result = TraitInstance(
+                thisType,
+                thisTrait,
+                topConstraints,
+                func().map { it.toAST(topConstraints, typeVars) }
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    fun FuncContext.toAST(defaultConstraint: List<TypeConstraint> = emptyList(),
+                          defaultTypeVars: Set<String> = emptySet()): Function {
+        stack.push(this)
+        val constraints = (constraintList()?.collectConstraints()?: emptyList()) + defaultConstraint
+        val typeVars: MutableSet<String> = constraintList()?.collectTypeVars()?: mutableSetOf()
+        // TODO: dup check and error
+        typeVars += defaultConstraint.map { it.typeVar }
+        typeVars += defaultTypeVars
+        val args = paramList()
+                ?.toAST(typeVars)
+                ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
+                ?: emptyList()
+        val result = Function(
+                type().toAST(typeVars).bindConstraints(constraints),
+                ident().text,
+                args,
+                constraints,
+                stats().toFuncBodyAST(typeVars)
+        ).records(start(), end())
+        stack.pop()
+        return result
+    }
+
+    private fun ConstraintListContext.collectConstraints(): List<TypeConstraint> {
+        val constraintContexts = constraint()?: emptyList()
+        val constraints = constraintContexts.map { it.toAST() }
+        return constraints
+    }
+
+    private fun ConstraintListContext.collectTypeVars(): MutableSet<String> {
+        val set = mutableSetOf<String>()
+        val foralls = forallConstraint() ?: emptyList()
+        val constraints = constraint() ?: emptyList()
+        set += foralls.map { it.capIdent().text }
+        set += constraints.map { it.capIdent(0).text }
+        // TODO: duplication check and err
+        return set
+    }
+
+    private fun ConstraintContext.toAST(): TypeConstraint {
+        return TypeConstraint(Trait(capIdent(1).text), capIdent(0).text)
+    }
+
+    private fun RequiredFuncContext.toAST(defaultConstraints: List<TypeConstraint>,
+                                          defaultTypeVars: Set<String>): FunctionHeader {
+        stack.push(this)
+        val constraints = (constraintList()?.collectConstraints()?: emptyList()) + defaultConstraints
+        val typeVars = constraintList()?.collectTypeVars()?: mutableSetOf()
+        typeVars += defaultTypeVars
+        val args = paramList()
+                ?.toAST(typeVars)
+                ?.map { (type, arg) -> type.bindConstraints(constraints) to arg }
+                ?: emptyList()
+        val result = FunctionHeader(
+                type().toAST(typeVars).bindConstraints(constraints),
+                ident().text,
+                args,
+                constraints
+        ).records(start(), end())
         stack.pop()
         return result
     }
@@ -94,13 +187,15 @@ class RuleContextConverter() {
 
     /** Types **/
 
-    private fun TypeContext.toAST(): Type = when {
+    private fun TypeContext.toAST(typeVars: Set<String> = emptySet()): Type = when {
         baseType() != null -> baseType().toAST()
-        arrayType() != null -> arrayType().toAST()
-        pairType() != null -> pairType().toAST()
-        capIdent() != null -> NewType(capIdent().text)
+        arrayType() != null -> arrayType().toAST(typeVars)
+        pairType() != null -> pairType().toAST(typeVars)
+        newType() != null -> newType().toAST(typeVars)
         else -> throw IllegalArgumentException("Unrecognized type: $text")
     }
+
+    private fun GenericsContext.toAST(typeVars: Set<String>): List<Type> = type().map { it.toAST(typeVars) }
 
     private fun BaseTypeContext.toAST(): BaseType = when (text) {
         "int" -> BaseType(BaseTypeKind.INT)
@@ -110,32 +205,41 @@ class RuleContextConverter() {
         else -> throw IllegalArgumentException("Unknown base type: $text")
     }
 
-    private fun ArrayTypeContext.toAST(): ArrayType {
+    private fun ArrayTypeContext.toAST(typeVars: Set<String>): Type {
         val dimension = LBRA().size
-        var tau = ArrayType(when {
+        var tau = arrayTypeOf(when {
             baseType() != null -> baseType().toAST()
-            pairType() != null -> pairType().toAST()
+            pairType() != null -> pairType().toAST(typeVars)
+            newType() != null -> newType().toAST(typeVars)
             else -> {
                 logError(UnsupportedArrayBaseTypeException(this.text))
                 BaseType(ANY)
             }
         })
         for (i in 1 until dimension) {
-            tau = ArrayType(tau)
+            tau = arrayTypeOf(tau)
         }
         return tau
     }
 
-    private fun PairTypeContext.toAST(): PairType {
-        fun pairElemTypeToAST(context: PairElemTypeContext): Type = when {
-            context.baseType() != null -> context.baseType().toAST()
-            context.arrayType() != null -> context.arrayType().toAST()
-            else -> anyPairType()
+    private fun PairTypeContext.toAST(typeVars: Set<String>): Type {
+        return if(LPAR() != null) {
+            pairTypeOf(first.toAST(typeVars), second.toAST(typeVars))
+        } else {
+            anyPairType()
         }
-        return PairType(pairElemTypeToAST(first), pairElemTypeToAST(second))
     }
 
-    private fun NewtypeContext.toAST(): NewTypeDef {
+    private fun NewTypeContext.toAST(typeVars: Set<String>): Type {
+        val str = capIdent().text
+        return if (capIdent().text in typeVars) {
+            TypeVar(capIdent().text, emptyList(), false) // add traits later
+        } else {
+            NewType(capIdent().text, generics()?.toAST(typeVars)?: emptyList())
+        }
+    }
+
+    private fun NewTypeDefContext.toAST(): NewTypeDef {
         return when {
             structType() != null -> structType().toAST()
             taggedUnion() != null -> taggedUnion().toAST()
@@ -147,62 +251,79 @@ class RuleContextConverter() {
         return if (unionEntry() == null || unionEntry().isEmpty()) {
             UnionTypeDef(this.capIdent().text)
         } else {
-            UnionTypeDef(this.capIdent().text, this.unionEntry().map { it.toAST() }.toMap())
+            val typeVars = this.genericTVars()?.toAST() ?: emptyList()
+            UnionTypeDef(
+                    this.capIdent().text,
+                    typeVars,
+                    this.unionEntry().map { it.toAST(typeVars.toSet()) }.toMap()
+            ).records(start(), end())
         }
     }
 
-    private fun UnionEntryContext.toAST(): Pair<String, List<Parameter>> {
-        return capIdent().text to member().map { it.toAST() }
+    private fun GenericTVarsContext.toAST(): List<String> = this.capIdent().map { it.text }
+            .also { if (it.toHashSet().size < it.size) logError(MultipleTVarsWithSameNameException()) }
+
+    private fun UnionEntryContext.toAST(typeVars: Set<String>): Pair<String, List<Parameter>> {
+        return capIdent().text to member().map { it.toAST(typeVars) }
     }
 
     private fun StructTypeContext.toAST(): NewTypeDef {
-        return StructTypeDef(capIdent().text, member().map { it.toAST() }).records(start(), end())
+        val typeVars = this.genericTVars()?.toAST()?: emptyList()
+        return StructTypeDef(
+                capIdent().text,
+                typeVars,
+                member().map { it.toAST(typeVars.toSet()) }
+        ).records(start(), end())
     }
 
-    private fun MemberContext.toAST(): Parameter {
-        return type().toAST() to ident().toAST()
+    private fun MemberContext.toAST(typeVars: Set<String>): Parameter {
+        return type().toAST(typeVars) to ident().toAST()
     }
 
     /** Statements **/
 
-    private fun ParamListContext.toAST(): List<Parameter> = param().map { it.toAST() }
+    private fun ParamListContext.toAST(typeVars: Set<String> = emptySet()): List<Parameter>
+            = param().map { it.toAST(typeVars) }
 
-    private fun ParamContext.toAST(): Parameter = type().toAST() to ident().toAST()
+    private fun ParamContext.toAST(typeVars: Set<String>): Parameter = type().toAST(typeVars) to ident().toAST()
 
-    private fun StatsContext.toAST(): Statements {
-        return stat().map { it.toAST() }
+    private fun StatsContext.toAST(typeVars: Set<String> = emptySet()): Statements {
+        return stat().map { it.toAST(typeVars) }
     }
 
-    private fun StatContext.toAST(): Statement {
+    private fun StatContext.toAST(typeVars: Set<String> = emptySet()): Statement {
         stack.push(this)
         val result = when (this) {
             is SkipContext -> Skip
             is DeclarationContext ->
-                Declaration(false, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+                Declaration(false, type()?.toAST(typeVars)?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is ConstDeclarationContext ->
-                Declaration(true, type()?.toAST()?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
+                Declaration(true, type()?.toAST(typeVars)?:BaseType(ANY), ident().toAST(), assignRhs().toAST())
             is AssignmentContext -> Assignment(assignLhs().toAST(), assignRhs().toAST())
             is ReadCallContext -> Read(assignLhs().toAST())
             is BuiltinFuncCallContext ->
                 BuiltinFuncCall(BuiltinFunc.valueOf(builtinFunc().text.toUpperCase()), expr().toAST())
             is CondBranchContext -> {
-                if (ELSE() == null) {
-                    IfThen(expr(0).toAST(), stats(0).toAST())
-                } else {
-                    val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                val list = expr().zip(stats()) { expr, stats -> expr.toAST() to stats.toAST() }
+                if (expr().size != stats().size) {
                     CondBranch(list, stats().last().toAST())
+                } else {
+                    CondBranch(list, listOf(Skip))
                 }
             }
             is ForLoopContext -> {
                 val defType = if (type() == null && VAR() == null) {
                     null
                 } else {
-                    type()?.toAST()?: anyType()
+                    type()?.toAST(typeVars)?: BaseType(ANY)
                 }
-                ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
+                ForLoop(defType, ident().toAST(), enumRange().from.toAST(), enumRange().to.toAST(), stats().toAST())
             }
             is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
             is WhenClauseContext -> WhenClause(expr().toAST(), whenCase()?.map { it.toAST() }?: emptyList())
+            is VoidFuncCallContext -> VoidFuncCall(
+                    FunctionCall(ident().text, argList()?.toAST() ?: listOf()).records(start(), end())
+            )
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
         }.records(start(), end())
@@ -223,7 +344,6 @@ class RuleContextConverter() {
         is RhsArrayLiterContext -> arrayLiter().toAST()
         is RhsPairElemContext -> pairElem().toAST()
         is RhsTypeMemberContext -> typeMember().toAST()
-        is RhsTypeConstructorContext -> typeConstructor().toAST()
         is RhsNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
         is RhsFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
         else -> throw IllegalArgumentException("Unknown right value")
@@ -245,6 +365,10 @@ class RuleContextConverter() {
             is ExprArrElemContext -> ArrayElem(arrayElem().ident().toAST(), arrayElem().expr().map { it.toAST() })
             is ExprIfContext -> IfExpr(listOf(cond.toAST() to tr.toAST()), fl.toAST())
             is ExprFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
+            is ExprTypeConstructorContext -> typeConstructor().toAST()
+            is ExprVarMemberContext -> TypeMember(v.toAST(), m.text)
+            is ExprArrayLiterContext -> arrayLiter().toAST()
+            is ExprNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit
@@ -275,12 +399,6 @@ class RuleContextConverter() {
     } catch (e: NumberFormatException) {
         logError(IntegerSyntacticException(this.text))
         NullLit
-    }
-
-    private fun EnumRangeContext.toAST(): EnumRange = when(this) {
-        is RangeFromToContext -> EnumRange(from.toAST(), to.toAST())
-        is RangeFromThenToContext -> EnumRange(from.toAST(), then.toAST(), to.toAST())
-        else -> throw IllegalArgumentException("Unknown enum type")
     }
 
     private fun ExprBinopContext.getBinOp(): BinaryOperator {
@@ -343,4 +461,3 @@ class RuleContextConverter() {
         }
     }
 }
-

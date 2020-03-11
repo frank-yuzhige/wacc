@@ -1,31 +1,27 @@
 package semantics
 
 import ast.*
-import ast.BinaryOperator.EQ
-import ast.BinaryOperator.NEQ
 import ast.Expression.*
 import ast.Expression.PairElemFunction.FST
 import ast.Expression.PairElemFunction.SND
 import ast.Function
 import ast.Statement.*
 import ast.Statement.BuiltinFunc.*
-import ast.Type.BaseType
+import ast.Type.*
 import ast.Type.BaseTypeKind.ANY
 import ast.Type.Companion.anyArrayType
 import ast.Type.Companion.anyPairType
+import ast.Type.Companion.anyType
+import ast.Type.Companion.arrLitConstructorType
 import ast.Type.Companion.boolType
 import ast.Type.Companion.charType
 import ast.Type.Companion.intType
+import ast.Type.Companion.newPairConstructorType
 import ast.Type.Companion.stringType
 import exceptions.SemanticException
-import semantics.TypeChecker.Companion.match
-import semantics.TypeChecker.Companion.matchPairByElem
-import semantics.TypeChecker.Companion.pass
-import semantics.TypeChecker.Companion.unwrapArray
-import semantics.TypeChecker.Companion.unwrapPair
+import exceptions.SemanticException.*
 import utils.*
 import java.util.*
-import kotlin.math.ceil
 
 class SemanticAnalyzer() {
     val symbolTable = SymbolTable()
@@ -93,322 +89,303 @@ class SemanticAnalyzer() {
             }
             treeStack.pop()
         }
-        functions.map {
+        traits.map {
             treeStack.push(it)
             try {
-                symbolTable.defineFunc(it)
+                symbolTable.defineTrait(it)
             } catch (sme: SemanticException) {
                 logError(sme.msg)
             }
             treeStack.pop()
         }
-        functions.map { it.checkFunc(match(it.returnType)) }
+        instances.map {
+            treeStack.push(it)
+            try {
+                symbolTable.implementTrait(it)
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
+        }
+        functions.map {
+            treeStack.push(it)
+            try {
+                symbolTable.defineFunc(it)
+                it.args.map { arg -> arg.first.validated() }
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
+            }
+            treeStack.pop()
+        }
+        instances.map { it.functions.map { f -> f.reifiedFunc().checkFunc() } }
+        functions.map { it.reifiedFunc().checkFunc() }
         isInMain = true
         mainProgram.checkBlock()
     }
 
-    private fun Function.checkFunc(retCheck: TypeChecker) {
+    private fun Function.checkFunc() {
         treeStack.push(this)
         symbolTable.pushScope()
         args.map { param ->
             symbolTable.defineVar(param.getType(), param.getIdent(), isConst = false)
         }
-        this.body.map { it.check(retCheck) }
+        this.body.map { it.check(returnType, typeConstraints) }
         symbolTable.popScope()?.let { logWarning(it) }
         treeStack.pop()
     }
 
-    private fun Statements.checkBlock(retCheck: TypeChecker = pass(), preDefinitons: () -> Unit = {}) {
+    private fun Statements.checkBlock(
+            returnType: Type = anyType(),
+            typeconstraints: List<TypeConstraint> = emptyList(),
+            preDefinitons: () -> Unit = {}
+    ) {
         symbolTable.pushScope()
         preDefinitons()
-        this.map { it.check(retCheck) }
+        this.map { it.check(returnType, typeconstraints) }
         symbolTable.popScope()?.let { logWarning(it) }
     }
 
-    private fun Statement.check(retCheck: TypeChecker) {
+    private fun Statement.check(returnType: Type, typeconstraints: List<TypeConstraint>) {
         treeStack.push(this)
         when (this) {
             Skip -> Skip
             is Declaration -> {
                 val defType = if (type == BaseType(ANY)) {
-                    rhs.getType().normalize()
+                    anyType()
                 } else {
-                    type
+                    type.reified(typeconstraints).validated()
                 }
-                val prevAttr = symbolTable.defineVar(defType, variable, isConst)
+                val realType = rhs.checkExpr(defType)
+                val prevAttr = symbolTable.defineVar(realType, variable, isConst)
                 if (prevAttr != null) {
                     logError(listOf(variableAlreadyDefined(variable, prevAttr.type, symbolTable.lookupVar(variable, false)!!.index)))
                 }
-                rhs.check(match(type))
             }
             is Assignment -> {
-                val lhsType = lhs.checkLhs(pass(), isPush = true, isWrite = true)
-                lhsType?.let { rhs.check(match(it)) } ?: rhs.check(pass())
+                val lhsType = try {
+                    lhs.checkLhsExpr(anyType(), isPush = true, isWrite = true)
+                } catch (sme: SemanticException) {
+                    logError(sme.msg)
+                    anyType()
+                }
+                rhs.checkExpr(lhsType)
             }
-            is Read -> {
-                val lhsType = target.checkLhs(pass(), isPush = true, isWrite = true)
-                val readChecker = match(intType(), charType(), stringType())
-                lhsType?.let { logError(readChecker.test(it)) }
+            is Read -> try {
+                target.checkLhsExpr(TypeVar("A", Trait("Read")), isPush = true, isWrite = true)
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
             }
             is BuiltinFuncCall -> when (func) {
-                PRINT, PRINTLN -> expr.check(pass())
-                FREE -> expr.check(match(anyArrayType(), anyPairType()))
-                EXIT -> expr.check(match(intType()))
-                RETURN -> expr.check(retCheck)
-            }
-            is IfThen -> {
-                expr.check(match(boolType()))
-                thenBody.checkBlock(retCheck)
+                PRINT, PRINTLN -> expr.checkExpr(anyType())
+                FREE -> expr.checkExpr(TypeVar("A", Trait("Malloc")))
+                EXIT -> expr.checkExpr(intType())
+                RETURN -> expr.checkExpr(returnType)
             }
             is CondBranch -> {
                 condStatsList.forEach { (expr, stats) ->
-                    expr.check(match(boolType()))
-                    stats.checkBlock(retCheck)
+                    expr.checkExpr(boolType())
+                    stats.checkBlock(returnType, typeconstraints)
                 }
-                elseBody.checkBlock(retCheck)
+                elseBody.checkBlock(returnType, typeconstraints)
             }
             is ForLoop -> {
-                TODO()
+                if (defType == null) {
+                    val varType = loopVar.checkExpr(TypeVar("@LOOP", Trait("Enum")))
+                    from.checkExpr(varType)
+                    to.checkExpr(varType)
+                    body.checkBlock(returnType, typeconstraints)
+                } else {
+                    val dType = if (defType == BaseType(ANY)) {
+                        TypeVar("@LOOP", Trait("Enum"))
+                    } else {
+                        defType.reified(typeconstraints).validated()
+                    }
+                    val varType = from.checkExpr(dType)
+                    to.checkExpr(varType)
+                    loopVar.reifiedType = varType
+                    body.checkBlock(returnType, typeconstraints) { symbolTable.defineVar(varType, loopVar, false) }
+                }
             }
             is WhileLoop -> {
-                expr.check(match(boolType()))
-                body.checkBlock(retCheck)
+                expr.checkExpr(boolType())
+                body.checkBlock(returnType, typeconstraints)
             }
-            is WhenClause -> {
-                expr.check(pass())
-                val matchingType = expr.getType()
+            is VoidFuncCall -> {
+                function.checkExpr(anyType())
+            }
+            is WhenClause -> try {
+                val matchingType = expr.checkExpr(anyType())
+                if (!matchingType.isDetermined()) {
+                    throw UngroundTypeException(matchingType)
+                }
                 whenCases.forEach { (pattern, stmts) ->
                     val entry = symbolTable.lookupFunc(pattern.constructor)
                     when {
-                        entry == null ->
-                            logError(accessToUndefinedFunc(pattern.constructor))
-                        entry.type.retType != matchingType ->
-                            logError(typeMismatchError(entry.type.retType, matchingType))
+                        entry == null -> throw UndefinedFuncException(pattern.constructor)
                         entry.type.paramTypes.size != pattern.matchVars.size ->
                             logError(patternUnmatchedError(entry.type.paramTypes.size, pattern.matchVars.size))
                         else -> {
-                            val duplicates = pattern.matchVars.groupingBy { it }.eachCount().filter { it.value > 1 }
+                            val realFuncType = entry.type unifyReturn matchingType
+                            val duplicates = pattern.matchVars.countDuplicates()
                             if (duplicates.isNotEmpty()) {
-                                logError("sdsdsads")
-                            } else {
-                                val preDefs = {
-                                    pattern.matchVars.withIndex().forEach { (i, match) ->
-                                        symbolTable.defineVar(entry.members[i].getType(), match, isConst = true)
-                                    }
+                                throw MultipleVarDefInPatternException(duplicates.keys.map { it.name })
+                            }
+                            stmts.checkBlock(returnType, typeconstraints) {
+                                pattern.matchVars.withIndex().forEach { (i, match) ->
+                                    symbolTable.defineVar(realFuncType.paramTypes[i], match, isConst = true)
+                                    match.reifiedType = realFuncType.paramTypes[i]
                                 }
-                                stmts.checkBlock(retCheck, preDefs)
                             }
                         }
                     }
                 }
+            } catch (sme: SemanticException) {
+                logError(sme.msg)
             }
-            is Block -> body.checkBlock(retCheck)
+            is Block -> body.checkBlock(returnType, typeconstraints)
         }
         treeStack.pop()
     }
 
-    private fun Expression.checkLhs(tc: TypeChecker,
-                                    isPush: Boolean,
-                                    isWrite: Boolean,
-                                    logAction: (List<String>) -> Unit = { logError(it) }): Type? {
-        var result: Type? = null
-        if (isPush) {
+    private fun Expression.checkLhsExpr(expecting: Type,
+                                        isPush: Boolean,
+                                        isWrite: Boolean,
+                                        logAction: (List<String>) -> Unit = { logError(it) }): Type {
+        if(isPush) {
             treeStack.push(this)
         }
-        when (this) {
-            is Identifier -> {
-                val attr = symbolTable.lookupVar(this, isWrite)
-                if (attr != null) {
-                    val actual = attr.type
-                    val scopeId = attr.scopeId
-                    val errors = tc.test(actual)
-                    if (errors.isEmpty()) {
-                        this.scopeId = scopeId
-                        result = actual
-                    } else {
-                        logAction(errors)
-                    }
-                } else {
-                    logAction(listOf(accessToUndefinedVar(name)))
-                }
-            }
-            is PairElem -> {
-                if (expr == NullLit) {
-                    logAction(listOf(accessToNullLiteral(func.value)))
-                } else {
-                    var hasError = false
-                    expr.check(matchPairByElem(func, tc)) { logAction(it); hasError = true }
-                    if (!hasError) {
-                        try {
-                            result = expr.getType().unwrapPairType(func)
-                        } catch (sme: SemanticException) {
-                            logAction(listOf(sme.msg))
-                        }
+        val inferredType = try {
+            when(this) {
+                is Identifier -> {
+                    val attr = symbolTable.lookupVar(this, isWrite)
+                            ?:throw UndefinedVarException(name)
+                    (attr.type inferFrom expecting).also {
+                        this.scopeId = attr.scopeId
                     }
                 }
-            }
-            is ArrayElem -> {
-                /* Check if the array var is in scope */
-                symbolTable.lookupVar(arrIdent, isWrite = false)?.let { attr ->
-                    this.arrIdent.scopeId = attr.scopeId
-                    attr.type.unwrapArrayType(indices.count())?.let { actual ->
-                        /* Check each index is int */
-                        var hasError = false
-                        indices.map { expr ->
-                            expr.check(match(intType())) { err -> logAction(err); hasError = true }
-                        }
-                        if (!hasError) {
-                            /* Test expected array type with actual unwrapped type */
-                            val tcErrors = tc.test(actual)
-                            if (tcErrors.isEmpty()) {
-                                result = actual
-                            }
-                            logAction(tcErrors)
-                        }
-                    } ?: logAction(listOf(insufficientArrayRankError(arrIdent.name, attr.type, indices.count())))
-                } ?: logAction(listOf(accessToUndefinedVar(arrIdent.name)))
-            }
-            is TypeMember -> {
-                var hasError = false
-                expr.check(pass()) { logAction(it); hasError = true }
-                if (!hasError) {
-                    try {
-                        result = getType()
-                    } catch (sme: SemanticException) {
-                        logAction(listOf(sme.msg))
-                    }
+                is ArrayElem -> {
+                    val arrAttribute = symbolTable.lookupVar(arrIdent, false)
+                            ?:throw UndefinedVarException(arrIdent.name)
+                    arrIdent.reifiedType = arrAttribute.type
+                    val type = arrAttribute.type.unwrapArrayType(indices.size)
+                            ?: throw NotEnoughArrayRankException(arrIdent.name)
+                    indices.map { it.checkExpr(intType()) }
+                    type inferFrom expecting
                 }
+                is PairElem -> {
+                    val exprType = expr.checkExpr(anyPairType())
+                    if (exprType !is NewType) throw TypeMismatchException(anyPairType(), exprType)
+                    val memberType = when(func) {
+                        FST -> exprType.generics[0]
+                        SND -> exprType.generics[1]
+                    }
+                    memberType inferFrom expecting
+                }
+                is TypeMember -> {
+                    val exprType = expr.checkExpr(anyType())
+                    if (exprType !is NewType && exprType !is ErrorType) throw NotAStructTypeException(exprType)
+                    val memberType = symbolTable.getTypeMemberType(exprType, memberName)
+                    memberType inferFrom expecting
+                }
+                else -> error("Unreachable - not a lhs")
             }
-            else -> logAction(listOf("Not a proper assign-lhs statement!")) // Should never reach here...
+        } catch (sme: SemanticException) {
+            logAction(listOf(sme.msg))
+            ErrorType
+        } finally {
+            if (isPush) {
+                treeStack.pop()
+            }
         }
-        if (isPush) {
-            treeStack.pop()
-        }
-        return result
+        this.reifiedType = inferredType
+        return inferredType
     }
 
-    private fun Expression.check(tc: TypeChecker,
-                                 logAction: (List<String>) -> Unit = { logError(it) }) {
+    private fun Expression.checkExpr(expecting: Type,
+                                     logAction: (List<String>) -> Unit = { logError(it) }): Type {
         treeStack.push(this)
-        when (this) {
-            is NullLit -> logAction(tc.test(anyPairType()))
-            is IntLit -> logAction(tc.test(intType()))
-            is BoolLit -> logAction(tc.test(boolType()))
-            is CharLit -> logAction(tc.test(charType()))
-            is StringLit -> logAction(tc.test(stringType()))
-            is Identifier, is PairElem, is ArrayElem, is TypeMember ->
-                checkLhs(tc, isPush = false, isWrite = false, logAction = logAction)
-            is BinExpr -> {
-                when (op) {
-                    EQ, NEQ -> {
-                        logAction(tc.test(boolType()))
-                        try {
-                            left.check(match(right.getType()))
-                        } catch (sme: SemanticException) {
-                            logAction(listOf(sme.msg))
-                        }
-                    }
+        System.err.println("**** checking: ${this.prettyPrint()} against: $expecting")
+        val inferredType = try {
+            when(this) {
+                NullLit -> anyPairType() inferFrom expecting
+                is IntLit -> intType() inferFrom expecting
+                is BoolLit -> boolType() inferFrom expecting
+                is CharLit -> charType() inferFrom expecting
+                is StringLit -> stringType() inferFrom expecting
+                is Identifier, is ArrayElem, is PairElem, is TypeMember ->
+                    checkLhsExpr(expecting, isPush = false, isWrite = false, logAction = logAction)
+                is BinExpr -> {
+                    val funcType = BinaryOperator.funcTypeMap.getValue(op)
+                    unifyFuncType(expecting, funcType, listOf(left, right), logAction)
+                }
+                is UnaryExpr -> {
+                    val funcType = UnaryOperator.funcTypeMap.getValue(op)
+                    unifyFuncType(expecting, funcType, listOf(expr), logAction)
+                }
+                is ArrayLiteral -> when {
+                    elements.isEmpty() -> anyArrayType() inferFrom expecting
                     else -> {
-                        val errors = arrayListOf<List<String>>()
-                        for (entry in BinaryOperator.typeMap.getValue(op)) {
-                            val retChecker = tc.forwardsError(
-                                    "    unexpected return type for binary operator '${op.op}' ")
-                            val temp = mutableListOf<String>()
-                            /* Check return type */
-                            temp += retChecker.test(entry.retType)
-                            /* Check lhs */
-                            left.check(entry.lhsChecker) {
-                                temp += it.map { err ->
-                                    "$err\n${left.getTraceLog()}\n" +
-                                            "    on the left-hand-side of '${op.op}'"
-                                }
-                            }
-                            /* Check rhs */
-                            right.check(entry.rhsChecker) {
-                                temp += it.map { err ->
-                                    "$err\n${right.getTraceLog()}" +
-                                            "\n    on the right-hand-side of '${op.op}'"
-                                }
-                            }
-                            errors += temp
-                            if (temp.isEmpty()) {
-                                break
-                            }
-                        }
-                        /* If any of the cases passed (an empty error list), do nothing.
-                         * otherwise we log the error list with the fewest errors */
-                        if (!errors.any(List<String>::isEmpty)) {
-                            logAction(errors.minBy { it.size }!!)
-                        }
+                        unifyFuncType(expecting, arrLitConstructorType(elements.size), elements, logAction)
                     }
                 }
-            }
-            is IfExpr -> {
-                condStatsList.forEach { (cond, expr) ->
-                    cond.check(match(boolType()))
-                    expr.check(tc)
+                is NewPair -> {
+                    unifyFuncType(expecting, newPairConstructorType(), listOf(first, second), logAction)
                 }
-                elseExpr.check(tc)
-            }
-            is ArrayLiteral -> {
-                if (elements.isEmpty()) {
-                    logAction(tc.test(anyArrayType()))
-                } else {
-                    val temp: MutableList<String> = mutableListOf()
-                    /* Take the first element's type as the type of the array */
-                    /* Check the first element's type */
-                    elements.first().check(unwrapArray(tc)) { temp += it }
-                    /* if there is an error, log immediately, so the error logs won't get squashed together */
-                    if (temp.isNotEmpty()) {
-                        logAction(temp)
-                        temp.clear()
+                is IfExpr -> {
+                    val conds = condStatsList.map { it.first }
+                    conds.map { it.checkExpr(boolType()) }
+                    val exprs = condStatsList.map { it.second } + elseExpr
+                    exprs.fold(expecting) { expect, actual -> actual.checkExpr(expect) }
+                }
+                is FunctionCall -> {
+                    val funcType = symbolTable.lookupFunc(ident)?.type
+                            ?: throw UndefinedFuncException(ident)
+                    if (args.size != funcType.paramTypes.size) {
+                        throw FuncCallArgsMismatchException(ident, funcType.paramTypes.size, args.size)
                     }
-                    /* Check if all elements in the array are of the same type */
-                    val fstElemType = elements.first().getType()
-                    for ((index, element) in elements.drop(1).withIndex()) {
-                        val checker = match(fstElemType)
-                                .forwardsError("    at the ${NumberFormatter.get(index + 1)} element in the array")
-                        element.check(checker) { temp += it }
-                    }
-                    if (temp.isNotEmpty()) {
-                        logAction(temp)
-                    }
+                    unifyFuncType(expecting, funcType, args, logAction)
                 }
             }
-            is NewPair -> {
-                first.check(unwrapPair(FST, tc))
-                second.check(unwrapPair(SND, tc))
-            }
-            is UnaryExpr -> {
-                val entry = UnaryOperator.typeMap().getValue(op)
-                val checker = entry.first
-                val retType = entry.second
-                tc.test(retType) + expr.check(checker)
-            }
-            is EnumRange -> {
-
-            }
-            is FunctionCall -> {
-                val funcEntry = symbolTable.lookupFunc(ident)
-                if (funcEntry == null) {
-                    logAction(listOf(accessToUndefinedFunc(ident)))
-                } else {
-                    val funcType = funcEntry.type
-                    val retType = funcType.retType
-                    val expectedCount = funcType.paramTypes.size
-                    val actualCount = args.size
-                    if (expectedCount != actualCount) {
-                        logAction(listOf(parameterNumMismatch(ident, funcType, expectedCount, actualCount)))
-                    } else {
-                        logAction(tc.test(retType))
-                        args.zip(funcType.paramTypes) { arg, t -> arg.check(match(t)) }
-                    }
-                }
-            }
+        } catch (sme: SemanticException) {
+            logAction(listOf(sme.msg))
+            System.err.println("$$> logging: ${sme.msg}")
+            ErrorType
+        }
+        reifiedType = inferredType
+        System.err.println("*** finish: ${this.prettyPrint()} is $inferredType ***")
+        if (!inferredType.isDetermined()) {
+            logAction(listOf(UngroundTypeException(inferredType).msg))
         }
         treeStack.pop()
+        return inferredType
     }
 
-    private fun Expression.getType(): Type = symbolTable.getType(this, SymbolTable.AccessType.IN_SEM_CHECK)
+    /* Unifies the given function type, by the expected return type, and the arguments provided.
+    *  This method calls checkExpr on all arguments, then unifies the given func type by types of args.
+    *  Returns the actual return type */
+    private fun unifyFuncType(expecting: Type,
+                              funcType: FuncType,
+                              args: List<Expression>,
+                              logAction: (List<String>) -> Unit): Type {
+        val newFuncType = funcType unifyReturn expecting
+        val argsGrounds = args.zip(newFuncType.paramTypes) { arg, type -> arg.checkExpr(type, logAction) }
+        val sub: Grounding = FuncType(newFuncType.retType, argsGrounds).findUnifier(newFuncType)
+        return newFuncType.retType.substitutes(sub)
+    }
+
+    private infix fun FuncType.unifyReturn(expecting: Type): FuncType {
+        val newRet = retType inferFrom expecting
+        val sub = newRet.findUnifier(retType)
+        return (this.substitutes(sub) as FuncType)
+    }
+
+    private infix fun Type.inferFrom(expecting: Type): Type = this.inferFrom(expecting, symbolTable)
+
+    private fun Type.validated(): Type = if(this is NewType) {
+        symbolTable.lookupType(this)?.let{ this }?: throw UndefinedTypeException(this.name)
+    } else {
+        this
+    }
+
 }
 

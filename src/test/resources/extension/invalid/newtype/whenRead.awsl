@@ -1,0 +1,17 @@
+begin
+
+newtype LinkedList is union
+    End;
+    Node of (int x, LinkedList succ);
+end
+
+LinkedList e = End();
+
+when e:
+    is End -> println("end!");
+    is Node(x, succ) ->
+        read x;   # error
+        println(x);
+end;
+
+end

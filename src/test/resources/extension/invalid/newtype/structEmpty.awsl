@@ -1,0 +1,8 @@
+begin
+
+newtype Nothing is union
+end
+
+exit 0;
+
+end

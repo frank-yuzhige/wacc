@@ -75,6 +75,11 @@ NEWTYPE: 'newtype';
 UNION: 'union';
 OF: 'of';
 WHEN: 'when';
+WHERE: 'where';
+FORALL: 'forall';
+TRAIT: 'trait';
+REQUIRED: 'required';
+INSTANCE: 'instance';
 
 BASE_TYPE: 'int' | 'string' | 'bool' | 'char';
 

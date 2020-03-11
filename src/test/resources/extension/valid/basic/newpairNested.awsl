@@ -1,0 +1,10 @@
+begin
+
+var p = newpair(newpair(1, newpair(42, 4)), newpair(newpair(true, 'c'), "hello"));
+
+var f = fst p;
+var q = snd f;
+var t = fst q;
+println t;
+
+end

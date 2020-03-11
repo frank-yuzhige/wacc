@@ -53,12 +53,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArrayType(WaccParser.ArrayTypeContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link WaccParser#pairElemType}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPairElemType(WaccParser.PairElemTypeContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link WaccParser#baseType}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -71,17 +65,35 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPairType(WaccParser.PairTypeContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#newType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNewType(WaccParser.NewTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#generics}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenerics(WaccParser.GenericsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#member}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitMember(WaccParser.MemberContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link WaccParser#newtype}.
+	 * Visit a parse tree produced by {@link WaccParser#newTypeDef}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitNewtype(WaccParser.NewtypeContext ctx);
+	T visitNewTypeDef(WaccParser.NewTypeDefContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#genericTVars}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGenericTVars(WaccParser.GenericTVarsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#structType}.
 	 * @param ctx the parse tree
@@ -101,19 +113,17 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTaggedUnion(WaccParser.TaggedUnionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code rangeFromTo}
-	 * labeled alternative in {@link WaccParser#enumRange}.
+	 * Visit a parse tree produced by {@link WaccParser#traitInstance}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitRangeFromTo(WaccParser.RangeFromToContext ctx);
+	T visitTraitInstance(WaccParser.TraitInstanceContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code rangeFromThenTo}
-	 * labeled alternative in {@link WaccParser#enumRange}.
+	 * Visit a parse tree produced by {@link WaccParser#enumRange}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitRangeFromThenTo(WaccParser.RangeFromThenToContext ctx);
+	T visitEnumRange(WaccParser.EnumRangeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#unaryOp}.
 	 * @param ctx the parse tree
@@ -170,6 +180,27 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExprInt(WaccParser.ExprIntContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code exprUnaryop}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprUnaryop(WaccParser.ExprUnaryopContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprChar}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprChar(WaccParser.ExprCharContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprFuncCall}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprFuncCall(WaccParser.ExprFuncCallContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code exprNull}
 	 * labeled alternative in {@link WaccParser#expr}.
 	 * @param ctx the parse tree
@@ -183,6 +214,27 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitExprBinop(WaccParser.ExprBinopContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprTypeConstructor}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprTypeConstructor(WaccParser.ExprTypeConstructorContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprNewPair}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprNewPair(WaccParser.ExprNewPairContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprArrayLiter}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprArrayLiter(WaccParser.ExprArrayLiterContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code exprString}
 	 * labeled alternative in {@link WaccParser#expr}.
@@ -219,12 +271,12 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExprIdent(WaccParser.ExprIdentContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code exprUnaryop}
+	 * Visit a parse tree produced by the {@code exprVarMember}
 	 * labeled alternative in {@link WaccParser#expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprUnaryop(WaccParser.ExprUnaryopContext ctx);
+	T visitExprVarMember(WaccParser.ExprVarMemberContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code exprIf}
 	 * labeled alternative in {@link WaccParser#expr}.
@@ -232,20 +284,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitExprIf(WaccParser.ExprIfContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code exprChar}
-	 * labeled alternative in {@link WaccParser#expr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitExprChar(WaccParser.ExprCharContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code exprFuncCall}
-	 * labeled alternative in {@link WaccParser#expr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitExprFuncCall(WaccParser.ExprFuncCallContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#param}.
 	 * @param ctx the parse tree
@@ -259,11 +297,41 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParamList(WaccParser.ParamListContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link WaccParser#constraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstraint(WaccParser.ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#forallConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitForallConstraint(WaccParser.ForallConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#constraintList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstraintList(WaccParser.ConstraintListContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link WaccParser#func}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitFunc(WaccParser.FuncContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#requiredFunc}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRequiredFunc(WaccParser.RequiredFuncContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link WaccParser#traitDef}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTraitDef(WaccParser.TraitDefContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#builtinFunc}.
 	 * @param ctx the parse tree
@@ -341,6 +409,13 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitWhenClause(WaccParser.WhenClauseContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code voidFuncCall}
+	 * labeled alternative in {@link WaccParser#stat}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitVoidFuncCall(WaccParser.VoidFuncCallContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code block}
 	 * labeled alternative in {@link WaccParser#stat}.
 	 * @param ctx the parse tree
@@ -406,13 +481,6 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitRhsTypeMember(WaccParser.RhsTypeMemberContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code rhsTypeConstructor}
-	 * labeled alternative in {@link WaccParser#assignRhs}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitRhsTypeConstructor(WaccParser.RhsTypeConstructorContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code rhsFuncCall}
 	 * labeled alternative in {@link WaccParser#assignRhs}.

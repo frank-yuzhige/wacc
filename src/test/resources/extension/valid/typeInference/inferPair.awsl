@@ -1,0 +1,12 @@
+begin
+
+pair x = newpair(1, 5);
+var x2 = snd x;
+println x2;
+
+pair y = newpair(2, 'a');
+println y;
+
+pair(int, pair) z = newpair(100, y);
+
+end
