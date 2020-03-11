@@ -9,10 +9,12 @@ for var c in 'a'..'d' do
 done;
 
 int k = 0;
-for k in k..k+4 do
+for k in k + 2..4 do
     println k;
 done;
 
-
+for var b in false..true do
+    println b;
+done;
 
 end

@@ -61,7 +61,7 @@ class ExpressionParserTest {
 
     @Test
     fun parseIdentifierTest() {
-        val idents = listOf("x", "y", "_a", "PascalCase", "camelCase", "snake_case", "INSANE_CAPITALISM", "x1", "l33t", "_")
+        val idents = listOf("x", "y", "_a", "_PascalCase", "camelCase", "snake_case", "_INSANE_CAPITALISM", "x1", "l33t", "_")
         batchCheck(idents, { Parser(it.byteInputStream()).parseExpression() == Identifier(it) })
     }
 

@@ -43,7 +43,7 @@ LinkedList list = fromArray(arr);
 int length = length(list);
 println(length);
 
-int x = printAll(list);
+call printAll(list);
 println "";
 
 end

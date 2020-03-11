@@ -7,7 +7,7 @@ end
 
 A fromJust(Maybe<A> maybe) where forall A is
     when(maybe):
-        is Nothing -> exit -1;
+        is Nothing -> println "*** Exception: Maybe.fromJust: Nothing"; exit 0;
         is Just(a) -> return a;
     end;
 end
@@ -16,9 +16,8 @@ var x = Just("hello world!");
 var str = fromJust(x);
 println str;
 x = Nothing();
-str = fromJust(x);
-
-# exit -1 here!
+str = fromJust(x);  # exit!
+println str;
 
 
 end

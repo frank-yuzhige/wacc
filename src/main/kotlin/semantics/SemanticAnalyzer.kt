@@ -193,11 +193,29 @@ class SemanticAnalyzer() {
                 elseBody.checkBlock(returnType, typeconstraints)
             }
             is ForLoop -> {
-                TODO()
+                if (defType == null) {
+                    val varType = loopVar.checkExpr(TypeVar("@LOOP", Trait("Enum")))
+                    from.checkExpr(varType)
+                    to.checkExpr(varType)
+                    body.checkBlock(returnType, typeconstraints)
+                } else {
+                    val dType = if (defType == BaseType(ANY)) {
+                        TypeVar("@LOOP", Trait("Enum"))
+                    } else {
+                        defType.reified(typeconstraints).validated()
+                    }
+                    val varType = from.checkExpr(dType)
+                    to.checkExpr(varType)
+                    loopVar.reifiedType = varType
+                    body.checkBlock(returnType, typeconstraints) { symbolTable.defineVar(varType, loopVar, false) }
+                }
             }
             is WhileLoop -> {
                 expr.checkExpr(boolType())
                 body.checkBlock(returnType, typeconstraints)
+            }
+            is VoidFuncCall -> {
+                function.checkExpr(anyType())
             }
             is WhenClause -> try {
                 val matchingType = expr.checkExpr(anyType())
@@ -317,7 +335,6 @@ class SemanticAnalyzer() {
                 is NewPair -> {
                     unifyFuncType(expecting, newPairConstructorType(), listOf(first, second), logAction)
                 }
-                is EnumRange -> TODO()
                 is IfExpr -> {
                     val conds = condStatsList.map { it.first }
                     conds.map { it.checkExpr(boolType()) }

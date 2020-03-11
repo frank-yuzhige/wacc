@@ -1,0 +1,56 @@
+begin
+
+newtype List<A> is union
+    Nil;
+    Node of (A elem, List<A> next);
+end
+
+List<A> fromArray(A[] arr) where forall A is
+    List<A> curr = Nil();
+    int size = len(arr);
+    while(size > 0) do
+        size = size - 1;
+        curr = Node(arr[size], curr);
+    done;
+    return curr;
+end
+
+int length(List<A> list) where forall A is
+    int acc = 0;
+    while(true) do
+        when list:
+            is Nil -> return acc;
+            is Node(x, succ) -> acc = acc + 1; list = succ;
+        end;
+    done;
+    return 0;
+end
+
+int printAll(List<A> list) where forall A is
+    when list:
+        is Nil -> println ""; return 0;
+        is Node(x, succ) ->
+            print(x);
+            print(',');
+            int y = call printAll(succ);
+            return y;
+    end;
+end
+
+List<int> a = Nil();
+List<int> b = Node(4, a);
+List<char> c = Nil();
+List<char> d = Node('A', c);
+List<List<int>> k = Nil();
+List<List<int>> j = Node(a, k);
+List<List<int>> m = Node(b, k);
+
+var irr = [33,55,22,6,43,75,22,5,10,999,23];
+var crr = ['H','E','L','L','O','W','O','R','L','D'];
+
+var ilist = fromArray(irr);
+var clist = fromArray(crr);
+call printAll(ilist);
+call printAll(clist);
+
+end

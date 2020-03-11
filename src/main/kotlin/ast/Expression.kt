@@ -86,20 +86,6 @@ sealed class Expression(var reifiedType: Type = Type.TypeVar("A"), // reified ty
         override fun tellIdentity(): String = "a newpair declaration"
     }
 
-    data class EnumRange(val from: Expression, val then: Expression?, val to: Expression): Expression() {
-        constructor(from: Expression, to: Expression): this(from, null, to)
-        override fun prettyPrint(): String {
-            return if (then != null) {
-                "${from.prettyPrint()}, ${then.prettyPrint()}..${to.prettyPrint()}"
-            } else {
-                "${from.prettyPrint()}..${to.prettyPrint()}"
-            }
-        }
-        override fun tellIdentity(): String {
-            return super.tellIdentity()
-        }
-    }
-
     data class IfExpr(val condStatsList: List<Pair<Expression, Expression>>, val elseExpr: Expression) : Expression() {
         override fun tellIdentity(): String = "an if-expression"
         override fun prettyPrint(): String {

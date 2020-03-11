@@ -1,0 +1,13 @@
+begin
+
+newtype Unit<X> is
+    X value;
+end
+
+instance Unit<X>: Eq where forall X is
+    bool equals(Unit<X> a, Unit<X> b) is return true end
+end
+
+exit -1;
+
+end

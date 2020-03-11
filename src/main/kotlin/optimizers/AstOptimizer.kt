@@ -134,9 +134,7 @@ class AstOptimizer(option: OptimizationOption) {
             }
             this
         }
-        is IfThen -> this
-        is ForLoop -> this
-        is WhenClause -> this
+        else -> this
     }
 
     private fun Expression.optimize(): Expression = when (this) {

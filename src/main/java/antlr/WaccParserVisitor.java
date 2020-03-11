@@ -119,19 +119,11 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTraitInstance(WaccParser.TraitInstanceContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code rangeFromTo}
-	 * labeled alternative in {@link WaccParser#enumRange}.
+	 * Visit a parse tree produced by {@link WaccParser#enumRange}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitRangeFromTo(WaccParser.RangeFromToContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code rangeFromThenTo}
-	 * labeled alternative in {@link WaccParser#enumRange}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitRangeFromThenTo(WaccParser.RangeFromThenToContext ctx);
+	T visitEnumRange(WaccParser.EnumRangeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link WaccParser#unaryOp}.
 	 * @param ctx the parse tree
@@ -229,6 +221,20 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitExprTypeConstructor(WaccParser.ExprTypeConstructorContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprNewPair}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprNewPair(WaccParser.ExprNewPairContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code exprArrayLiter}
+	 * labeled alternative in {@link WaccParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprArrayLiter(WaccParser.ExprArrayLiterContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code exprString}
 	 * labeled alternative in {@link WaccParser#expr}.
@@ -402,6 +408,13 @@ public interface WaccParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitWhenClause(WaccParser.WhenClauseContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code voidFuncCall}
+	 * labeled alternative in {@link WaccParser#stat}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitVoidFuncCall(WaccParser.VoidFuncCallContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code block}
 	 * labeled alternative in {@link WaccParser#stat}.

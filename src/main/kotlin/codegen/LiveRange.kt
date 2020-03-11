@@ -11,7 +11,7 @@ class LiveRange(firstDef: Int) {
         defs += firstDef
     }
 
-    fun lastUsage(): Int = uses.last()
+    fun lastUsage(): Int = uses.lastOrNull() ?: defs.last()
 
     fun nextUsage(now: Int): Int = uses.first { it > now }
 

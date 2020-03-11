@@ -3,37 +3,40 @@ package extension
 import CompilerMode.EXECUTE
 import codegen.AssemblyBehaviourTest
 import utils.CompilerEmulator
+import utils.excludedFiles
 import java.io.File
 import java.util.concurrent.TimeoutException
 import kotlin.test.Test
+import kotlin.test.fail
 
 class ExtensionBehaviourTest {
     private val failedTestsInfo: MutableMap<String, String> = mutableMapOf()
 
 
     @Test
-    fun valids() = testAll("src/test/resources/extension/valid/", 0)
+    fun valids() = testAll("src/test/resources/extension/valid/", setOf(0))
 
     @Test
-    fun invalids() = testAll("src/test/resources/extension/invalid/", 200)
+    fun invalids() = testAll("src/test/resources/extension/invalid/", setOf(200))
 
-    fun testAll(path: String, expectedExitCode: Int) {
+    fun testAll(path: String, expectedExitCodes: Set<Int>) {
         var correctCount = 0
         var totalCount = 0
         File(path).walkTopDown()
+                .filterNot { it.path in excludedFiles() }
                 .filter { it.extension == "awsl" }
                 .forEach { testFile ->
                     println("Current file $testFile")
                     try {
                         val emulator = CompilerEmulator(testFile, EXECUTE)
                         val result = emulator.run()
-                        if (result.exitCode == expectedExitCode) {
+                        if (result.exitCode in expectedExitCodes) {
                             correctCount++
                             println("All is good: ${testFile.path}")
                         } else {
                             logFailedTest(testFile.relativeTo(File(path)),
                                     AssemblyBehaviourTest.FailureType.OUTPUT_MISMATCH)
-                            println("Mismatch exit code, expected $expectedExitCode, but actual: ${result.exitCode}")
+                            println("Mismatch exit code, expected $expectedExitCodes, but actual: ${result.exitCode}")
                         }
                     } catch (e: Throwable) {
                         if (e is TimeoutException) {
@@ -56,6 +59,7 @@ class ExtensionBehaviourTest {
             var errorMsg = ""
             failedTestsInfo.forEach {(file, cause) -> errorMsg += "$file: $cause\n"}
             println(errorMsg)
+            fail()
         }
     }
 

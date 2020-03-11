@@ -27,9 +27,7 @@ taggedUnion: NEWTYPE capIdent genericTVars? IS UNION (unionEntry SEMICOLON)* END
 
 traitInstance: INSTANCE type COLON trait=capIdent (WHERE constraintList)? IS func+ END;
 
-enumRange: from=expr DOTDOT to=expr                 #rangeFromTo
-         | from=expr COMMA then=expr DOTDOT to=expr #rangeFromThenTo
-         ;
+enumRange: from=expr DOTDOT to=expr;
 
 unaryOp: NOT
        | LEN
@@ -58,6 +56,8 @@ expr: left=expr binop1 right=expr    #exprBinop
     | v=ident DOT m=ident            #exprVarMember
     | ident LPAR argList? RPAR       #exprFuncCall
     | typeConstructor                #exprTypeConstructor
+    | arrayLiter                        #exprArrayLiter
+    | NEWPAIR LPAR expr COMMA expr RPAR #exprNewPair
     | IF cond=expr THEN tr=expr ELSE fl=expr FI #exprIf
     | integer                        #exprInt
     | boolLit                        #exprBool
@@ -95,6 +95,7 @@ stat: SKIP_STAT                                         #skip
     | WHILE expr DO stats? DONE                         #whileLoop
     | FOR (type|VAR)? ident IN enumRange DO stats? DONE #forLoop
     | WHEN expr COLON whenCase* END                     #whenClause
+    | CALL ident LPAR argList? RPAR                     #voidFuncCall
     | BEGIN stats? END                                  #block
     ;
 

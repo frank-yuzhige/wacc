@@ -315,12 +315,15 @@ class RuleContextConverter() {
                 val defType = if (type() == null && VAR() == null) {
                     null
                 } else {
-                    type()?.toAST(typeVars)?: anyType()
+                    type()?.toAST(typeVars)?: BaseType(ANY)
                 }
-                ForLoop(defType, ident().toAST(), enumRange().toAST(), stats().toAST())
+                ForLoop(defType, ident().toAST(), enumRange().from.toAST(), enumRange().to.toAST(), stats().toAST())
             }
             is WhileLoopContext -> WhileLoop(expr().toAST(), stats().toAST())
             is WhenClauseContext -> WhenClause(expr().toAST(), whenCase()?.map { it.toAST() }?: emptyList())
+            is VoidFuncCallContext -> VoidFuncCall(
+                    FunctionCall(ident().text, argList()?.toAST() ?: listOf()).records(start(), end())
+            )
             is BlockContext -> Block(stats().toAST())
             else -> throw IllegalArgumentException("Invalid statement found: ${originalText()}")
         }.records(start(), end())
@@ -364,6 +367,8 @@ class RuleContextConverter() {
             is ExprFuncCallContext -> FunctionCall(ident().text, argList()?.toAST() ?: listOf())
             is ExprTypeConstructorContext -> typeConstructor().toAST()
             is ExprVarMemberContext -> TypeMember(v.toAST(), m.text)
+            is ExprArrayLiterContext -> arrayLiter().toAST()
+            is ExprNewPairContext -> NewPair(expr(0).toAST(), expr(1).toAST())
             else -> {
                 logError(UnknownExprTypeException())
                 NullLit
@@ -394,12 +399,6 @@ class RuleContextConverter() {
     } catch (e: NumberFormatException) {
         logError(IntegerSyntacticException(this.text))
         NullLit
-    }
-
-    private fun EnumRangeContext.toAST(): EnumRange = when(this) {
-        is RangeFromToContext -> EnumRange(from.toAST(), to.toAST())
-        is RangeFromThenToContext -> EnumRange(from.toAST(), then.toAST(), to.toAST())
-        else -> throw IllegalArgumentException("Unknown enum type")
     }
 
     private fun ExprBinopContext.getBinOp(): BinaryOperator {

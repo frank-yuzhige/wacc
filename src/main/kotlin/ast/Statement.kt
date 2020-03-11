@@ -1,7 +1,7 @@
 package ast
 
-import ast.Expression.EnumRange
-import ast.Expression.Identifier
+import ast.Expression.*
+import ast.Type.BaseTypeKind.ANY
 import utils.Statements
 import utils.prettyPrint
 
@@ -67,11 +67,11 @@ sealed class Statement : WaccAST() {
         }
     }
 
-    data class ForLoop(val defType: Type?, val loopVar: Identifier, val range: EnumRange, val body: Statements): Statement() {
+    data class ForLoop(val defType: Type?, val loopVar: Identifier, val from: Expression, val to: Expression, val body: Statements): Statement() {
         override fun tellIdentity(): String = "a for loop"
         override fun prettyPrint(): String {
-            val def= defType?.let { if (defType == Type.anyType()) "var " else "$defType " }?:""
-            return "for ${def}${loopVar.prettyPrint()} in ${range.prettyPrint()} do\n" +
+            val def= defType?.let { if (defType == Type.BaseType(ANY)) "var " else "$defType " }?:""
+            return "for ${def}${loopVar.prettyPrint()} in ${from.prettyPrint()}..${to.prettyPrint()} do\n" +
                     "${body.prettyPrint().prependIndent()}\n" +
                     "done"
         }
@@ -90,6 +90,18 @@ sealed class Statement : WaccAST() {
                     "\nend"
         }
 
+    }
+
+
+
+    data class VoidFuncCall(val function: FunctionCall): Statement() {
+        override fun tellIdentity(): String {
+            return "a no-return function call"
+        }
+
+        override fun prettyPrint(): String {
+            return "call ${function.prettyPrint()}"
+        }
     }
 
     data class Block(val body: Statements) : Statement() {

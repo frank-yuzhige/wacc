@@ -32,7 +32,7 @@ class SymbolTable {
         typedefs += "array" to arrayAttributes()
         typedefs += "pair" to pairAttributes()
         typedefs += "int" to baseTypeAttributes(intType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
-        typedefs += "bool" to baseTypeAttributes(boolType(), "Eq", "Ord", "Show", "Enum", "Read")
+        typedefs += "bool" to baseTypeAttributes(boolType(), "Eq", "Ord", "Show", "Enum")
         typedefs += "char" to baseTypeAttributes(charType(), "Eq", "Ord", "Show", "Num", "Enum", "Read")
         typedefs += "string" to baseTypeAttributes(stringType(), "Eq", "Show")
         traitDefs += Trait("Eq") to TraitAttributes("A", emptySet(), emptyList(), mutableMapOf())

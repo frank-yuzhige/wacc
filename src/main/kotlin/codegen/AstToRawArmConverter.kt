@@ -278,6 +278,35 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 setBlock(lEnd)
             }
 
+            is ForLoop -> inScopeDo {
+                loopVar.ground(currentGrounding)
+                scopeEnterDef(loopVar)
+                val eval = from.toARM().toReg()
+                var varOffset = findVar(loopVar)
+                store(eval, varOffset, sizeof(loopVar.getType()))
+                val fCheck = getLabel("for_check")
+                val fBody = getLabel("for_body")
+                val fEnd = getLabel("for_end")
+                branch(fCheck)
+                setBlock(fBody)
+                body.map { it.toARM() }
+                varOffset = findVar(loopVar)
+                val loopVarValue = load(getReg(), varOffset, sizeof(loopVar.getType()))
+                binop(ADD, loopVarValue, loopVarValue, ImmNum(1))
+                store(loopVarValue, varOffset, sizeof(loopVar.getType()))
+                packBlock(FallThrough)
+
+                setBlock(fCheck)
+                val toEval = to.toARM()
+                val lVar = load(getReg(), findVar(loopVar), sizeof(loopVar.getType()))
+                cmp(lVar, toEval)
+                branch(Condition.LE, fBody)
+                setBlock(fEnd)
+
+            }
+
+            is VoidFuncCall -> function.toARM()
+
             is Block -> inScopeDo { body.map { it.toARM() } }
 
             is WhenClause -> {
@@ -439,7 +468,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                 notifyCompiler(CompilerNotifier.CallerSavePop)
                 mov(getReg(), Reg(0))
             }
-            is EnumRange -> TODO()
         }
     }
 
