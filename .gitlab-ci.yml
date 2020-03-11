@@ -34,6 +34,6 @@ extension_test:
   stage: extension_test
   script:
     - echo "extension test"
-    - ./gradlew test i --tests extension.*
+    - ./gradlew test -i --tests extension.*
   tags:
     - wacc
