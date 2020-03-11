@@ -4,6 +4,7 @@ import codegen.arm.ArmProgram
 import codegen.arm.Instruction
 import codegen.arm.Instruction.*
 import codegen.arm.Instruction.Terminator.*
+import codegen.arm.Operand
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.*
 import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
@@ -19,7 +20,7 @@ class ArmOptimizer {
     enum class PeepholePattern(val patternSize: Int) {
         MULTIPLY_BY_POWER_OF_TWO(5),
         DIVIDE_BY_POWER_OF_TWO(5),
-        LOAD_LARGE_IMM_NUM(3),
+        LOAD_CONSTANT(3),
         REDUNDANT_LOAD_AFTER_STORE(2)
     }
 
@@ -28,40 +29,23 @@ class ArmOptimizer {
     private val patternToFunc: Map<PeepholePattern, (List<Instruction>) -> List<Instruction>> = mapOf(
             PeepholePattern.MULTIPLY_BY_POWER_OF_TWO to ::multiplyByPowerOfTwo,
             PeepholePattern.DIVIDE_BY_POWER_OF_TWO to ::divideByPowerOfTwo,
-            PeepholePattern.LOAD_LARGE_IMM_NUM to ::loadLargeImmNum,
+            PeepholePattern.LOAD_CONSTANT to ::loadConstant,
             PeepholePattern.REDUNDANT_LOAD_AFTER_STORE to ::redundantLoadAfterStore
     )
-
+    private val removedLabels: MutableSet<Label> = mutableSetOf()
     private val MAX_SHIFT = 32
-    var linesReduced = 0
 
     fun doOptimize(armProgram: ArmProgram): ArmProgram {
         val separatedBlocks = separateBlocks(armProgram)
         val nonPreludeBlocks = separatedBlocks.first
         val preludeBlocks = separatedBlocks.second
         val optimizedBlocks = nonPreludeBlocks.map { it.doPeepHoleOptimize() }
-        val usedLabels = optimizedBlocks.flatMap { it.getUsedLabels() }
-                                                   .let { preludeBlocks.getLabelTransitiveClosure(it) }
         return ArmProgram(armProgram.stringConsts,
-                          optimizedBlocks + preludeBlocks.removeUnusedBlocks(usedLabels))
+                          optimizedBlocks + preludeBlocks.removeUnusedBlocks())
     }
 
-    private fun List<InstructionBlock>.removeUnusedBlocks(usedLabels: List<Label>): List<InstructionBlock> =
-            this.filter { usedLabels.contains(it.label).also { used -> if(!used) { linesReduced += it.getInstrCount() } } }
-
-    private fun List<InstructionBlock>.getLabelTransitiveClosure(usedLabels: List<Label>): List<Label> {
-        val result = usedLabels.toMutableList()
-        this.forEach {
-            if (usedLabels.contains(it.label)) {
-                result.addAll(it.getUsedLabels())
-            }
-        }
-        return result
-    }
-
-    private fun InstructionBlock.getUsedLabels(): List<Label> = (this.instructions + this.terminator)
-                    .filter { it is BL || it is B }
-                    .map { ((it as? BL)?.label ?: (it as? B)?.label)!! }
+    private fun List<InstructionBlock>.removeUnusedBlocks(): List<InstructionBlock> =
+            this.filterNot { removedLabels.contains(it.label) }
 
     private fun InstructionBlock.doPeepHoleOptimize(): InstructionBlock {
         val optimizedInstrs: MutableList<Instruction> = this.instructions.toMutableList()
@@ -83,7 +67,6 @@ class ArmOptimizer {
                                 optimized = true
                                 changed = true
                                 index += instrs.size
-                                linesReduced += (instrs.size - it.size)
                             }
                         }
                     } else {
@@ -140,7 +123,7 @@ class ArmOptimizer {
             val power = log(num.toDouble(), 2.toDouble()).toInt()
             if (power < MAX_SHIFT) {
                 listOf(Lsl(Condition.S, dest, dest, ImmNum(power)),
-                        BL(Condition.E, Label("p_overflow_error"))) + instr4
+                       BL(Condition.E, Label("p_overflow_error"))) + instr4
             } else { emptyList() }
         } else { emptyList() }
     }
@@ -175,36 +158,47 @@ class ArmOptimizer {
             val dest: Register = ((instr0 as? Mov)?.opr ?: (instr0 as Ldr).opr) as Register
             val power= log(num.toDouble(), 2.toDouble()).toInt()
             if (power < MAX_SHIFT) {
+                removedLabels += Label("p_check_div_by_zero")
                 listOf(Lsr(dest, dest, ImmNum(power)))
             } else { emptyList() }
         } else { emptyList() }
     }
 
-    private fun loadLargeImmNum(instrs: List<Instruction>): List<Instruction> {
+    private fun loadConstant(instrs: List<Instruction>): List<Instruction> {
         /**
          * Pattern:
+         * 0: MOV rn, #n       0: MOV rn, #n
+         * 1: MOV rx, rn  or   1: MOV rx, rm
+         * 2: MOV ry, rm       2: MOV ry, rn
+         *
          * 0: LDR rn, =n       0: LDR rn, =n
          * 1: MOV rx, rn  or   1: MOV rx, rm
          * 2: MOV ry, rm       2: MOV ry, rn
+         * where n is a constant
          */
         var satisfied = true
         val instr0 = instrs[0]
-        var num = ImmNum(0)
+        var opr: Operand = ImmNum(0)
         var tempReg= Reg(0)
-        satisfied = if (instr0 is Ldr && instr0.dest is Reg && instr0.opr is ImmNum) {
-            num = instr0.opr
-            tempReg = instr0.dest
+        satisfied = if ((instr0 is Ldr && instr0.dest is Reg) ||
+                        (instr0 is Mov && instr0.dest is Reg)) {
+            opr = ((instr0 as? Mov)?.opr ?: (instr0 as? Ldr)?.opr) as Operand
+            tempReg = ((instr0 as? Mov)?.dest ?: (instr0 as? Ldr)?.dest) as Reg
             true
         } else { false }
 
         val instr1 = instrs[1]
         if (satisfied && (instr1 is Mov && instr1.opr == tempReg)) {
-            return listOf(Ldr(Condition.AL, instr1.dest, num), instrs[2])
+            return if (instr0 is Ldr) listOf(Ldr(Condition.AL, instr1.dest, opr), instrs[2]) else
+                                      listOf(Mov(Condition.AL, instr1.dest, opr), instrs[2])
+        } else {
+            satisfied = satisfied && (instr1 is Mov && instr1.opr == tempReg)
         }
 
         val instr2 = instrs[2]
         if (satisfied && (instr2 is Mov && instr2.opr == tempReg)) {
-            return listOf(instr1, Ldr(Condition.AL, instr2.dest, num))
+            return if (instr0 is Ldr) listOf(instr1, Ldr(Condition.AL, instr2.dest, opr)) else
+                                      listOf(instr1, Mov(Condition.AL, instr2.dest, opr))
         }
         return emptyList()
     }
@@ -212,8 +206,8 @@ class ArmOptimizer {
     private fun redundantLoadAfterStore(instrs: List<Instruction>): List<Instruction> {
         /**
          * Pattern:
-         * 0: LDR rn, [offset]
-         * 1: STR rn, [offset]
+         * 0: STR rn, [offset]
+         * 1: LDR rn, [offset]
          */
         var satisfied = true
         val instr0 = instrs[0]
@@ -240,7 +234,7 @@ class ArmOptimizer {
         if (arm.blocks.size == 1) {
             return arm.blocks to emptyList()
         }
-        var separationIndex = arm.blocks.size - 1
+        var separationIndex = arm.blocks.size
         for ((index, instrBlock) in arm.blocks.withIndex()) {
             if (instrBlock.label.name.startsWith("p_")) {
                 separationIndex = index
@@ -249,146 +243,4 @@ class ArmOptimizer {
         }
         return arm.blocks.subList(0, separationIndex) to arm.blocks.subList(separationIndex, arm.blocks.size)
     }
-
-    /**
-     * Performs liveness analysis on the given code block
-     */
-    /*
-    private fun InstructionBlock.performLivenessAnalysis() {
-        var currLiveness: LivenessList = blockLivenessMap[this.label.name]!!
-        var preLiveness: LivenessList
-        do {
-            preLiveness = clone(currLiveness)
-            analyze(currLiveness)
-        } while (currLiveness != preLiveness)
-    }
-    */
-
-    private fun analyze(livenessList: LivenessList) {
-        livenessList.forEachIndexed { i, (instr, liveness) ->
-            if (instr is Str && instr.dst is Offset && instr.dst.src == SpecialReg(SP)) {
-                regToOffsetMap[instr.dst] = instr.src
-            }
-            if (!instr.isVarDefInstr()) {
-                // LiveIn(n) = uses(n) U (LiveOut(n) - defs(n))
-                liveness.liveIn().clear()
-                liveness.liveIn().addAll(
-                        instr.uses().toMutableSet() + (liveness.liveOut() - instr.defs().toMutableSet()))
-
-                // LiveOut(n) = U (s belongs to succ(n)) LiveIn(s)
-                liveness.liveOut().clear()
-                val liveOut = getSuccessors(i, livenessList).flatMap { it.second.liveIn().also { it } }
-                liveness.liveOut().addAll(liveOut)
-            }
-        }
-    }
-
-    /**
-     * Remove dead code if the instruction node satisfies the following condition:
-     * There is only one virtual register in the defs set of the instruction node and
-     * the virtual register defined is not in the liveOut set.
-     */
-    private fun InstructionBlock.sweepDeadCode(): InstructionBlock {
-        val currLivenessList = blockLivenessMap[this.label.name]!!
-        val filteredInstrs: MutableList<Instruction> = mutableListOf()
-        var isDeadCodeMarker = true
-        this.instructions.forEachIndexed { index, instr ->
-            if (instr.isCritical()) {
-                filteredInstrs += instr
-            } else {
-                if (instr.isDiscreteInstr()) {
-                    isDeadCodeMarker = isDeadCode(index, currLivenessList)
-                }
-                if (!isDeadCodeMarker) {
-                    filteredInstrs += instr
-                }
-            }
-        }
-        return InstructionBlock(this.label, filteredInstrs, this.terminator, this.tails)
-    }
-
-    private fun isDeadCode(index: Int, livenessList: LivenessList): Boolean {
-        val defs = livenessList[index].first.defs()
-        return defs.size == 1 && !livenessList[index].second.liveOut().contains(defs[0])
-    }
-
-    private fun dumpLivenessMap() {
-        val blocks = blockLivenessMap.map { (label, livenessList) ->
-            val body = "$label:\n"
-            val tp = TablePrinter("#", "Instruction", "LiveIn", "LiveOut").markIntColumn(0).sortBy(0)
-            livenessList.mapIndexed{ i, (instr, liveness) ->
-                tp.addColumn(i, instr.toString(), liveness.first, liveness.second)
-            }
-            body + tp.print()
-        }
-        println(blocks.joinToString("\n"))
-    }
-
-    private fun Liveness.liveIn(): MutableSet<Register> = this.first
-    private fun Liveness.liveOut(): MutableSet<Register> = this.second
-
-    private fun Instruction.isVarDefInstr(): Boolean = (this is Str && this.dst is Offset)
-
-    private fun Instruction.isDiscreteInstr(): Boolean =
-            !(this.usedReservedRegs() || (this is Terminator) || this.isVarDefInstr())
-
-    private fun Instruction.usedReservedRegs(): Boolean =
-            this.defs().union(this.uses()).intersect(reservedRegs() + SpecialReg(SP)).isNotEmpty()
-
-    private fun Instruction.isParameterPassing(): Boolean =
-            this.defs().size == 1 && this.defs().intersect(reservedRegs()).isNotEmpty()
-
-    private fun Instruction.isCritical(): Boolean = when(this) {
-        is Add -> this.dest == SpecialReg(SP) && this.rn == SpecialReg(SP)
-        is Sub -> this.dest == SpecialReg(SP) && this.rn == SpecialReg(SP)
-        is Push -> this.regList.size == 1 && this.regList[0] == SpecialReg(LR)
-        else -> false
-    }
-
-    private fun Instruction.defs(): List<Register> = when(this) {
-        is Str -> if (this.isVarDefInstr()) {
-            listOf(this.src)
-        } else { this.getDefs() }
-        is Add -> if (this.dest == SpecialReg(SP)) { emptyList() } else {this.getDefs() }
-        else -> this.getDefs()
-    }
-
-    private fun Instruction.uses(): List<Register> = when(this) {
-        is Ldr -> if (this.isVarDefInstr()) {
-            listOf(regToOffsetMap[this.opr]!!)
-        } else { this.getUses() }
-        is Add -> if (this.dest in reservedRegs() && this.rn == SpecialReg(SP) && this.opr is ImmNum) {
-            regToOffsetMap[Offset(SpecialReg(SP), (this.opr as ImmNum).num)]?.let { listOf(it) } ?: this.getUses()
-        } else if (this.dest == SpecialReg(SP)) { emptyList() } else { this.getDefs() }
-        else -> this.getUses()
-    }
-
-    /**
-     * Obtains the successors of a instruction
-     */
-    private fun getSuccessors(index: Int, livenessList: LivenessList): List<Pair<Instruction, Liveness>> {
-        for (i in index + 1 until livenessList.size) {
-            if (livenessList[i].first.isDiscreteInstr() || livenessList[i].first.isParameterPassing()) {
-                return listOf(livenessList[i])
-            }
-        }
-        return emptyList()
-    }
-
-    private fun clone(originalList: List<Instruction>): MutableList<Instruction> {
-        val newList = mutableListOf<Instruction>()
-        for (instr in originalList) {
-            newList.add(instr)
-        }
-        return newList
-    }
-
-    private fun InstructionBlock.initialize() {
-        val livenessList: LivenessList = mutableListOf()
-        this.instructions.forEach {
-            livenessList += it to (mutableSetOf<Register>() to mutableSetOf())
-        }
-        blockLivenessMap[this.label.name] = livenessList
-    }
-
 }

@@ -12,6 +12,8 @@ import utils.RESET
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
+import java.math.RoundingMode
+import kotlin.math.round
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
@@ -90,24 +92,35 @@ fun main(args: Array<String>) {
     println(ast.prettyPrint())
     sa.symbolTable.dump()
     println("===========")
+    var originalAst = ast.copy()
     if (optLevel >= 0) {
         val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
         ast = astOptimizer.doOptimize(ast)
     }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
-    println(arm.toString())
     var betterArm = RegisterAllocator(arm).run()
-    if (debug) {
-        println("=== Improved ARM ===")
-        println(betterArm)
-    }
+    println("=== Improved ARM ===")
+    println(betterArm.printWithIndex())
     if (optLevel > 1) {
         val armOptimizer = ArmOptimizer()
         betterArm = armOptimizer.doOptimize(betterArm)
         println("\n=== Code After Peephole Optimization ===")
-        println(betterArm.toString())
+        println(betterArm.printWithIndex())
     }
-    println(betterArm.toString())
+    if (optLevel >= 0) {
+        var originalArm = AstToRawArmConverter(originalAst, sa.symbolTable).translate().export()
+        originalArm = RegisterAllocator(originalArm).run()
+        val originalLineCount = originalArm.blocks.foldRight(0, {
+            block, total -> block.getInstrCount() + total
+        })
+        val optimizedLineCount = betterArm.blocks.foldRight(0, {
+            block, total -> block.getInstrCount() + total
+        })
+        val lineReductionCount = originalLineCount - optimizedLineCount
+        println("Reduced a total of $lineReductionCount lines of code")
+        println("Optimization rate:" + "${(lineReductionCount / originalLineCount.toDouble())
+                .toBigDecimal().setScale(3, RoundingMode.HALF_EVEN)}")
+    }
     val output = File(asmPath)
     output.writeText(betterArm.toString())
 
