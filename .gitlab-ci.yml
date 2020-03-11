@@ -1,7 +1,7 @@
 stages:
   - build
-#  - front_end_test
-#  - back_end_test
+  - front_end_test
+  - back_end_test
   - extension_test
 
 build:
