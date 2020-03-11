@@ -1,0 +1,14 @@
+begin
+
+newtype Unit<X> is
+    X value;
+end
+
+Unit<int>[] unitInts = [Unit(1), Unit(100)];
+Unit<char>[] unitChars = [Unit('S'), Unit('B')];
+Unit<string>[] unitStrings = [Unit("hello"), Unit("world")];
+
+var unitUnits = [unitInts, unitChars];
+
+
+end

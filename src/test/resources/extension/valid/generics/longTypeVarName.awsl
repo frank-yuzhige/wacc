@@ -1,0 +1,10 @@
+begin
+
+newtype X<IAmAVeryLongTypeVariableNameHohohohahaha> is
+    IAmAVeryLongTypeVariableNameHohohohahaha hahaha;
+end
+
+X<int> x = X(100);
+println x.hahaha;
+
+end
