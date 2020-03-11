@@ -1,0 +1,13 @@
+begin
+
+newtype Copy is
+    int value;
+end
+
+newtype Copyable is union
+    Copy of (char value);
+end
+
+exit 0;
+
+end

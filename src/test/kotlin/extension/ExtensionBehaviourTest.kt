@@ -17,7 +17,7 @@ class ExtensionBehaviourTest {
     fun valids() = testAll("src/test/resources/extension/valid/", setOf(0))
 
     @Test
-    fun invalids() = testAll("src/test/resources/extension/invalid/", setOf(200))
+    fun invalids() = testAll("src/test/resources/extension/invalid/", setOf(100, 200))
 
     fun testAll(path: String, expectedExitCodes: Set<Int>) {
         var correctCount = 0
