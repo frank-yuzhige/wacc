@@ -12,7 +12,7 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{pifont}
-
+\usepackage{appendix}
 \usepackage{xparse}
 
 \newenvironment{tabularverbatim}
@@ -84,7 +84,6 @@
   would otherwise be neglected if we had programmed alone. Secondly, debugging
   was much more efficient since logical errors could be found more easily when
   two people discussed and communicated their ideas.
-
   For the last milestone, we decided to implement each new extension features
   separately, due to the fact that most features are standalone and independent
   of others. However, this did lead to an obvious issue, which is that the
@@ -195,6 +194,14 @@
   per the semantics of AWSL.
 
   \subsection*{4.2. Code Generation Optimizations}
+  We implemented both constant folding and constant propagation on the AST level
+  as opposed to the conventional intermediate representation level. We opted for
+  this approach since our intermediate representation for backend is not in the
+  form of three-address code or SSA and switching from our original
+  implementation to a more convenient IR was proven to be too costly. As a
+  result, most of the optimizations were done by reconstructing the AST, and
+  some of the more sophisticated optimizations such as dead code elimination and
+  loop invariant code motion were not implemented.
   \subsubsection*{4.2.1	Constant Folding}
   Constant folding is done by traversing through the AST and evaluating binary operations as well as unary operations that contain only constants.
   The compiler evaluates and simplifies these expressions to constant values before code generation.
@@ -232,5 +239,187 @@
   AWSL. If more time was given, we would possibly re-design the backend to use
   SSA (e.g. TAC) as our IR so that more optimization options such as dead code
   elimination would be easier to implement.
-  
+
+  \appendixpage
+
+  \subsubsection*{4.2.1 Constant Folding}
+  \begin{center}
+    \begin{tabular} {| m{5cm} | m{5cm} |}
+      \hline
+      Before Constant Folding & After Constant Folding \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = (1 + 2) * 3
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int x = 9
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+bool b = true && false 
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+bool b = false 
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = 10;
+if (x < 2 * 6) then
+  println 1
+else
+  println 2
+fi
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int x = 10;
+if (x < 12) then
+  println 1
+else
+  println 2
+fi
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+  \subsubsection*{4.2.2 Constant Propagation}
+  \begin{center}
+    \begin{tabular}{| m{5cm} | m{5cm} |}
+      \hline
+      Before Constant Propagation & After Constant Propagation \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = 1;
+int y = x + 3
+
+      \end{tabularverbatim}
+       &
+      \begin{tabularverbatim}
+int x = 1; 
+int y = 4
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+      
+int x = 12;
+if (x == 12) then
+  println "x is 12"
+else
+  println "x is not 12"
+fi
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+println "x is 12"
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+int i = 0;
+while (i < 10) do
+  i = i + 1
+done;
+println i
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int i = 0;
+println i
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+
+  \subsubsection*{4.2.3 Peephole optimization}
+  \begin{center}
+    \begin{tabular}{| m{3cm} | m{4cm} | m{4cm} |}
+      \hline
+      pattern & before optimization & after optimization \\
+      \hline
+      multiply by a number that is power of two &
+      \begin{tabularverbatim}
+
+mov rn, #n
+smull rm, rn, rm, rn
+cmp rn, rm, asr #31
+blne p_overflow_error
+str rm, [offset]
+
+      \end{tabularverbatim}
+      \newline
+      where n is an integer power of 2
+      &
+      \texttt{lsls rm, rm \#$(\log_2 n)$}
+      \newline
+      \texttt{ble} \verb|p_overflow_error|
+      \newline
+      \texttt{str rm,} \verb|[offset]|
+      \\
+      \hline
+      divide by a power of 2 &
+      \begin{tabularverbatim}
+
+mov r0, rm
+mov r1, #n
+bl p_check_div_by_zero
+bl __aeabi_idiv
+mov rx, r0
+ 
+      \end{tabularverbatim}
+      \newline
+      where n is an integer power of 2
+      &
+      \texttt{lsr rm, rm, \#$(\log_2 n)$}
+      \\
+      \hline
+      load a constant as an argument &
+      \begin{tabularverbatim}
+
+mov rn #n
+mov r0 rn
+ 
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+mov r0 #n
+
+      \end{tabularverbatim}
+      \\
+      \hline
+      redundant load after store &
+      \begin{tabularverbatim}
+
+str rn, [offset]
+ldr rn, [offset]
+
+      \end{tabularverbatim}
+      \newline
+      where the two offsets are the same
+      &
+      \begin{tabularverbatim}
+str rn, [offset]
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
 \end{document}
