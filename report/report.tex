@@ -4,7 +4,7 @@
 \usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{color, soul}
-
+\usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{listings}
 
@@ -22,13 +22,7 @@
   \section*{WACC Project Report}
 
 
-  \subsection*{1. The Final Product}
-  \textit{An analysis and critical evaluation of the quality of the WACC compiler
-  have built. You should consider both whether it meets the functional
-  specification of the project and whether you judge that it forms a sound basis
-  for future development. You may also wish to address the performance
-  characteristics of your compiler.}
-
+  \subsection*{1 The Final Product}
   We deemed our implementation of the WACC compiler to have completed the
   functional requirements of the specification to a satisfactory degree, as
   evidenced by the test results, in addition to which we also included
@@ -47,14 +41,51 @@
   \hl{Performance characteristics of our compiler?}
 
 
-  \subsection*{2. Project Management}
-  \textit{An analysis of the organization of your group and your use of project
-  management tools (such as Git). You should describe how your group was
-  structured, how you coordinated your work and detail any tools that
-  helped/hindered your progress. You should also discuss what went well and what
-  you would do differently if you were to do the lab again.}
+  \subsection*{2 Project Management}
+  \subsubsection*{2.1 Work Distribution}
+  The work distribution of the first two milestones in our group is quite different 
+  from that of the last. After discussing, we noticed that for the frontend as well
+  as backend, most of the tasks had to be done sequentially as opposed to in parallel. 
+  For instance, syntax analysis for the compiler would have to be implemented before 
+  semantics analysis. Hence, we did pair programming as opposed to working separately 
+  and merging all the code in the end. We would often have productive programming 
+  sessions during the week and even over weekends. In each session, two people in the 
+  group would meet up and work on new features together, with one person typing and the 
+  other observing, and we would constantly switch roles. The advantages this technique 
+  brings is evident. Firstly, this led to more optimal design choices as the person 
+  that we worked with could often notice flaws or code that could be improved, which 
+  would otherwise be neglected if we had programmed alone. Secondly, debugging was much 
+  more efficient since logical errors could be found more easily when two people 
+  discussed and communicated their ideas.\\
+  For the last milestone, we decided to implement each new extension features separately, 
+  due to the fact that most features are standalone and independent of others. However, 
+  this did lead to an obvious issue, which is that the details of implementation of a new 
+  feature are only known to the group member who worked on it. Despite the drawback, 
+  working separately allowed us to incoporate more features in a wide range of areas.
 
-  \subsection*{3. Design Choices and Implementation Details}
+  \subsubsection*{2.2 Use of Tools}
+  Git was used extensively throughout the project. It primarily served the purpose 
+  of creating and keeping track of branches for tentative features that were yet to 
+  be implemented correctly. For instance, new branches were initiated for each new 
+  extension feature we were planning to incorporate. Testing was mainly performed 
+  locally as opposed to on Git since we had some troubles installing the required 
+  packages for testing on our Gitlab runner.\\
+  Gradle is another tool which facilitated our project apart from Git. In the beginning,
+  we put a lot of effort into configuring Gradle properly, and it was frustrating and 
+  quite time-consuming. Once set up correctly, the incremental builds provided by Gradle 
+  made building and testing our code much quicker.
+
+  \subsubsection*{2.3	Adjustments for the Future}
+  There are a few aspects that can be improved regarding work distribution and communication
+   in the last milestone. Firstly, the overlap between new language features and 
+   optimizations for code generation was not dealt with properly, which caused corresponding 
+   optimizations not to be implemented for some extension features, such as \keyword{trait} and 
+   \keyword{newtype}. Therefore, our planning will need to be more thorough in the future. 
+   Secondly, the details of implementation in our independent work will have to be communicated 
+   to every group member so that less confusion will be caused when trying to modify or debug 
+   someone else’s code.
+
+  \subsection*{3 Design Choices and Implementation Details}
   \textit{An analysis of the design choices that your made during the WACC
   project, including your implementation and language and tool choices (with
   justifications), and any interesting issues you had to overcome during the
@@ -64,37 +95,36 @@
   discussion.}\\
   Before we started our implementation, we did some research over several candidate languages, and we chose Kotlin because it is
   fully interoperable with the Java code generated by Antlr, and its more concise syntax, compared with Java, can reduce the amount 
-  of boilerplate code. The project build tool we chose is Gradle, since it is the most popular and stable Kotlin project builder.
-
+  of boilerplate code.\\
   The general structure of our design is similar to the classical compiler's structure: the parser parses the input file and generates
   an abstract syntax tree(AST). The AST is traversed by the semantic analyzer to check for errors and generate a symbol table.
   Then the code generator takes the AST and the symbol table, produces a list of intermediate representation of ARM instructions.
   However, all registers in the IR are not real registers, and it does not contain any push or pop to normal registers. Thus, before the
   final code emission, a register allocator is responsible for scanning through the generated ARM instructions, unify each virtual 
-  register to real registers and insert push and pop instructions where necessary.
+  register to real registers, insert push and pop instructions where necessary, and recalculates SP's offset.\\
 
   // TODO: design patterns
 
-  \subsection*{4. Beyond the Specification}
+  \subsection*{4 Beyond the Specification}
   We have designed several language extensions to the vanilla WACC language, and named our new language AWSL (acronym for "Another WACC-Style Language").
   A number of backend improvements on code generation are also added to our compiler to generate more efficient code.
-  \subsection*{Language Extensions}
+  \subsection*{4.1 Language Extensions}
 
-  \subsubsection*{0. Basic Syntax and Semantics Improvements}
+  \subsubsection*{4.1.1 Basic Syntax and Semantics Improvements}
   AWSL has several improvements in the basic syntax and semantics compared with vanilla WACC. Statements in AWSL are separated and optionally
   ended with semicolons. The \keyword{call} keyword for a function call is optional. Function calls, array literals and newpair constructors 
   are treated as normal expressions. Direct-call statement is also added to AWSL, in case when the user wants to call a function and does not
   care about the return value of it.
 
-  \subsubsection*{1. Constants}
+  \subsubsection*{4.1.2 Constants}
   Any variables defined with \keyword{const} is said to be constant. Any attempt to write to a constant results in a semantic error being thrown at compile time.
   However, write to any member of a const struct or any member of a const array is valid. 
 
-  \subsubsection*{2. Extra Conditional Control Flow}
+  \subsubsection*{4.1.3. Extra Conditional Control Flow}
   AWSL provides support to several extra conditional control flow statements/expression, including multi-case if-statements, if-statements
   without else branch, for-loops, when-clauses (see union types) and ternary if-expressions. 
 
-  \subsubsection*{3. User-defined Struct Types, Tagged Union Types and When-clause}
+  \subsubsection*{4.1.4. User-defined Struct Types, Tagged Union Types and When-clause}
   AWSL allows users to define their own types. User may either defined a simple struct type, or a tagged union type.\\
   A struct type, just like \simplecode{struct} in C, contains one or several members. Each member of a struct is mutable and
   direct-accessable via \simplecode{<variable>.<member_name>}.\\
@@ -104,7 +134,7 @@
   Each definition of a struct type and each tag of any union type implicitly generates a constructor function, shares the same name aspect
   the corresponding struct type or union tag.
 
-  \subsubsection*{4. Generics and Traits}
+  \subsubsection*{4.1.5. Generics and Traits}
   Generical types are also allowed in AWSL. A definition of type \simplecode{List<A>} allows user to define any variable/expression 
   of type \simplecode{List<int>}, \simplecode{List<bool>}, \simplecode{List<List<pair(int, char)>>}, etc.\\
   Trait is an important aspect of AWSL. A type is deemed to be an instance of a Trait, provided that all relevant implementations of
@@ -113,7 +143,7 @@
   which implements certain traits (or no trait) instead of a concrete type. This provides a better abstraction of the code and 
   drastically increases the code reusability. 
 
-  \subsubsection*{5. Type Inference}
+  \subsubsection*{4.1.6. Type Inference}
   Instead of direct type-checking, AWSL performs type-inference for expressions to validate their types. During semantic analysis, the
   compiler traverses through each sub-expression of the expression, and try to infer a type meets the expectation for it. 
   It is crucial that each expression in AWSL must be deduced to either a ground type or contains a type variable that is defined in the 
@@ -121,11 +151,48 @@
   The type-inference feature of AWSL allows users to not specify the type of the variable on its declaration. In such case the compiler would 
   attempt to infer the type of the variable from the rhs expression.
 
-  \subsubsection*{6. Full Pair Type}
+  \subsubsection*{4.1.7. Full Pair Type}
   In AWSL, nested pair types do not lose any type information. To make AWSL more compatible to vanilla WACC, \keyword{pair} in AWSL represents
   a pair type with both of its elems' types being implicit. Notice that the semantic meaning of \keyword{pair} in AWSL differs from that in WACC. 
   When \keyword{pair} is appeared in the function header, it is impossible to deduce any type information about either element of that pair as 
   per the semantics of AWSL.
+
+  \subsection*{4.2. Code Generation Optimizations}
+  \subsubsection*{4.2.1	Constant Folding}
+  Constant folding is done by traversing through the AST and evaluating binary operations as well as unary operations that contain only constants.
+  The compiler evaluates and simplifies these expressions to constant values before code generation.
+  \subsubsection*{4.2.2	Constant Propagation}
+  Similar to constant folding, our implementation of constant propagation traverses through the AST and simplifies each node. However, instead of 
+  only evaluating expressions that consist of only constants, we record the values assigned to each variable, substitute its value into
+  an operation if applicable and propagate through the whole program. However, substitution will not be peformed in a situation where the value of 
+  a variable cannot be determined. In addition, loops and conditional statements are also optimized in such a manner so as to guarantee that the 
+  post conditions of these statements are defined correctly.
+  \subsubsection*{4.2.3	Peephole Optimization}
+  Unlike the previous techniques, the peephole optimization is done on the intermediate representation of the ARM assembly, so that certain patterns
+  can be clearly identified and optimized. The algorithm is rather simple as it goes through the instructions line by line and try to determine which 
+  optimizable pattern matches the current instructions.
+
+  \subsection*{4.3 WACC IDE for Visual Studio Code}
+  Since WACC is a language designed purely for academic purposes for the compiler course, we could not find tools to help users code in WACC. Hence, 
+  our group decided to build an IDE to help programmers code in WACC more efficiently. Since it would be too costly to create one from scratch and 
+  it would not be easy to popularize the tool, we opted for VS Code as a platform to develop and deploy our WACC IDE. To start, we created syntax 
+  highlighting for WACC. Then, we utilized the sample language server for VS Code extension development as a basis for our IDE, and gradually customized 
+  the server according to the specifications of the WACC language. The core of the IDE is our own WACC compiler, as we parsed the output from the compiler 
+  and generated code diagnostics based on those. In addition, the users could also execute the WACC file directly in VS Code. Since it was difficult to 
+  append an ARM assembly emulator to the extension, we took advantage of the provided reference emulator script. Thus, every time a file is to be executed, 
+  it will first be compiled into assembly by our compiler, then the assembly code is sent to the reference compiler. Lastly, the language server parses the 
+  output generated by the emulator and displays the messages in VS Code. The IDE currently has four main features, which are syntax highlighting, syntax 
+  and semantic diagnostics, auto completion and code execution. It has to be noted that the IDE only supports the most basic WACC language with no other 
+  features added. We decided not to include our own features as we thought it would be better for the IDE to be an opensource project which everyone can 
+  customize and distribute according to their own flavour of WACC. Link to the extension: 
+  \url{https://marketplace.visualstudio.com/items?itemName=YiningShen.wacc-language-support}
+
+  \subsection*{4.4 Ideas for future extensions}
+  Due to the time limit, some of the cool features we came up when designing AWSL were axed. For instance, AWSL does not support creating and importing modules,
+  and as a consequence, it does not have a standard library. Higher order functions was also a language extesnion we expected to implement for AWSL.
+  If more time was given, we would possibly re-design the backend to use SSA (e.g. TAC) as our IR so that more optimization options such as dead code elimination 
+  would be easier to implement.
+
 
 
 \end{document}
