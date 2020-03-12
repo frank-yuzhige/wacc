@@ -84,7 +84,7 @@ class SymbolTable {
             is NewTypeDef.UnionTypeDef -> {
                 val entry = typedefs[def.type.name]
                 if (entry != null) {
-                    throw MultipleFuncDefException("def.name()", def.type, entry.index)
+                    throw MultipleTypeDefException(def.type.name, entry.index)
                 }
                 if (def.memberMap.isEmpty()) {
                     throw TypeDefEmptyBodyException(def.type)

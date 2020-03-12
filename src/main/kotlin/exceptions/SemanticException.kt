@@ -32,6 +32,10 @@ open class SemanticException(val msg: String) : Exception(msg) {
     class MultipleFuncDefException(function: String, type: Type, index: Index) :
             SemanticException("Function \"$function :: $type\" has already been defined at $index!")
 
+    class MultipleTypeDefException(type: String, index: Index):
+            SemanticException("Type \"$type\" has already been defined at $index!")
+
+
     class TypeMismatchException(expected: Type, actual: Type) :
             SemanticException(typeMismatchError(expected, actual))
 
