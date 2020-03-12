@@ -444,10 +444,10 @@ STR rn, [offset]
   struct type, or a tagged union type.
 
   A struct type, just like \simplecode{struct} in C, contains one or several
-  members. Each member of a struct is mutable and direct-accessable via
+  members. Each member of a struct is mutable and direct-accessible via
   \simplecode{<variable>.<member_name>}.
 
-  A union type, just like ADTs in haskell, is defined by tags and each tag's
+  A union type, just like ADTs in Haskell, is defined by tags and each tag's
   members. Any direct access to a member of a union is invalid as this operation
   is unsafe (hence each member of a union is implicitly immutable). The only way
   to get value of any member from a union is via a when-clause, which
@@ -458,7 +458,7 @@ STR rn, [offset]
   corresponding struct type or union tag.
 
   \subsubsection*{4.3.5. Generics and Traits}
-  Generical types are also allowed in AWSL. A definition of type
+  Generic types are also allowed in AWSL. A definition of type
   \simplecode{List<A>} allows user to define any variable/expression of type
   \simplecode{List<int>}, \simplecode{List<bool>},
   \simplecode{List<List<pair(int, char)>>}, etc.
@@ -487,7 +487,7 @@ STR rn, [offset]
   \subsubsection*{4.3.7. Full Pair Type}
   In AWSL, nested pair types do not lose any type information. To make AWSL more
   compatible to vanilla WACC, \keyword{pair} in AWSL represents a pair type with
-  both of its elems' types being implicit. Notice that the semantic meaning of
+  both of its elements' types being implicit. Notice that the semantic meaning of
   \keyword{pair} in AWSL differs from that in WACC. When \keyword{pair} is
   appeared in the function header, it is impossible to deduce any type
   information about either element of that pair as per the semantics of AWSL.
@@ -501,7 +501,7 @@ STR rn, [offset]
   Due to the time limit, some of the cool features we came up when designing
   AWSL were axed. For instance, AWSL does not support creating and importing
   modules, and as a consequence, it does not have a standard library. Higher
-  order functions was also a language extesnion we expected to implement for
+  order functions was also a language extension we expected to implement for
   AWSL. If more time was given, we would possibly re-design the backend to use
   SSA (e.g. TAC) as our IR so that more optimization options such as dead code
   elimination would be easier to implement.
