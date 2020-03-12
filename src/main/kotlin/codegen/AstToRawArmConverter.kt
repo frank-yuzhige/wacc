@@ -172,29 +172,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             is Assignment -> {
                 lhs.ground(currentGrounding)
                 val reg = rhs.toARM().toReg()
-                when (lhs) {
-                    is Identifier -> {
-                        val size = sizeof(lhs.getType())
-                        store(reg, findVar(lhs), size)
-                    }
-                    is ArrayElem -> {
-                        val dstOffset = getLhsAddress(lhs)
-                        val size = sizeof(lhs.arrIdent.getType().unwrapArrayType()!!)
-                        store(reg, dstOffset, size)
-                    }
-                    is PairElem -> {
-                        val offset = getLhsAddress(lhs)
-                        val size = sizeof(lhs.getType())
-                        val ptr = getReg()
-                        load(ptr, offset)
-                        store(reg, Offset(ptr), size)
-                    }
-                    is TypeMember -> {
-                        val offset = getLhsAddress(lhs)
-                        val size = sizeof(lhs.getType())
-                        store(reg, offset, size)
-                    }
-                }
+                val offset = getLhsAddress(lhs)
+                val size = sizeof(lhs.getType())
+                store(reg, offset, size)
             }
 
             is Read -> callScanf(target)
