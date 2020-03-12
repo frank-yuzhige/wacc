@@ -39,6 +39,9 @@ sealed class SyntacticException(var msg: String) : Exception() {
     class MultipleTVarsWithSameNameException:
             SyntacticException("Found multiple type variables with the same name!")
 
+    class SameTagException(tagName: String):
+            SyntacticException("Found duplicated tag: $tagName!")
+
     class AntlrParserGivenException(antlrMsg: String) :
             SyntacticException("Parse Error $antlrMsg")
 

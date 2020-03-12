@@ -1,0 +1,15 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+
+A f(B b) where A: Pure, B: Pure is
+    return b;
+end
+
+exit 0;
+
+
+end

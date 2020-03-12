@@ -17,10 +17,7 @@ import exceptions.SyntacticException
 import exceptions.SyntacticException.*
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.misc.Interval
-import utils.EscapeCharConverter
-import utils.Index
-import utils.Parameter
-import utils.Statements
+import utils.*
 import java.util.*
 
 class RuleContextConverter() {
@@ -231,7 +228,6 @@ class RuleContextConverter() {
     }
 
     private fun NewTypeContext.toAST(typeVars: Set<String>): Type {
-        val str = capIdent().text
         return if (capIdent().text in typeVars) {
             TypeVar(capIdent().text, emptyList(), false) // add traits later
         } else {
@@ -240,11 +236,12 @@ class RuleContextConverter() {
     }
 
     private fun NewTypeDefContext.toAST(): NewTypeDef {
+        stack.push(this)
         return when {
             structType() != null -> structType().toAST()
             taggedUnion() != null -> taggedUnion().toAST()
             else -> throw IllegalArgumentException("Unknown new type def")
-        }
+        }.also { stack.pop() }
     }
 
     private fun TaggedUnionContext.toAST(): NewTypeDef {
@@ -252,10 +249,15 @@ class RuleContextConverter() {
             UnionTypeDef(this.capIdent().text)
         } else {
             val typeVars = this.genericTVars()?.toAST() ?: emptyList()
+            val tagEntries = this.unionEntry().map { it.toAST(typeVars.toSet()) }
+            val dupTags = tagEntries.map { it.first }.countDuplicates()
+            if(dupTags.isNotEmpty()) {
+                logError(SameTagException(dupTags.keys.first()))
+            }
             UnionTypeDef(
                     this.capIdent().text,
                     typeVars,
-                    this.unionEntry().map { it.toAST(typeVars.toSet()) }.toMap()
+                    tagEntries.toMap()
             ).records(start(), end())
         }
     }
@@ -457,6 +459,7 @@ class RuleContextConverter() {
             }
             is StatContext -> "In a statement at ${start()}: \"${originalText()}"
             is ExprContext -> "In a pure expression at ${start()}: \"${originalText()}\""
+            is NewTypeDefContext -> "In a newtype declaration at ${start()}: \"${originalText()}\""
             else -> throw IllegalArgumentException()
         }
     }

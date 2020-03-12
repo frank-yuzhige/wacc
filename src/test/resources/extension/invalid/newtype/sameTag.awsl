@@ -1,0 +1,10 @@
+begin
+
+newtype Mirror is union
+    Hi of (int x);
+    Hi of (char x, int y);
+end
+
+exit 0;
+
+end

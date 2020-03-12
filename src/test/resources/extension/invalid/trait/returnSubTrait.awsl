@@ -1,0 +1,18 @@
+begin
+
+trait A: Pure is
+    A pure() is required
+end
+
+trait A: MorePure where A: Pure is
+    A morePure(A a) is required
+end
+
+A f(B b) where A: Pure, B: MorePure is
+    return b;
+end
+
+exit 0;
+
+
+end
