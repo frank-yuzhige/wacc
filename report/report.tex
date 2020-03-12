@@ -4,17 +4,26 @@
 \usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{color, soul}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{fancyvrb,booktabs}
+
+\newenvironment{tabularverbatim}
+ {\VerbatimEnvironment
+  \begin{BVerbatim}[baseline=c,formatcom=\setlength{\baselineskip}{\normalbaselineskip}]}
+ {\end{BVerbatim}}
 
 \begin{document}
   \section*{WACC Project Report}
 
 
   \subsection*{1. The Final Product}
-  \textit{An analysis and critical evaluation of the quality of the WACC compiler
-  have built. You should consider both whether it meets the functional
-  specification of the project and whether you judge that it forms a sound basis
-  for future development. You may also wish to address the performance
-  characteristics of your compiler.}
+% \textit{An analysis and critical evaluation of the quality of the WACC compiler
+% have built. You should consider both whether it meets the functional
+% specification of the project and whether you judge that it forms a sound basis
+% for future development. You may also wish to address the performance
+% characteristics of your compiler.}
 
   We deemed our implementation of the WACC compiler to have completed the
   functional requirements of the specification to a satisfactory degree, as
@@ -32,14 +41,68 @@
   to replace previous implementations or as part of a new language feature.
 
   \hl{Performance characteristics of our compiler?}
+  We implemented our WACC compiler using Kotlin, which provides a similar
+  performance characteristic to Java. We did, however, avoid, where applicable,
+  process repetition. For example, we preserve our symbol table after semantic
+  analysis and reuses it during code generation.
 
 
   \subsection*{2. Project Management}
-  \textit{An analysis of the organization of your group and your use of project
-  management tools (such as Git). You should describe how your group was
-  structured, how you coordinated your work and detail any tools that
-  helped/hindered your progress. You should also discuss what went well and what
-  you would do differently if you were to do the lab again.}
+% \textit{An analysis of the organization of your group and your use of project
+% management tools (such as Git). You should describe how your group was
+% structured, how you coordinated your work and detail any tools that
+% helped/hindered your progress. You should also discuss what went well and what
+% you would do differently if you were to do the lab again.}
+
+  \subsubsection*{2.1 Work Distribution}
+  The work distribution of the first two milestones in our group is quite
+  different from that of the last. After discussing, we noticed that for the
+  frontend as well as backend, most of the tasks had to be done sequentially as
+  opposed to in parallel. For instance, syntax analysis for the compiler would
+  have to be implemented before semantics analysis. Hence, we did pair
+  programming as opposed to working separately and merging all the code in the
+  end. We would often have productive programming sessions during the week and
+  even over weekends. In each session, two people in the group would meet up and
+  work on new features together, with one person typing and the other observing,
+  and we would constantly switch roles. The advantages this technique brings is
+  evident. Firstly, this led to more optimal design choices as the person that
+  we worked with could often notice flaws or code that could be improved, which
+  would otherwise be neglected if we had programmed alone. Secondly, debugging
+  was much more efficient since logical errors could be found more easily when
+  two people discussed and communicated their ideas.
+
+  For the last milestone, we decided to implement each new extension features
+  separately, due to the fact that most features are standalone and independent
+  of others. However, this did lead to an obvious issue, which is that the
+  details of implementation of a new feature are only known to the group member
+  who worked on it. Despite the drawback, working separately allowed us to
+  incorporate more features in a wide range of areas.
+
+  \subsubsection*{2.2 Use of Tools}
+  Git was used extensively throughout the project. It primarily served the
+  purpose of creating and keeping track of branches for tentative features that
+  were yet to be implemented correctly. For instance, new branches were
+  initiated for each new extension feature we were planning to incorporate.
+  Testing was mainly performed locally as opposed to on Git since we had some
+  troubles installing the required packages for testing on our Gitlab runner.
+
+  Gradle is another tool which facilitated our project apart from Git. In the
+  beginning, we put a lot of effort into configuring Gradle properly, and it was
+  frustrating and quite time-consuming. Once set up correctly, the incremental
+  builds provided by Gradle made building and testing our code much quicker.
+
+  \subsubsection*{2.3 Adjustments for the Future}
+  There are a few aspects that can be improved regarding work distribution and
+  communication in the last milestone. Firstly, the overlap between new language
+  features and optimizations for code generation was not dealt with properly,
+  which caused corresponding optimizations not to be implemented for some
+  extension features, such as traits and \texttt{newtype}. Therefore, our
+  planning will need to be more thorough in the future. Secondly, the details of
+  implementation in our independent work will have to be communicated to every
+  group member so that less confusion will be caused when trying to modify or
+  debug someone else’s code.
+
+
 
   \subsection*{3. Design Choices and Implementation Details}
   \textit{An analysis of the design choices that your made during the WACC
@@ -51,11 +114,269 @@
   discussion.}
 
   \subsection*{4. Beyond the Specification}
-  \textit{An evaluation of your extensions to your WACC compiler. You should
-  describe all the language extensions, optimizations or other aspects that you
-  have added to your compiler, especially highlighting how these features can be
-  accessed or viewed. You should also briefly discuss what future extensions you
-  would add to your compiler if you had more time.}
+% \textit{An evaluation of your extensions to your WACC compiler. You should
+% describe all the language extensions, optimizations or other aspects that you
+% have added to your compiler, especially highlighting how these features can be
+% accessed or viewed. You should also briefly discuss what future extensions you
+% would add to your compiler if you had more time.}
 
+  \subsubsection*{4.1 Various Code Generation Optimizations}
+  There are three levels of optimizations which were implemented for the
+  extension, which are constant folding, constant propagation and peephole
+  optimization. To run the compiler with optimization, simply add the
+  \texttt{-o\{n\}} flag as an argument to the compile script, where \texttt{n}
+  indicates the desired level of optimization with 0 to 2 corresponding to
+  constant folding, constant propagation and peep-hole optimization respectively.
+  If optimization is turned on, the program will output the number of lines
+  reduced and the optimization rate at the end of compilation.
+
+  We implemented both constant folding and constant propagation on the AST level
+  as opposed to the conventional intermediate representation level. We opted for
+  this approach since our intermediate representation for backend is not in the
+  form of three-address code or SSA and switching from our original
+  implementation to a more convenient IR was proven to be too costly. As a
+  result, most of the optimizations were done by reconstructing the AST, and
+  some of the more sophisticated optimizations such as dead code elimination and
+  loop invariant code motion were not implemented.
+
+  \subsubsection*{4.1.1 Constant Folding}
+  Constant folding is done by traversing though the AST and evaluating binary
+  operations as well as unary operations that contain only constants. Some
+  examples are shown as follows
+
+  \begin{center}
+    \begin{tabular} {| m{5cm} | m{5cm} |}
+      \hline
+      Before Constant Folding & After Constant Folding \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = (1 + 2) * 3
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int x = 9
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+bool b = true && false 
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+bool b = false 
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = 10;
+if (x < 2 * 6) then
+  println 1
+else
+  println 2
+fi
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int x = 10;
+if (x < 12) then
+  println 1
+else
+  println 2
+fi
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+
+  \subsubsection*{4.1.2 Constant Propagation}
+  Similar to constant folding, our implementation of constant propagation
+  traverses through the AST and simplifies each node. However, instead of only
+  evaluating expressions that consist of only constants, we record the values
+  assigned to each variable, substitute its value into an operation if
+  applicable and propagate through the whole program. However, substitution will
+  not be performed in a situation where the value of a variable cannot be
+  determined. In addition, loops and conditional statements are also optimized
+  in such a manner so as to guarantee that the post-conditions of these
+  statements are defined correctly. Examples are shown as follows 
+
+  \begin{center}
+    \begin{tabular}{| m{5cm} | m{5cm} |}
+      \hline
+      Before Constant Propagation & After Constant Propagation \\
+      \hline
+      \begin{tabularverbatim}
+
+int x = 1;
+int y = x + 3
+
+      \end{tabularverbatim}
+       &
+      \begin{tabularverbatim}
+int x = 1; 
+int y = 4
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+      
+int x = 12;
+if (x == 12) then
+  println "x is 12"
+else \newline
+  println "x is not 12"
+fi
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+println "x is 12"
+      \end{tabularverbatim}
+      \\
+      \hline
+      \begin{tabularverbatim}
+
+int i = 0;
+while (i < 10) do
+  i = i + 1
+done;
+println i
+
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+int i = 0;
+println i
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+
+  \subsubsection*{4.1.3 Peephole Optimization}
+  Unlike the previous techniques, the peephole optimization is done on the
+  intermediate representation of the ARM assembly, so that certain patterns can
+  be clearly identified and optimized. The algorithm is rather simple as it goes
+  through the instructions line by line and try to determine which optimizable
+  pattern matches the current instructions. There are four types of patterns
+  that are currently simplified, which are demonstrated in the table below
+
+  \begin{center}
+    \begin{tabular}{| m{3cm} | m{4cm} | m{4cm} |}
+      \hline
+      Pattern & Before Optimization & After Optimization \\
+      \hline
+      Multiply by a number that is power of two &
+      \begin{tabularverbatim}
+
+MOV rn, #n
+SMULL rm, rn, rm, rn
+CMP rn, rm, ASR #31
+BLNE p_overflow_error
+STR rm, [offset]
+
+      \end{tabularverbatim}
+      \newline
+      Where n is an integer power of 2
+      &
+      \texttt{LSLS rm, rm \#$(\log_2 n)$}
+      \newline
+      \texttt{BLE} \verb|p_overflow_error|
+      \newline
+      \texttt{STR rm,} \verb|[offset]|
+      \\
+      \hline
+      Divide by a power of 2 &
+      \begin{tabularverbatim}
+
+MOV r0, rm
+MOV r1, #n
+BL p_check_div_by_zero
+BL __aeabi_idiv
+MOV rx, r0
+ 
+      \end{tabularverbatim}
+      \newline
+      Where n is an integer power of 2
+      &
+      \texttt{LSR rm, rm, \#$(\log_2 n)$}
+      \\
+      \hline
+      Load a constant as an argument &
+      \begin{tabularverbatim}
+
+MOV rn #n
+MOV r0 rn
+ 
+      \end{tabularverbatim}
+      &
+      \begin{tabularverbatim}
+MOV r0 #n
+
+      \end{tabularverbatim}
+      \\
+      \hline
+      Redundant load after store &
+      \begin{tabularverbatim}
+
+STR rn, [offset]
+LDR rn, [offset]
+
+      \end{tabularverbatim}
+      \newline
+      Where the two offsets are the same
+      &
+      \begin{tabularverbatim}
+STR rn, [offset]
+      \end{tabularverbatim}
+      \\
+      \hline
+    \end{tabular}
+  \end{center}
+
+
+  \subsubsection*{4.2 VS Code Extension}
+  Since WACC is a language designed purely for academic purposes for the
+  compiler course, we could not find tools to help users code in WACC. Hence,
+  our group decided to build an IDE to help programmers code in WACC more
+  efficiently. Since it would be too costly to create one from scratch and it
+  would not be easy to popularize the tool, we opted for VS Code as a platform 
+  to develop and deploy our WACC IDE. To start, we created syntax highlighting
+  for WACC. Then, we utilized the sample language server for VS Code extension
+  development as a basis for our IDE, and gradually customized the server
+  according to the specifications of the WACC language. The core of the IDE is
+  our own WACC compiler, as we parsed the output from the compiler and generated
+  code diagnostics based on those. In addition, the users could also execute the
+  WACC file directly in VS Code. Since it was difficult to append an ARM
+  assembly emulator to the extension, we took advantage of the provided
+  reference emulator script. Thus, every time a file is to be executed, it will
+  first be compiled into assembly by our compiler, then the assembly code is
+  sent to the reference compiler. Lastly, the language server parses the output
+  generated by the emulator and displays the messages in VS Code. The IDE
+  currently has four main features, which are syntax highlighting, syntax and
+  semantic diagnostics, auto completion and code execution. It has to be noted
+  that the IDE only supports the most basic WACC language with no other features
+  added. We decided not to include our own features as we thought it would be
+  better for the IDE to be an opensource project which everyone can customize
+  and distribute according to their own flavour of WACC. To access the VS Code
+  extension, simply search for “WACC language support” in the marketplace and
+  install it.
+
+
+  \subsubsection*{4.3 Ideas for future extension}
+  If more time was given, we would possibly redesign the backend to use SSA as
+  our IR so that more optimization options such as dead code elimination would
+  be easier to implement. Moreover, we would want to make the import feature
+  available so that we could build our own standard libraries for WACC.
+  
+  \hl{(Feel free to add your own thoughts)}
 
 \end{document}
