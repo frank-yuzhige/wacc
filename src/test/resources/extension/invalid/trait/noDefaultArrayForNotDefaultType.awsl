@@ -1,0 +1,9 @@
+begin
+
+newtype Goat is
+    string baa;
+end
+
+Goat[] flock = arrayOf(100);   # no Default Trait for Goat, semantic error!
+
+end

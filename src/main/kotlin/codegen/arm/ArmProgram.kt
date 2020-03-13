@@ -1,6 +1,7 @@
 package codegen.arm
 
 import codegen.InstructionBlock
+import codegen.arm.Instruction.CompilerNotifier
 
 class ArmProgram(val stringConsts: List<StringConst>, val blocks: List<InstructionBlock>) {
     override fun toString(): String =
@@ -33,7 +34,7 @@ class ArmProgram(val stringConsts: List<StringConst>, val blocks: List<Instructi
             sb.append(":\n")
             block.instructions.forEach { instr ->
                 sb.append("${index.toString().padEnd(5)}$instr\n")
-                index++
+                if(instr !is CompilerNotifier) index++
             }
             if (block.terminator !is Instruction.Terminator.FallThrough
                     && block.terminator !is Instruction.Terminator.Unreachable) {

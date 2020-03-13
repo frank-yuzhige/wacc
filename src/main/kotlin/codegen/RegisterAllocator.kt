@@ -1,6 +1,8 @@
 package codegen
 
 import codegen.arm.ArmProgram
+import codegen.arm.DirectiveType
+import codegen.arm.DirectiveType.LTORG
 import codegen.arm.Instruction
 import codegen.arm.Instruction.*
 import codegen.arm.Operand
@@ -81,7 +83,11 @@ class RegisterAllocator(val program: ArmProgram) {
                         realVirtualStackMap.getValue(real) += virtual
                     }
                 }
-                when(instr) {
+                if(instr == Pop(SpecialReg(PC)) || instr == Terminator.PopPC) {
+                    newInstructions += Add(Condition.AL, SpecialReg(SP), SpecialReg(SP), ImmNum(spOffset))
+                }
+                newInstructions += instr.adjustBySpOffset(spOffset)
+                when(instr.followedNotifier) {
                     is CompilerNotifier.CallerSavePush -> {
                         val saved = realVirtualStackMap
                                 .filter { (_, list) -> list.isNotEmpty() }
@@ -90,7 +96,7 @@ class RegisterAllocator(val program: ArmProgram) {
                             callerSavedVirtualsStack.addLast(saved)
                             newInstructions += Push(saved.toMutableList())
                             System.err.println("@Caller pushed: ${callerSavedVirtualsStack.joinToString(", ")}")
-                            spOffset += callerSavedVirtualsStack.size * 4
+                            spOffset += saved.size * 4
                         }
                     }
                     is CompilerNotifier.CallerSavePop -> {
@@ -98,12 +104,9 @@ class RegisterAllocator(val program: ArmProgram) {
                             val toBePoped = callerSavedVirtualsStack.pollLast().asReversed()
                             if (toBePoped.isNotEmpty()) {
                                 newInstructions += Pop(toBePoped.toMutableList())
-                                spOffset -= callerSavedVirtualsStack.size * 4
+                                spOffset -= toBePoped.size * 4
                             }
                         }
-                    }
-                    else -> {
-                        newInstructions += instr.adjustBySpOffset(spOffset)
                     }
                 }
                 /* For each virtual register that should be dead by the end of this instruction, "kill" it.
@@ -151,6 +154,7 @@ class RegisterAllocator(val program: ArmProgram) {
             *  Then re-pack it to get our final instruction block. */
             newBlocks += InstructionBlock(block.label, newInstructions.toList(), block.terminator, block.tails)
             newInstructions.clear()
+            index += if (block.terminator.toString() == "") 0 else 1
         }
         return ArmProgram(program.stringConsts, newBlocks.map { it.unify(virtualToRealMap) })
     }
@@ -167,84 +171,6 @@ class RegisterAllocator(val program: ArmProgram) {
     *  the last virtual register which is currently in use. It is also guaranteed that if a virtual register
     *  "PUSHed" the other register, they must satisfy several rules to ensure no register collision (see method
     *  "LiveRangeMap.findVirtualToPush" in LiveRange.kt). */
-    private fun InstructionBlock.rename(): InstructionBlock {
-        val newInstructions = mutableListOf<Instruction>() // collection of instructions.
-        for ((index, instr) in instructions.withIndex()) {
-            val defs = instr.getDefs().filterIsInstance<Reg>().filterNot { it in reservedRegs() }
-            /* For each un-unified register which has been defined in the current instruction,
-            *  unify it with a given real Reg. */
-            defs.filterNot { it in virtualToRealMap }.forEach { virtual ->
-                val real = availableRealRegs.pollFirst()?.let(::Reg)
-                if (real == null) { // if we are running out of registers...
-                    /* Find a already unified virtual register which will not be used at all during the live range of
-                    *  the current virtual register, push that virtual register, and make the current virtual register
-                    *  to be unified with the actual register that the already pushed virtual register unifies to. */
-                    val pushedVirtual = liveRangeMap.findVirtualToPush(
-                            virtual,
-                            virtualToRealMap,
-                            virtualsStack,
-                            deadVirtuals,
-                            realToVirtualMap,
-                            program
-                    )
-                    newInstructions += Push(mutableListOf(pushedVirtual))
-                    val currReal = virtualToRealMap.getValue(pushedVirtual)
-                    virtualToRealMap[virtual] = currReal
-                    realVirtualStackMap.getValue(currReal) += virtual
-                    realToVirtualMap.getValue(currReal) += virtual
-                    virtualsStack.add(0, pushedVirtual)
-                    spOffset += 4
-                } else {
-                    /* Otherwise, simply unifies the currently avaliable real reg with the virtual register */
-                    virtualToRealMap[virtual] = real
-                    realVirtualStackMap.getValue(real) += virtual
-                }
-            }
-            newInstructions += instr.adjustBySpOffset(spOffset)
-            /* For each virtual register that should be dead by the end of this instruction, "kill" it.
-            *  [INVARIANT]: each dying reg should not be on the stack (if it is on the stack, that means the virtual
-            *     which pushed the current virtual is not yet killed, which contradicts with our live-range reg allocation
-            *     policy. Hence it would never happen.)
-            *  1. If it has not pushed any virtual, means the real register that is unified with it is now free.
-            *  2. If the virtual it pushed is on the top of the stack, simply pop that register down.
-            *  3. Otherwise, it has pushed some virtual, yet the pushed virtual is not on the top of the stack.
-            *     In this case, find and load the value of the pushed virtual, mark the pushed virtual as "to be poped". */
-            freeRegMap[index]?.forEach { dyingReg ->
-                val real = virtualToRealMap.getValue(dyingReg)
-                val pushed = realVirtualStackMap.getValue(real).lastOrNull { it != dyingReg }
-                if (pushed == null) {
-                    availableRealRegs += real.id
-                } else if (virtualsStack.isNotEmpty() && virtualsStack[0] == pushed) {
-                    spOffset -= 4
-                    newInstructions += Pop(pushed)
-                    virtualsStack.removeAt(0)
-                } else {  // case 3
-                    val offset = 4 * virtualsStack.indexOf(pushed)
-                    newInstructions += Ldr(Condition.AL, dyingReg, Offset(SpecialReg(SP), offset))
-                    popedVirtuals += pushed
-                }
-                realVirtualStackMap.getValue(real) -= dyingReg
-                deadVirtuals += dyingReg
-            }
-            /* Remove any "to-be-poped" virtual regs from the top of the stack.
-            *  Move and re-calculate the current sp offset. */
-            var acc = 0
-            while (virtualsStack.firstOrNull() in popedVirtuals) {
-                val virtual = virtualsStack.removeAt(0)
-                val real = virtualToRealMap.getValue(virtual)
-                realVirtualStackMap.getValue(real) -= virtual
-                acc += 4
-                popedVirtuals -= virtual
-            }
-            if (acc > 0) {
-                spOffset -= acc
-                newInstructions += Add(Condition.AL, SpecialReg(SP), SpecialReg(SP), ImmNum(acc))
-            }
-        }
-        /* Finally, unify the newly-generated instructions with the generated unification.
-        *  Then re-pack it to get our final instruction block. */
-        return InstructionBlock(label, newInstructions.map { it.unify(virtualToRealMap) }, terminator, tails)
-    }
 
     /* Generate a live range map for all virtual registers appeared in this instruction block. */
     private fun generateLiveRangeMap(): LiveRangeMap {

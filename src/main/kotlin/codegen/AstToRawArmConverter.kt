@@ -93,6 +93,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             curr.function.toARM(curr.groundType)
         }
         while (groundConstructorList.isNotEmpty()) {
+            spOffset = 0
             val curr = groundConstructorList.removeAt(0)
             defineConstructor(curr.name, curr.constructorType, curr.isUnion)
         }
@@ -191,7 +192,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
                         val reg = expr.toARM().toReg()
                         mov(Reg(0), reg)
                         when (expr.getType()) {
-                            is NewType -> callPrelude(FREE_STRUCT)
+                            is NewType -> bl(AL, Label("free"))
                             else -> throw IllegalArgumentException("Cannot free a non-heap-allocated object!")
                         }
                     }
@@ -576,7 +577,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     private fun moveSP(offset: Int, record: Boolean = true) {
         if (offset < 0) {
             binop(SUB, SpecialReg(SP), SpecialReg(SP), ImmNum(-offset))
-        } else if (offset > 0) {
+        } else {
             binop(ADD, SpecialReg(SP), SpecialReg(SP), ImmNum(offset))
         }
         if (record) {
@@ -594,7 +595,6 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
         is Label, is Offset -> {
             load(dst ?: getReg(), this)
         }
-        else -> mov(dst ?: getReg(), this)
     }
 
     /* This method allocates some space on stack for a variable,
@@ -728,7 +728,9 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
     }
 
     private fun notifyCompiler(notifier: CompilerNotifier) {
-        instructions += notifier
+        instructions.lastOrNull()
+                ?. let { it.followedNotifier = notifier }
+                ?: let { blocks.last.terminator.followedNotifier = notifier }
     }
 
     private fun addDirective(type: DirectiveType) {

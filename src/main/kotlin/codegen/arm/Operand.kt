@@ -62,7 +62,7 @@ sealed class Operand {
             }
         }
 
-        override fun adjustBySpOffset(offset: Int) = if(src == Register.SpecialReg(SP)) shift(offset) else this
+        override fun adjustBySpOffset(offset: Int) = if(src == Register.SpecialReg(SP) && !wb) shift(offset) else this
 
         fun shift(amount: Int): Operand = Offset(src, offset + amount, wb)
     }

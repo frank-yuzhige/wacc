@@ -1,6 +1,8 @@
 begin
 
-var matrix = [[1,2,5], [2,4,8], [3,2,1]];
+var matrix = [[1,2,5],
+              [2,4,8],
+              [3,2,1]];
 println matrix[1][2];
 println matrix[0][1];
 

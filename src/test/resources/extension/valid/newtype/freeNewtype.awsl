@@ -1,0 +1,17 @@
+begin
+
+newtype Person is
+    string name;
+    string song;
+end
+
+var bojo = Person("Boris Johnson", "Happy birthday song");
+print bojo.name;
+print " sings ";
+println bojo.song;
+
+free bojo;
+
+println "Now he is gone!";
+
+end

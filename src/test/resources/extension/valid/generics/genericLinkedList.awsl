@@ -37,20 +37,30 @@ int printAll(List<A> list) where forall A is
     end;
 end
 
-List<int> a = Nil();
-List<int> b = Node(4, a);
-List<char> c = Nil();
-List<char> d = Node('A', c);
-List<List<int>> k = Nil();
-List<List<int>> j = Node(a, k);
-List<List<int>> m = Node(b, k);
+int freeList(List<A> list) where forall A is
+    when list:
+        is Nil -> free list; return 0;
+        is Node(x, succ) ->
+            call freeList(succ);
+            free list;
+            return 0;
+    end;
+end
 
 var irr = [33,55,22,6,43,75,22,5,10,999,23];
 var crr = ['H','E','L','L','O','W','O','R','L','D'];
 
 var ilist = fromArray(irr);
+var ilist2 = fromArray(irr);
+List<char> c = fromArray([]);
 var clist = fromArray(crr);
+
 call printAll(ilist);
 call printAll(clist);
+
+call freeList(ilist);
+call freeList(ilist2);
+call freeList(c);
+call freeList(clist);
 
 end

@@ -3,7 +3,7 @@ package codegen.arm
 import codegen.arm.Operand.Register
 import codegen.arm.Operand.Label
 
-sealed class Instruction {
+sealed class Instruction(var followedNotifier: CompilerNotifier? = null){
 
     open fun getDefs(): List<Register> = emptyList()
     open fun getUses(): List<Register> = emptyList()
@@ -200,7 +200,7 @@ sealed class Instruction {
         ASR
     }
 
-    sealed class CompilerNotifier: Instruction() {
+    sealed class CompilerNotifier {
         object CallerSavePush : CompilerNotifier() {
             override fun toString(): String = "@CallerSavePush"
         }
