@@ -1,0 +1,93 @@
+{
+	"name": "WACC Language Support",
+	"description": "VS Code language support for WACC",
+	"author": "Yining Shen",
+	"icon": "images/wacc-icon.png",
+	"version": "2.2.2",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ss16118/wacc-language-support"
+	},
+	"publisher": "YiningShen",
+	"engines": {
+		"vscode": "^1.33.0"
+	},
+	"activationEvents": [
+		"onLanguage:wacc"
+	],
+	"main": "./client/out/extension",
+	"contributes": {
+		"languages": [
+			{
+				"id": "wacc",
+				"aliases": [
+					"WACC",
+					"wacc"
+				],
+				"extensions": [
+					".wacc"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "wacc",
+				"scopeName": "source.wacc",
+				"path": "./syntaxes/wacc.tmLanguage.json"
+			}
+		],
+		"snippets": [
+			{
+				"language": "wacc",
+				"path": "snippets/autocomplete.code-snippets"
+			}
+		],
+		"configuration": {
+			"type": "object",
+			"title": "Example configuration",
+			"properties": {
+				"languageServer.maxNumberOfProblems": {
+					"scope": "resource",
+					"type": "number",
+					"default": 100,
+					"description": "Controls the maximum number of problems produced by the server."
+				},
+				"languageServer.trace.server": {
+					"scope": "window",
+					"type": "string",
+					"enum": [
+						"off",
+						"messages",
+						"verbose"
+					],
+					"default": "off",
+					"description": "Traces the communication between VS Code and the language server."
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "execute-wacc",
+				"title": "Execute WACC"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "cd client && npm run update-vscode && cd .. && npm run compile",
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+		"test": "sh ./scripts/e2e.sh"
+	},
+	"devDependencies": {
+		"@types/mocha": "^5.2.7",
+		"@types/node": "^12.12.29",
+		"tslint": "^5.16.0",
+		"typescript": "^3.6.4",
+		"vscode": "1.1.36"
+	},
+	"dependencies": {
+		"colors": "^1.4.0"
+	}
+}

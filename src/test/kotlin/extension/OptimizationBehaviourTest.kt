@@ -63,7 +63,7 @@ class OptimizationBehaviourTest {
                         totalCount++
                     }
                 }
-        // cleanUp()
+        cleanUp()
         println("\n\nTest passed: $correctCount/$totalCount")
         if (correctCount < totalCount){
             var errorMsg = ""
