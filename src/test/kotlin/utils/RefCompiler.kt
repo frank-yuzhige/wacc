@@ -21,7 +21,7 @@ class RefCompiler() {
             writer.close()
             val expectedOutput = process.inputStream.reader(Charsets.UTF_8).readText()
             process.waitFor()
-            val pureOutputRegex = """={59}\n([\s\S]*)={59}""".toRegex()
+            val pureOutputRegex = """={59}\s*([\s\S]*)={59}""".toRegex()
             val matchResult: MatchResult? = pureOutputRegex.find(expectedOutput)
             var resultString: String? = null
             if (matchResult != null) {

@@ -33,7 +33,7 @@ class OptimizationBehaviourTest {
     private fun runAllTests(optLevel: Int) {
         var correctCount = 0
         var totalCount = 0
-        File("src/test/resources/valid/").walkTopDown()
+        File("src/test/resources/valid/IO/IOLoop.wacc").walkTopDown()
                 .filter { it.extension == "wacc" }
                 .filterNot { it in excludedFiles() }
                 .forEach { testFile ->
@@ -47,6 +47,8 @@ class OptimizationBehaviourTest {
                         if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
                             logFailedTest(loggedFile, "mismatched output")
                             println("Mismatched output: ${loggedFile.path}")
+                            println("Expected: ${expectedResult.output}")
+                            println("Actual: ${result.output}")
                         } else {
                             correctCount++
                             println("All is good: ${loggedFile.path}")
@@ -117,7 +119,7 @@ class OptimizationBehaviourTest {
                 throw TimeoutException("Program timed out!")
             }
 
-            val pureOutputPattern = """Emulation Output:\n([\s\S]*)-{63}""".toRegex()
+            val pureOutputPattern = """Emulation Output:\s*([\s\S]*)-{63}""".toRegex()
             val matchResult: MatchResult? = pureOutputPattern.find(programOutput)
             var resultString: String? = null
             if (matchResult != null) {

@@ -59,9 +59,6 @@ class AstOptimizer(var optLevel: Int) {
         }
         is Assignment -> {
             val lhsIdent = lhs.getIdentifier()
-            if (lhsIdent.name == "result") {
-                println("HERE")
-            }
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0) {
                 if (rhsOptimized is Literal && !deleteVar) {
@@ -108,6 +105,7 @@ class AstOptimizer(var optLevel: Int) {
                 /* If the 1st valid branch is true */
                 val first = condsOptimized.firstOrNull()
                 if (first != null && first.let { (expr, _) -> expr is BoolLit && expr.b }) {
+                    first.second.optimize()
                     Block(first.second)
                 } else {
                     deleteVar = true
