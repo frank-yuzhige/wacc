@@ -22,7 +22,7 @@ sealed class Expression(var reifiedType: Type = Type.TypeVar("A"), // reified ty
         FST("fst"), SND("snd")
     }
 
-    object NullLit : Expression(), Literal {
+    object NullLit : Expression() {
         override fun prettyPrint(): String = "null"
     }
 

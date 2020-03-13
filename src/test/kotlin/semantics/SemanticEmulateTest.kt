@@ -13,7 +13,7 @@ class SemanticEmulateTest {
     @Test
     fun batchSemanticCheckTest() {
         File("src/test/resources/").walkTopDown()
-                .filterNot { it.path in excludedFiles() }
+                .filterNot { it in excludedFiles() }
                 .forEach {
             if (it.path.endsWith(".wacc")) {
                 val result = CompilerEmulator(it, CompilerMode.SEM_CHECK , PrintStream(NullOutputStream())).run()

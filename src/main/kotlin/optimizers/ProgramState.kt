@@ -63,12 +63,14 @@ class ProgramState() {
     }
 
     private fun updateNewPair(pairElemFunction: PairElemFunction, ident: Identifier, newLiteral: Expression) {
-        val originalPair = lookupVar(ident) as NewPair
-        val newPair = when (pairElemFunction) {
-            FST -> NewPair(newLiteral, originalPair.second)
-            SND -> NewPair(originalPair.first, newLiteral)
+        val originalPair = lookupVar(ident)?.let { it as NewPair } ?: null
+        if (originalPair != null) {
+            val newPair = when (pairElemFunction) {
+                FST -> NewPair(newLiteral, originalPair.second)
+                SND -> NewPair(originalPair.first, newLiteral)
+            }
+            updateVar(ident, newPair)
         }
-        updateVar(ident, newPair)
     }
 
     fun updatePairElem(pairElemFunction: PairElemFunction, ident: Identifier, newLiteral: Literal) {

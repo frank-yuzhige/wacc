@@ -11,8 +11,7 @@ import utils.Statements
 import java.lang.IllegalArgumentException
 import java.lang.IndexOutOfBoundsException
 
-class AstOptimizer(option: OptimizationOption) {
-    private var optLevel = OptimizationOption.values().indexOf(option)
+class AstOptimizer(var optLevel: Int) {
     private val programState = ProgramState()
     private var overflowOccurred = false
     private var hasFuncCall = false
@@ -26,7 +25,7 @@ class AstOptimizer(option: OptimizationOption) {
             do {
                 preAst = currAst
                 currAst = currAst.optimize()
-                println(currAst.prettyPrint())
+                // println(currAst.prettyPrint())
             } while (preAst != currAst)
             return currAst
         }
@@ -60,6 +59,9 @@ class AstOptimizer(option: OptimizationOption) {
         }
         is Assignment -> {
             val lhsIdent = lhs.getIdentifier()
+            if (lhsIdent.name == "result") {
+                println("HERE")
+            }
             val rhsOptimized = rhs.optimize()
             if (optLevel > 0) {
                 if (rhsOptimized is Literal && !deleteVar) {
@@ -78,6 +80,10 @@ class AstOptimizer(option: OptimizationOption) {
                         else -> programState.updateVar(lhsIdent, rhsOptimized)
                     }
                 } else if (programState.lookupVar(lhsIdent) != null) {
+                    programState.removeVar(lhsIdent)
+                }
+            } else {
+                if (programState.lookupVar(lhsIdent) != null) {
                     programState.removeVar(lhsIdent)
                 }
             }
@@ -187,7 +193,7 @@ class AstOptimizer(option: OptimizationOption) {
             } else { this }
         }
         is ArrayElem -> {
-            if (optLevel > 0) {
+            if (optLevel > 0 && programState.lookupVar(arrIdent) != null) {
                 val elements = ((programState.lookupVar(arrIdent) as Expression)
                         .optimize() as ArrayLiteral)
                         .elements.map { it.optimize() }
@@ -250,7 +256,7 @@ class AstOptimizer(option: OptimizationOption) {
         }
         if (exprOptimized is IntLit) {
             result = when (op) {
-                NEG -> IntLit(-exprOptimized.x)
+                NEG -> if (!isValueOverflow(-exprOptimized.x.toLong())) IntLit(-exprOptimized.x) else this
                 CHR -> CharLit(exprOptimized.x.toChar())
                 else -> this
             }
@@ -269,7 +275,10 @@ class AstOptimizer(option: OptimizationOption) {
                 else -> this
             }
         }
-        return result
+        return result.also {
+            it.reifiedType = this.reifiedType
+            it.groundedType = this.groundedType
+        }
     }
 
 
@@ -287,12 +296,8 @@ class AstOptimizer(option: OptimizationOption) {
                 } else {
                     this
                 }
-                DIV -> if (y != 0) {
-                    IntLit(x / y)
-                } else {
-                    this
-                }
-                MOD -> IntLit(x % y)
+                DIV -> if (y != 0) IntLit(x / y) else this
+                MOD -> if (y != 0) IntLit(x % y) else this
                 ADD -> if (!isValueOverflow(x + y.toLong())) {
                     IntLit(x + y)
                 } else {
@@ -340,7 +345,10 @@ class AstOptimizer(option: OptimizationOption) {
                 else -> result
             }
         }
-        return result
+        return result.also {
+            it.reifiedType = this.reifiedType
+            it.groundedType = this.groundedType
+        }
     }
 
     /**

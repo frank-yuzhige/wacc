@@ -1,6 +1,8 @@
 package codegen
 import utils.CompilerEmulator
 import CompilerMode.*
+import utils.RefCompiler
+import utils.cleanUp
 import utils.excludedFiles
 import java.io.*
 import java.util.concurrent.TimeoutException
@@ -8,7 +10,6 @@ import kotlin.test.Test
 import kotlin.test.fail
 
 class AssemblyBehaviourTest {
-    data class RefCompilerOutput(val output: String, val exitCode: Int)
     private val failedTestsInfo: MutableMap<String, String> = mutableMapOf()
     enum class FailureType(val cause: String) {
         OUTPUT_MISMATCH("Mismatched output"),
@@ -22,49 +23,20 @@ class AssemblyBehaviourTest {
             "src/test/resources/valid/mine/kata.wacc"
     )
 
-    private fun getRefCompilerOutput(file: File, inputData: List<String>): RefCompilerOutput {
-        val process = ProcessBuilder("./refCompile", "-x", file.absolutePath).start()
-        val writer = BufferedWriter(OutputStreamWriter(process.outputStream))
-        if (inputData.isNotEmpty()) {
-            for (line in inputData) {
-                writer.write(line)
-                writer.flush()
-            }
-        } else {
-            writer.newLine()
-        }
-        writer.close()
-        process.waitFor()
-        var expectedOutput = ""
-        process.inputStream.reader(Charsets.UTF_8).use {
-            expectedOutput += it.readText()
-        }
-        val pureOutputRegex = """={59}\n([\s\S]*)={59}""".toRegex()
-        val matchResult: MatchResult? = pureOutputRegex.find(expectedOutput)
-        val addressRegex = """0x\w{5,8}""".toRegex()
-        var resultString: String? = null
-        if (matchResult != null) {
-            resultString = matchResult.groups[1]!!.value.replace(addressRegex, "0x*****")
-        }
-        val exitCodeRegex = """exit code is (\d+)""".toRegex()
-        val exitCodeMatchResult = exitCodeRegex.find(expectedOutput)
-        return RefCompilerOutput(resultString ?: "", exitCodeMatchResult!!.groups[1]!!.value.toInt())
-    }
-
     @Test
     fun assemblyBehaviourBatchTest() {
         var correctCount = 0
         var totalCount = 0
         File("src/test/resources/valid/").walkTopDown()
                 .filter { it.path.endsWith(".wacc") }
-                .filterNot { it.path in excludedFiles() }
+                .filterNot { it in excludedFiles() }
                 .forEach { testFile ->
             println("Current file $testFile")
             try {
                 val emulator = CompilerEmulator(testFile, EXECUTE)
                 val inputData = requiresInput(testFile.nameWithoutExtension)
                 val result = emulator.run(inputData)
-                val expectedResult = getRefCompilerOutput(testFile, inputData)
+                val expectedResult = RefCompiler.getRefCompilerOutput(testFile, inputData)
                 if (result.output != expectedResult.output || result.exitCode != expectedResult.exitCode) {
                     logFailedTest(testFile.relativeTo(File("src/test/resources/valid/")),
                             FailureType.OUTPUT_MISMATCH)
@@ -100,14 +72,6 @@ class AssemblyBehaviourTest {
 
 
     private fun logFailedTest(testFile: File, cause: FailureType) = failedTestsInfo.set(testFile.path, cause.cause)
-
-    private fun cleanUp() {
-        val tempFiles: List<File> = listOf(File("src/test/kotlin/utils/temp"),
-                File("src/test/kotlin/utils/temp.s"))
-        tempFiles.forEach {
-            if (it.exists()) { it.delete() }
-        }
-    }
 
     private fun requiresInput(filename: String): List<String> {
         val inputFile = File("src/test/resources/inputs/${filename}.txt")

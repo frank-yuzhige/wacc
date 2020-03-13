@@ -3,6 +3,7 @@ package extension
 import CompilerMode.EXECUTE
 import codegen.AssemblyBehaviourTest
 import utils.CompilerEmulator
+import utils.cleanUp
 import utils.excludedFiles
 import java.io.File
 import java.util.concurrent.TimeoutException
@@ -23,7 +24,7 @@ class ExtensionBehaviourTest {
         var correctCount = 0
         var totalCount = 0
         File(path).walkTopDown()
-                .filterNot { it.path in excludedFiles() }
+                .filterNot { it in excludedFiles() }
                 .filter { it.extension == "awsl" }
                 .forEach { testFile ->
                     println("Current file $testFile")
@@ -64,12 +65,4 @@ class ExtensionBehaviourTest {
     }
 
     private fun logFailedTest(testFile: File, cause: AssemblyBehaviourTest.FailureType) = failedTestsInfo.set(testFile.path, cause.cause)
-
-    private fun cleanUp() {
-        val tempFiles: List<File> = listOf(File("src/test/kotlin/utils/temp"),
-                File("src/test/kotlin/utils/temp.s"))
-        tempFiles.forEach {
-            if (it.exists()) { it.delete() }
-        }
-    }
 }

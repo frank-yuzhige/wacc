@@ -1,6 +1,7 @@
 import java.io.File
 
 fun main(args: Array<String>) {
-    val file: File = File("/homes/ss16118/Desktop/test.s")
-    println(null)
+    val process = ProcessBuilder("cmd", "/c", "ruby", "refEmulate", "test.s").start()
+    println(process.inputStream.reader(Charsets.UTF_8).readText())
+    process.waitFor()
 }

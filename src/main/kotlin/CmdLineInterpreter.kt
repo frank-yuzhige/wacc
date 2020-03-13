@@ -94,7 +94,7 @@ fun main(args: Array<String>) {
     println("===========")
     var originalAst = ast.copy()
     if (optLevel >= 0) {
-        val astOptimizer = AstOptimizer(OptimizationOption.values()[optLevel])
+        val astOptimizer = AstOptimizer(optLevel)
         ast = astOptimizer.doOptimize(ast)
     }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()

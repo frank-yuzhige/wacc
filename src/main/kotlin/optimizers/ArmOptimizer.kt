@@ -7,14 +7,10 @@ import codegen.arm.Instruction.Terminator.*
 import codegen.arm.Operand
 import codegen.arm.Operand.*
 import codegen.arm.Operand.Register.*
-import codegen.arm.Operand.Register.Reg.Companion.reservedRegs
 import codegen.arm.SpecialRegName.*
-import utils.TablePrinter
 import kotlin.math.log
 import kotlin.math.min
 
-typealias Liveness = Pair<MutableSet<Register>, MutableSet<Register>>
-typealias LivenessList = MutableList<Pair<Instruction, Liveness>>
 
 class ArmOptimizer {
     enum class PeepholePattern(val patternSize: Int) {
@@ -24,8 +20,6 @@ class ArmOptimizer {
         REDUNDANT_LOAD_AFTER_STORE(2)
     }
 
-    private val blockLivenessMap: MutableMap<String, LivenessList> = mutableMapOf()
-    private val regToOffsetMap: MutableMap<Offset, Register> = mutableMapOf()
     private val patternToFunc: Map<PeepholePattern, (List<Instruction>) -> List<Instruction>> = mapOf(
             PeepholePattern.MULTIPLY_BY_POWER_OF_TWO to ::multiplyByPowerOfTwo,
             PeepholePattern.DIVIDE_BY_POWER_OF_TWO to ::divideByPowerOfTwo,
@@ -34,18 +28,27 @@ class ArmOptimizer {
     )
     private val removedLabels: MutableSet<Label> = mutableSetOf()
     private val MAX_SHIFT = 32
+    private var currentBlock: List<Instruction> = emptyList()
+    private var currentIndex = 0
 
     fun doOptimize(armProgram: ArmProgram): ArmProgram {
         val separatedBlocks = separateBlocks(armProgram)
         val nonPreludeBlocks = separatedBlocks.first
         val preludeBlocks = separatedBlocks.second
         val optimizedBlocks = nonPreludeBlocks.map { it.doPeepHoleOptimize() }
+        val usedLabels = optimizedBlocks.flatMap { it.getUsedLabels() }.toSet()
+        val blocksToRemove = removedLabels - usedLabels
         return ArmProgram(armProgram.stringConsts,
-                          optimizedBlocks + preludeBlocks.removeUnusedBlocks())
+                          optimizedBlocks + preludeBlocks.removeUnusedBlocks(blocksToRemove))
     }
 
-    private fun List<InstructionBlock>.removeUnusedBlocks(): List<InstructionBlock> =
-            this.filterNot { removedLabels.contains(it.label) }
+    private fun List<InstructionBlock>.removeUnusedBlocks(blocksToRemove: Set<Label>): List<InstructionBlock> =
+            this.filterNot { block ->
+                blocksToRemove.any { block.label.name.contains(it.name) }
+            }
+
+    private fun InstructionBlock.getUsedLabels(): List<Label> =
+            this.instructions.filter { it is B || it is BL }.map { (it as? B)?.label ?: (it as BL).label }
 
     private fun InstructionBlock.doPeepHoleOptimize(): InstructionBlock {
         val optimizedInstrs: MutableList<Instruction> = this.instructions.toMutableList()
@@ -54,6 +57,7 @@ class ArmOptimizer {
             changed = false
             val tempInstrs = optimizedInstrs.toMutableList()
             var index = 0
+            currentBlock = optimizedInstrs.toList()
             optimizedInstrs.clear()
             while (index < tempInstrs.size) {
                 var optimized = false
@@ -73,8 +77,9 @@ class ArmOptimizer {
                         emptyList()
                     }
                 }
+                currentIndex = index
                 PeepholePattern.values().forEach {
-                    optimizedInstrs += identifyPattern(patternToFunc[it]!!, it.patternSize)
+                    optimizedInstrs += identifyPattern(patternToFunc.getValue(it), it.patternSize)
                 }
                 if (!optimized) {
                     optimizedInstrs += tempInstrs[index]
@@ -180,23 +185,24 @@ class ArmOptimizer {
         val instr0 = instrs[0]
         var opr: Operand = ImmNum(0)
         var tempReg= Reg(0)
-        satisfied = if ((instr0 is Ldr && instr0.dest is Reg) ||
-                        (instr0 is Mov && instr0.dest is Reg)) {
+        satisfied = if ((instr0 is Ldr && instr0.dest is Reg && instr0.opr !is Offset) ||
+                        (instr0 is Mov && instr0.dest is Reg && instr0.opr !is Offset)) {
             opr = ((instr0 as? Mov)?.opr ?: (instr0 as? Ldr)?.opr) as Operand
             tempReg = ((instr0 as? Mov)?.dest ?: (instr0 as? Ldr)?.dest) as Reg
             true
         } else { false }
 
         val instr1 = instrs[1]
-        if (satisfied && (instr1 is Mov && instr1.opr == tempReg)) {
+        val regUsedBeforeDef = tempReg.isUsedBeforeDef()
+        if (satisfied && (instr1 is Mov && instr1.opr == tempReg && !regUsedBeforeDef)) {
             return if (instr0 is Ldr) listOf(Ldr(Condition.AL, instr1.dest, opr), instrs[2]) else
                                       listOf(Mov(Condition.AL, instr1.dest, opr), instrs[2])
         } else {
-            satisfied = satisfied && (instr1 is Mov && instr1.opr == tempReg)
+            satisfied = satisfied && (instr1 is Mov && instr1.opr == tempReg) && !regUsedBeforeDef
         }
 
         val instr2 = instrs[2]
-        if (satisfied && (instr2 is Mov && instr2.opr == tempReg)) {
+        if (satisfied && (instr2 is Mov && instr2.opr == tempReg && !regUsedBeforeDef)) {
             return if (instr0 is Ldr) listOf(instr1, Ldr(Condition.AL, instr2.dest, opr)) else
                                       listOf(instr1, Mov(Condition.AL, instr2.dest, opr))
         }
@@ -243,4 +249,29 @@ class ArmOptimizer {
         }
         return arm.blocks.subList(0, separationIndex) to arm.blocks.subList(separationIndex, arm.blocks.size)
     }
+
+
+    /**
+     * Checks if the register is used before it is redefined
+     */
+    private fun Reg.isUsedBeforeDef(): Boolean {
+        var nextUse = currentBlock.lastIndex
+        var nextDef = currentBlock.lastIndex
+        val restOfInstrs =
+                currentBlock.subList(currentIndex + 2, currentBlock.size)
+        for ((index, instr) in restOfInstrs.withIndex()) {
+            if (this in instr.getUses()) {
+                nextUse = index
+                break;
+            }
+        }
+        for ((index, instr) in restOfInstrs.withIndex()) {
+            if (this in instr.getDefs()) {
+                nextDef = index
+                break;
+            }
+        }
+        return nextUse <= nextDef
+    }
+
 }
