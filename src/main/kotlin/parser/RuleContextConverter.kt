@@ -25,8 +25,6 @@ class RuleContextConverter() {
     private var errorList: MutableList<SyntacticException> = mutableListOf()
 
     fun convertProgram(program: ProgContext): ProgramAST = program.toAST()
-    fun convertFunction(function: FuncContext): Function = function.toAST()
-    fun convertStatement(statement: StatContext): Statement = statement.toAST()
     fun convertExpression(expression: ExprContext): Expression = expression.toAST()
 
     /** ParserRuleContext Extension methods **/

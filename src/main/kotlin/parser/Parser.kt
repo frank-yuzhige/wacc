@@ -38,18 +38,6 @@ class Parser(private val inputStream: InputStream,
         return RuleContextConverter().convertProgram(program)
     }
 
-    fun parseFunction(): Function {
-        val function = runParser().func()
-        throwsPotentialErrors()
-        return RuleContextConverter().convertFunction(function)
-    }
-
-    fun parseStatement(): Statement {
-        val statement = runParser().stat()
-        throwsPotentialErrors()
-        return RuleContextConverter().convertStatement(statement)
-    }
-
     fun parseExpression(): Expression {
         val expression = runParser().expr()
         throwsPotentialErrors()

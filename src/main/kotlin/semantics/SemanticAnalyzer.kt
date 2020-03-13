@@ -23,7 +23,7 @@ import exceptions.SemanticException.*
 import utils.*
 import java.util.*
 
-class SemanticAnalyzer() {
+class SemanticAnalyzer {
     val symbolTable = SymbolTable()
     private val treeStack: Deque<WaccAST> = ArrayDeque()
     private val errorLog: MutableList<String> = arrayListOf()

@@ -239,10 +239,6 @@ class SymbolTable {
 
     fun lookupType(type: NewType): TypeAttributes? = typedefs[type.name]
 
-    fun findConstructorType(constructor: String): NewType? = lookupFunc(constructor)?.type?.retType as? NewType
-
-    fun dumpTable(): String = "${getFuncTable()}\n${getVarTable()}"
-
     fun dump() {
         println(getVarTable())
         println(getFuncTable())

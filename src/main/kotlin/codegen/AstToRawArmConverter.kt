@@ -19,6 +19,7 @@ import ast.Type.Companion.charType
 import ast.Type.Companion.intType
 import ast.Type.Companion.stringType
 import ast.UnaryOperator.*
+import codegen.GroundFunction.Companion.groundBy
 import codegen.PreludeFunc.*
 import codegen.arm.*
 import codegen.arm.DirectiveType.LTORG
@@ -461,7 +462,7 @@ class AstToRawArmConverter(val ast: ProgramAST, private val symbolTable: SymbolT
             val def = ast.functions.firstOrNull { it.name == fname }  // top-level normal function
                     ?: symbolTable.findTraitFuncDef(fname, actualFuncType)     // trait impl
             // normal function
-            groundFunctionList += GroundFunction(def, actualFuncType)
+            groundFunctionList += def groundBy actualFuncType
             funcLabelMap[labelName] = Label(labelName)
             return Label(labelName)
         }

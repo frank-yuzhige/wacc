@@ -13,7 +13,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.math.RoundingMode
-import kotlin.math.round
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
@@ -88,24 +87,30 @@ fun main(args: Array<String>) {
         File(filePath).nameWithoutExtension + ".s"
     }
 
-    println("===========")
-    println(ast.prettyPrint())
-    sa.symbolTable.dump()
-    println("===========")
-    var originalAst = ast.copy()
+    if(debug) {
+        println("===========")
+        println(ast.prettyPrint())
+        sa.symbolTable.dump()
+        println("===========")
+    }
+    val originalAst = ast.copy()
     if (optLevel >= 0) {
         val astOptimizer = AstOptimizer(optLevel)
         ast = astOptimizer.doOptimize(ast)
     }
     val arm = AstToRawArmConverter(ast, sa.symbolTable).translate().export()
     var betterArm = RegisterAllocator(arm).run()
-    println("=== Improved ARM ===")
-    println(betterArm.printWithIndex())
+    if (debug) {
+        println("=== Improved ARM ===")
+        println(betterArm.printWithIndex())
+    }
     if (optLevel > 1) {
         val armOptimizer = ArmOptimizer()
         betterArm = armOptimizer.doOptimize(betterArm)
-        println("\n=== Code After Peephole Optimization ===")
-        println(betterArm.printWithIndex())
+        if(debug) {
+            println("\n=== Code After Peephole Optimization ===")
+            println(betterArm.printWithIndex())
+        }
     }
     if (optLevel >= 0) {
         var originalArm = AstToRawArmConverter(originalAst, sa.symbolTable).translate().export()
@@ -117,9 +122,11 @@ fun main(args: Array<String>) {
             block, total -> block.getInstrCount() + total
         })
         val lineReductionCount = originalLineCount - optimizedLineCount
-        println("Reduced a total of $lineReductionCount lines of code")
-        println("Optimization rate:" + "${(lineReductionCount / originalLineCount.toDouble())
-                .toBigDecimal().setScale(3, RoundingMode.HALF_EVEN)}")
+        if(debug) {
+            println("Reduced a total of $lineReductionCount lines of code")
+            println("Optimization rate:" + "${(lineReductionCount / originalLineCount.toDouble())
+                    .toBigDecimal().setScale(3, RoundingMode.HALF_EVEN)}")
+        }
     }
     val output = File(asmPath)
     output.writeText(betterArm.toString())

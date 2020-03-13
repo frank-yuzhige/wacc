@@ -13,11 +13,7 @@ class LiveRange(firstDef: Int) {
 
     fun lastUsage(): Int = uses.lastOrNull() ?: defs.last()
 
-    fun nextUsage(now: Int): Int = uses.first { it > now }
-
     fun firstDef(): Int = defs.first()
-
-    fun isUsedAt(index: Int) = (uses + defs).contains(index)
 
     fun isNotUsedDuring(other: LiveRange): Boolean {
         return (defs + uses).all { it < other.firstDef() || it > other.lastUsage() }
