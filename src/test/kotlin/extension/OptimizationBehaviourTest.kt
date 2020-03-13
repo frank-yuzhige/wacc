@@ -33,7 +33,7 @@ class OptimizationBehaviourTest {
     private fun runAllTests(optLevel: Int) {
         var correctCount = 0
         var totalCount = 0
-        File("src/test/resources/valid/IO/IOLoop.wacc").walkTopDown()
+        File("src/test/resources/valid/").walkTopDown()
                 .filter { it.extension == "wacc" }
                 .filterNot { it in excludedFiles() }
                 .forEach { testFile ->
